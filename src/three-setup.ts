@@ -1,12 +1,18 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import Stats from 'stats.js';
+
+// Statsを初期化
+export const stats = new Stats();
+stats.showPanel(0);
+document.body.appendChild(stats.dom);
 
 // --- シーン ---
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf0f0f0);
 
 // --- カメラ ---
-const frustumSize = 40;
+const frustumSize = 50;
 const aspect = window.innerWidth / window.innerHeight;
 
 export const camera = new THREE.OrthographicCamera(
@@ -18,7 +24,7 @@ export const camera = new THREE.OrthographicCamera(
   1000                       // far
 );
 camera.position.set(10, 15, 25);
-camera.lookAt(0, 10, 0);
+camera.lookAt(0, 0, 0);
 
 // --- レンダラー ---
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -26,17 +32,16 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-// --- DOMへの追加 ---
 const app = document.querySelector<HTMLDivElement>('#app');
 if (app) {
   app.appendChild(renderer.domElement);
 }
 
 // --- ライト ---
-const ambientLight = new THREE.AmbientLight(0xa0a0a0);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
 scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
 directionalLight.position.set(15, 25, 15);
 directionalLight.target.position.set(0, 10, 0);
 directionalLight.castShadow = true;
@@ -56,9 +61,13 @@ controls.update();
 
 // --- アニメーションループ ---
 function animate() {
+  stats.begin();
+
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
+
+  stats.end();
 }
 animate(); // ループを開始
 

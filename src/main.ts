@@ -10,7 +10,7 @@ let leafMesh: THREE.InstancedMesh | null = null;
 
 const params = {
   premise: 'X(10, 0.2)',
-  generations: 8,
+  generations: 7,
   angle: 30.0,
   angleVariance: 10.0,
   turn: 137.5,
@@ -18,9 +18,9 @@ const params = {
   scale: 0.7,
   branchColor: '#8B4513',
   leafColor: '#228B22',
-  leafSize: 0.5,
+  leafSize: 1,
   ruleXDisplay: "", 
-  ruleFDisplay: "No rule",
+  ruleFDisplay: "",
 };
 
 const vary = (base: number, variance: number) => {
@@ -133,24 +133,24 @@ function regenerateLSystem() {
 // GUI
 const gui = new GUI();
 
-const setupFolder = gui.addFolder('Setup');
-setupFolder.add(params, 'premise').name('Premise').onFinishChange(regenerateLSystem);
-setupFolder.add(params, 'generations', 0, 12, 0.1).name('Generations').onFinishChange(regenerateLSystem);
+const setupFolder = gui.addFolder('基本設定');
+setupFolder.add(params, 'premise').name('初期状態').onFinishChange(regenerateLSystem);
+setupFolder.add(params, 'generations', 0, 14, 0.1).name('世代数').onFinishChange(regenerateLSystem);
 setupFolder.open();
 
-const paramsFolder = gui.addFolder('Global Params (p.)');
-paramsFolder.add(params, 'angle', 0, 90, 0.1).name('p.angle (Pitch)').onChange(updateRuleDisplay)  .onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'angleVariance', 0, 45).name('p.angle (Variance)').onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'turn', 0, 180, 0.1).name('p.turn (Twist)').onChange(updateRuleDisplay).onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'turnVariance', 0, 90).name('p.turn (Variance)').onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'scale', 0.5, 1.0, 0.01).name('p.scale').onChange(updateRuleDisplay).onFinishChange(regenerateLSystem);
-paramsFolder.addColor(params, 'branchColor').name('Branch Color').onFinishChange(regenerateLSystem);
-paramsFolder.addColor(params, 'leafColor').name('Leaf Color').onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'leafSize', 0.1, 2.0, 0.01).name('Leaf Size').onChange(updateRuleDisplay).onFinishChange(regenerateLSystem);
+const paramsFolder = gui.addFolder('パラメーター設定');
+paramsFolder.add(params, 'angle', 0, 90, 0.1).name('角度').onChange(updateRuleDisplay)  .onFinishChange(regenerateLSystem);
+paramsFolder.add(params, 'angleVariance', 0, 45, 0.1).name('角度 (偏差)').onFinishChange(regenerateLSystem);
+paramsFolder.add(params, 'turn', 0, 180, 0.1).name('ひねり').onChange(updateRuleDisplay).onFinishChange(regenerateLSystem);
+paramsFolder.add(params, 'turnVariance', 0, 90, 0.1).name('ひねり (偏差)').onFinishChange(regenerateLSystem);
+paramsFolder.add(params, 'scale', 0.5, 1.0, 0.01).name('成長率').onChange(updateRuleDisplay).onFinishChange(regenerateLSystem);
+paramsFolder.addColor(params, 'branchColor').name('幹の色').onFinishChange(regenerateLSystem);
+paramsFolder.addColor(params, 'leafColor').name('葉の色').onFinishChange(regenerateLSystem);
+paramsFolder.add(params, 'leafSize', 0, 5, 0.1).name('葉のサイズ').onChange(updateRuleDisplay).onFinishChange(regenerateLSystem);
 paramsFolder.open();
 
-const rulesFolder = gui.addFolder('Active Rules (Display Only)');
-ruleXController = rulesFolder.add(params, 'ruleXDisplay').name('Rule: X').disable();
+const rulesFolder = gui.addFolder('実行中のルール (変更不可)');
+ruleXController = rulesFolder.add(params, 'ruleXDisplay').name('ルールX').disable();
 
 const textarea = document.createElement('textarea');
 textarea.value = params.ruleXDisplay;
@@ -164,7 +164,7 @@ const inputElement = (ruleXController as any).$input as HTMLInputElement;
 inputElement.parentNode?.replaceChild(textarea, inputElement);
 (ruleXController as any).$input = textarea;
 
-rulesFolder.add(params, 'ruleFDisplay').name('Rule: F').disable();
+rulesFolder.add(params, 'ruleFDisplay').name('ルールF').disable();
 rulesFolder.open();
 
 // gui.add({ generate: regenerateLSystem }, 'generate').name('Generate Plant');
