@@ -8,18 +8,18 @@ import * as THREE from 'three';
 
 /**
  * 葉脈用のシンプルなL-system文字列を生成する
- * @param axiom 公理
+ * @param premise 公理
  * @param rules 規則
- * @param iterations 繰り返し回数
+ * @param generations 繰り返し回数
  * @returns L-system文字列
  */
 function generateLeafString(
-  axiom: string,
+  premise: string,
   rules: { [key: string]: string },
-  iterations: number
+  generations: number
 ): string {
-  let currentString = axiom;
-  for (let i = 0; i < iterations; i++) {
+  let currentString = premise;
+  for (let i = 0; i < generations; i++) {
     let nextString = '';
     for (const char of currentString) {
       nextString += rules[char] || char;
@@ -41,23 +41,23 @@ export function createLeafGeometry(): THREE.BufferGeometry {
   
   // 1. 葉脈のL-systemルールを定義
   const leafParams = {
-    axiom: 'X',
+    premise: 'X',
     rules: {
       // X: 成長点 (描画しない)
       // F: 枝 (描画する)
       'X': 'F[+X]F[-X][X]',
       'F': 'FF'
     },
-    iterations: 4, // 葉脈の複雑さ
+    generations: 4, // 葉脈の複雑さ
     angle: 25,   // 葉脈の分岐角度
     length: 0.1,   // 葉脈の基本長
   };
 
   // 2. L-system文字列を生成
   const lSystemString = generateLeafString(
-    leafParams.axiom,
+    leafParams.premise,
     leafParams.rules,
-    leafParams.iterations
+    leafParams.generations
   );
 
   // 3. 2Dタートルで解釈

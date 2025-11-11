@@ -6,11 +6,16 @@ export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf0f0f0);
 
 // --- カメラ ---
-export const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
+const frustumSize = 40;
+const aspect = window.innerWidth / window.innerHeight;
+
+export const camera = new THREE.OrthographicCamera(
+  frustumSize * aspect / -2, // left
+  frustumSize * aspect / 2,  // right
+  frustumSize / 2,           // top
+  frustumSize / -2,          // bottom
+  -100,                       // near
+  1000                       // far
 );
 camera.position.set(10, 15, 25);
 camera.lookAt(0, 10, 0);
@@ -18,6 +23,8 @@ camera.lookAt(0, 10, 0);
 // --- レンダラー ---
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 // --- DOMへの追加 ---
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -26,11 +33,21 @@ if (app) {
 }
 
 // --- ライト ---
-const ambientLight = new THREE.AmbientLight(0x606060);
+const ambientLight = new THREE.AmbientLight(0xa0a0a0);
 scene.add(ambientLight);
+
 const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(1, 1, 0.5).normalize();
+directionalLight.position.set(15, 25, 15);
+directionalLight.target.position.set(0, 10, 0);
+directionalLight.castShadow = true;
+directionalLight.shadow.camera.top = 20;
+directionalLight.shadow.camera.bottom = -20;
+directionalLight.shadow.camera.left = -20;
+directionalLight.shadow.camera.right = 20;
+directionalLight.shadow.mapSize.width = 2048;
+directionalLight.shadow.mapSize.height = 2048;
 scene.add(directionalLight);
+scene.add(directionalLight.target);
 
 // --- コントロール ---
 export const controls = new OrbitControls(camera, renderer.domElement);
@@ -47,7 +64,12 @@ animate(); // ループを開始
 
 // --- リサイズ対応 ---
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  const aspect = window.innerWidth / window.innerHeight;
+  camera.left = frustumSize * aspect / -2;
+  camera.right = frustumSize * aspect / 2;
+  camera.top = frustumSize / 2;
+  camera.bottom = frustumSize / -2;
+
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });

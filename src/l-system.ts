@@ -31,14 +31,14 @@ function parseParameters(
 }
 
 export function generateLSystemString(
-  axiom: string,
+  premise: string,
   rules: { [key: string]: (...args: any[]) => string },
-  iterations: number,
+  generations: number,
   globalParams: any
 ): string {
-  let currentString = axiom;
+  let currentString = premise;
 
-  for (let i = 0; i < iterations; i++) {
+  for (let i = 0; i < generations; i++) {
     let nextString = '';
     let j = 0;
     
@@ -75,8 +75,7 @@ export function createLSystem3D(
   defaultLength: number,
   defaultWidth: number,
   branchColor: THREE.ColorRepresentation,
-  leafColor: THREE.ColorRepresentation,
-  leafSize: number
+  leafInstanceList: THREE.Matrix4[]
 ): THREE.Group {
   const plant = new THREE.Group();
   const turtle = new THREE.Object3D();
@@ -85,10 +84,8 @@ export function createLSystem3D(
   const branchMaterial = new THREE.MeshStandardMaterial({
     color: branchColor
   });
-  const leafMaterial = new THREE.MeshStandardMaterial({
-    color: leafColor,
-    side: THREE.DoubleSide
-  });
+
+  const leafDummy = new THREE.Object3D();
 
   let i = 0;
   while (i < lSystemString.length) {
@@ -107,6 +104,8 @@ export function createLSystem3D(
         const branchGeometry = new THREE.CylinderGeometry(width, width, length, 8);
         const branchMesh = new THREE.Mesh(branchGeometry, branchMaterial);
         branchMesh.position.set(0, length / 2, 0);
+        branchMesh.castShadow = true;
+        branchMesh.receiveShadow = true;
         
         const container = new THREE.Object3D();
         container.add(branchMesh);
@@ -118,22 +117,18 @@ export function createLSystem3D(
         break;
       }
       case 'L': {
-        ({ values: params, nextIndex } = parseParameters(lSystemString, i + 1, [leafSize])); // デフォルトでleafSize
-        const size = params.length > 0 ? params[0] : leafSize; // L(size)のように指定できる
+        ({ values: params, nextIndex } = parseParameters(lSystemString, i + 1, [1.0]));
+        const scale = params[0];
         i = nextIndex;
 
-        const leafGeometry = new THREE.PlaneGeometry(size, size); // サイズは leafSize
+        leafDummy.position.copy(turtle.position);
+        leafDummy.quaternion.copy(turtle.quaternion);
+        leafDummy.scale.set(scale, scale, scale);
         
-        // 葉のメッシュ
-        const leafMesh = new THREE.Mesh(leafGeometry, leafMaterial); // leafMaterial を使う
-        leafMesh.position.copy(turtle.position); // タートルの現在位置に葉を配置
-        leafMesh.quaternion.copy(turtle.quaternion); // タートルの向きに葉を合わせる
+        leafDummy.translateY(scale * 0.5); // (leafSize / 2)
         
-        // 葉が枝から少し浮くように調整 (Y軸方向)
-        leafMesh.translateY(size / 2); // 葉の根元が枝に付くように
-        
-        plant.add(leafMesh);
-        
+        leafDummy.updateMatrix();
+        leafInstanceList.push(leafDummy.matrix.clone());
         break;
       }
       case 'f': {
