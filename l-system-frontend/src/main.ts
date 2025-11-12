@@ -9,6 +9,7 @@ let currentPlant: THREE.Group | null = null;
 let leafMesh: THREE.InstancedMesh | null = null;
 
 const params = {
+  prompt: '背の高い木',
   premise: 'X(10, 0.2)',
   generations: 7,
   angle: 30.0,
@@ -72,7 +73,41 @@ groundMesh.position.y = 0;
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
-function regenerateLSystem() {
+async function regenerateLSystem() {
+  
+  // --- 1. バックエンドにプロンプトを送信 ---
+  try {
+    console.log(`サーバーにプロンプト送信: ${params.prompt}`);
+    const response = await fetch('http://localhost:8000/generate-params', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt: params.prompt }), // { "prompt": "..." } を送信
+    });
+    
+    if (!response.ok) {
+      throw new Error(`サーバーエラー: ${response.statusText}`);
+    }
+    
+    // サーバーから返ってきたJSONを取得
+    const serverParams = await response.json();
+    console.log("サーバーから受信:", serverParams);
+
+    // ★ サーバーのパラメータをローカルの params オブジェクトに上書き
+    params.premise = serverParams.premise;
+    params.generations = serverParams.generations;
+    params.angle = serverParams.angle;
+    params.turn = serverParams.turn;
+    params.scale = serverParams.scale;
+    params.leafSize = serverParams.leafSize;
+    
+  } catch (error) {
+    console.error("バックエンドとの通信に失敗:", error);
+    alert("バックエンドサーバーとの通信に失敗しました。コンソールを確認してください。");
+    return; // エラー時はL-system生成を中断
+  }
+  
   updateRuleDisplay();
   
   if (currentPlant) {
@@ -133,20 +168,22 @@ function regenerateLSystem() {
 // GUI
 const gui = new GUI();
 
+gui.add(params, 'prompt').name('生成したいものを入力');
+
 const setupFolder = gui.addFolder('基本設定');
-setupFolder.add(params, 'premise').name('初期状態').onFinishChange(regenerateLSystem);
-setupFolder.add(params, 'generations', 0, 14, 0.1).name('世代数').onFinishChange(regenerateLSystem);
+setupFolder.add(params, 'premise').name('初期状態').listen();
+setupFolder.add(params, 'generations', 0, 14, 0.1).name('世代数').listen();
 setupFolder.open();
 
 const paramsFolder = gui.addFolder('パラメーター設定');
-paramsFolder.add(params, 'angle', 0, 90, 0.1).name('角度').onChange(updateRuleDisplay)  .onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'angleVariance', 0, 45, 0.1).name('角度 (偏差)').onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'turn', 0, 180, 0.1).name('ひねり').onChange(updateRuleDisplay).onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'turnVariance', 0, 90, 0.1).name('ひねり (偏差)').onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'scale', 0.5, 1.0, 0.01).name('成長率').onChange(updateRuleDisplay).onFinishChange(regenerateLSystem);
-paramsFolder.addColor(params, 'branchColor').name('幹の色').onFinishChange(regenerateLSystem);
-paramsFolder.addColor(params, 'leafColor').name('葉の色').onFinishChange(regenerateLSystem);
-paramsFolder.add(params, 'leafSize', 0, 5, 0.1).name('葉のサイズ').onChange(updateRuleDisplay).onFinishChange(regenerateLSystem);
+paramsFolder.add(params, 'angle', 0, 90, 0.1).name('角度').onChange(updateRuleDisplay).listen();
+paramsFolder.add(params, 'angleVariance', 0, 45, 0.1).name('角度 (偏差)').listen();
+paramsFolder.add(params, 'turn', 0, 180, 0.1).name('ひねり').onChange(updateRuleDisplay).listen();
+paramsFolder.add(params, 'turnVariance', 0, 90, 0.1).name('ひねり (偏差)').listen();
+paramsFolder.add(params, 'scale', 0.5, 1.0, 0.01).name('成長率').onChange(updateRuleDisplay).listen();
+paramsFolder.addColor(params, 'branchColor').name('幹の色').listen();
+paramsFolder.addColor(params, 'leafColor').name('葉の色').listen();
+paramsFolder.add(params, 'leafSize', 0, 5, 0.1).name('葉のサイズ').onChange(updateRuleDisplay).listen();
 paramsFolder.open();
 
 const rulesFolder = gui.addFolder('実行中のルール (変更不可)');
@@ -167,7 +204,7 @@ inputElement.parentNode?.replaceChild(textarea, inputElement);
 rulesFolder.add(params, 'ruleFDisplay').name('ルールF').disable();
 rulesFolder.open();
 
-// gui.add({ generate: regenerateLSystem }, 'generate').name('Generate Plant');
+gui.add({ generate: regenerateLSystem }, 'generate').name('モデルを生成');
 
 updateRuleDisplay();
 regenerateLSystem();
