@@ -104,8 +104,8 @@ async function regenerateLSystem() {
     
   } catch (error) {
     console.error("バックエンドとの通信に失敗:", error);
-    alert("バックエンドサーバーとの通信に失敗しました。コンソールを確認してください。");
-    return; // エラー時はL-system生成を中断
+    alert("バックエンドとの通信に失敗しました。コンソールを確認してください。");
+    return;
   }
   
   updateRuleDisplay();

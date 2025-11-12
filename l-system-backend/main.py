@@ -23,7 +23,7 @@ class PromptRequest(BaseModel):
 
 class LSystemParams(BaseModel):
     premise: str
-    generations: int
+    generations: float
     angle: float
     turn: float
     scale: float
@@ -36,10 +36,10 @@ async def generate_params(request: PromptRequest):
     
     # ダミーのロジック
     if "背の高い木" in request.prompt or "many" in request.prompt:
-        gen = 8
+        gen = 8.5
         scale = 0.8
     else:
-        gen = 5
+        gen = 5.0
         scale = 0.7
         
     return LSystemParams(
