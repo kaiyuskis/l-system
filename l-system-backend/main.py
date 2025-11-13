@@ -5,6 +5,7 @@ import torch
 from transformers import pipeline
 import json
 import re
+import datetime
 
 print("AIモデルを読み込み中...")
 
@@ -91,7 +92,8 @@ def extract_json_from_response(text: str) -> str | None:
 @app.post("/generate-params", response_model=LSystemParams)
 async def generate_params(request: PromptRequest):
     
-    print(f"\n--- リクエスト受信 ---")
+    start_time = datetime.datetime.now()
+    print(f"\n--- リクエスト受信 ({start_time.strftime('%Y-%m-%d %H:%M:%S')}) ---")
     print(f"プロンプト: {request.prompt}")
     
     if llm_pipeline is None:
@@ -113,19 +115,28 @@ async def generate_params(request: PromptRequest):
     ]
     
     try:
-        print("ステップ1/3: AI推論を開始します... (時間がかかります)")
-        outputs = llm_pipeline(
-            messages,
-            max_new_tokens=256,
-            eos_token_id=llm_pipeline.tokenizer.eos_token_id,
-            do_sample=True,
-            temperature=0.3,
-            top_p=0.9,
-        )
+        inference_start_time = datetime.datetime.now()
+        print(f"ステップ1/3: AI推論を開始... ({inference_start_time.strftime('%H:%M:%S')})")
         
-        ai_response_text = outputs[0]['generated_text']
-        print("ステップ2/3: AI推論が完了しました。")
+        try:
+            outputs = llm_pipeline(
+                messages,
+                max_new_tokens=256,
+                eos_token_id=llm_pipeline.tokenizer.eos_token_id,
+                do_sample=True,
+                temperature=0.3,
+                top_p=0.9,
+            )
+        except KeyboardInterrupt:
+            print("\n[中断] AI推論が Ctrl+C によりキャンセル")
+            raise
         
+        inference_end_time = datetime.datetime.now()
+        inference_duration = (inference_end_time - inference_start_time).total_seconds()
+        print(f"ステップ2/3: AI推論が完了({inference_end_time.strftime('%H:%M:%S')})")
+        print(f" (推論所要時間: {inference_duration:.2f} 秒)")
+        
+        ai_response_text = outputs[0]['generated_text'][-1]["content"]
         print(f"AIの応答:\n{ai_response_text}")
         
         json_str = extract_json_from_response(ai_response_text)
@@ -133,12 +144,27 @@ async def generate_params(request: PromptRequest):
             raise ValueError("AIがJSONを返しませんでした")
         
         params_dict = json.loads(json_str)
-        print("ステップ3/3: JSONのパースに成功しました。")
+        print("ステップ3/3: JSONのパースに成功")
         
         response_data = LSystemParams(**params_dict)
-        print(f"--- レスポンス送信 ---")
+        
+        total_duration = (datetime.datetime.now() - start_time).total_seconds()
+        print(f"--- レスポンス送信 (総所要時間: {total_duration:.2f} 秒)---")
+        
         return response_data
         
+    except KeyboardInterrupt:
+        print("\n[中断] リクエスト処理がキャンセルされました。")
+        
+        return LSystemParams(
+            premise="X(10, 0.2)", 
+            angle=30.0, 
+            turn=137.5, 
+            scale=0.7, 
+            leafSize=0.5, 
+            branchColor="#8B4513", 
+            leafColor="#228B22")
+    
     except Exception as e:
         print(f"AI処理エラー: {e}")
         
