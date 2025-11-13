@@ -8,7 +8,10 @@ let ruleXController: import('lil-gui').Controller;
 let currentPlant: THREE.Group | null = null;
 let leafMesh: THREE.InstancedMesh | null = null;
 
+const loadingOverlay = document.getElementById('loading-overlay');
+
 const params = {
+  useAI: false,
   prompt: '背の高い木',
   premise: 'X(10, 0.2)',
   generations: 7,
@@ -74,108 +77,120 @@ groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
 async function regenerateLSystem() {
+
+  if (loadingOverlay) {
+    loadingOverlay.style.display = 'flex';
+  }
   
   // --- 1. バックエンドにプロンプトを送信 ---
   try {
-    console.log(`サーバーにプロンプト送信: ${params.prompt}`);
-    const response = await fetch('http://localhost:8000/generate-params', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ prompt: params.prompt }), // { "prompt": "..." } を送信
-    });
-    
-    if (!response.ok) {
-      throw new Error(`サーバーエラー: ${response.statusText}`);
+    if (params.useAI) {
+      console.log(`サーバーにプロンプト送信: ${params.prompt}`);
+      const response = await fetch('http://localhost:8000/generate-params', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: params.prompt }), // { "prompt": "..." } を送信
+      });
+      
+      if (!response.ok) {
+        throw new Error(`サーバーエラー: ${response.statusText}`);
+      }
+      
+      // サーバーから返ってきたJSONを取得
+      const serverParams = await response.json();
+      console.log("サーバーから受信:", serverParams);
+
+      // サーバーのパラメータをローカルの params オブジェクトに上書き
+      params.premise = serverParams.premise;
+      params.generations = serverParams.generations;
+      params.angle = serverParams.angle;
+      params.turn = serverParams.turn;
+      params.scale = serverParams.scale;
+      params.leafSize = serverParams.leafSize;
+      params.branchColor = serverParams.branchColor;
+      params.leafColor = serverParams.leafColor;
     }
+
+    updateRuleDisplay();
     
-    // サーバーから返ってきたJSONを取得
-    const serverParams = await response.json();
-    console.log("サーバーから受信:", serverParams);
+    if (currentPlant) {
+      scene.remove(currentPlant);
+    }
+    if (leafMesh) {
+      scene.remove(leafMesh);
+      leafMesh.dispose();
+    }
 
-    // ★ サーバーのパラメータをローカルの params オブジェクトに上書き
-    params.premise = serverParams.premise;
-    params.generations = serverParams.generations;
-    params.angle = serverParams.angle;
-    params.turn = serverParams.turn;
-    params.scale = serverParams.scale;
-    params.leafSize = serverParams.leafSize;
-    
-  } catch (error) {
-    console.error("バックエンドとの通信に失敗:", error);
-    alert("バックエンドとの通信に失敗しました。コンソールを確認してください。");
-    return;
-  }
-  
-  updateRuleDisplay();
-  
-  if (currentPlant) {
-    scene.remove(currentPlant);
-  }
-  if (leafMesh) {
-    scene.remove(leafMesh);
-    leafMesh.dispose();
-  }
+    const rules = hardcodedRules;
+    const leafMatrices: THREE.Matrix4[] = [];
 
-  const rules = hardcodedRules;
-  const leafMatrices: THREE.Matrix4[] = [];
-
-  console.time('L-System Generation');
-  const lSystemString = generateLSystemString(
-    params.premise,
-    rules,
-    params.generations,
-    params
-  );
-  console.timeEnd('L-System Generation');
-
-  console.time('Branch Interpretation');
-  currentPlant = createLSystem3D(
-    lSystemString,
-    params.angle,
-    1.0,
-    0.1,
-    params.branchColor,
-    leafMatrices
-  );
-  console.timeEnd('Branch Interpretation');
-  scene.add(currentPlant);
-
-  if (leafMatrices.length > 0) {
-    console.time('Leaf Instancing');
-
-    leafPrototypeMat.color.set(params.leafColor);
-
-    leafMesh = new THREE.InstancedMesh(
-      leafPrototypeGeo,
-      leafPrototypeMat,
-      leafMatrices.length
+    console.time('L-System Generation');
+    const lSystemString = generateLSystemString(
+      params.premise,
+      rules,
+      params.generations,
+      params
     );
+    console.timeEnd('L-System Generation');
 
-    for (let i = 0; i < leafMatrices.length; i++) {
-      leafMesh.setMatrixAt(i, leafMatrices[i]);
+    console.time('Branch Interpretation');
+    currentPlant = createLSystem3D(
+      lSystemString,
+      params.angle,
+      1.0,
+      0.1,
+      params.branchColor,
+      leafMatrices
+    );
+    console.timeEnd('Branch Interpretation');
+    scene.add(currentPlant);
+
+    if (leafMatrices.length > 0) {
+      console.time('Leaf Instancing');
+
+      leafPrototypeMat.color.set(params.leafColor);
+
+      leafMesh = new THREE.InstancedMesh(
+        leafPrototypeGeo,
+        leafPrototypeMat,
+        leafMatrices.length
+      );
+
+      for (let i = 0; i < leafMatrices.length; i++) {
+        leafMesh.setMatrixAt(i, leafMatrices[i]);
+      }
+
+      leafMesh.castShadow = true;
+      leafMesh.receiveShadow = true;
+      scene.add(leafMesh);
+      console.timeEnd('Leaf Instancing');
     }
-
-    leafMesh.castShadow = true;
-    leafMesh.receiveShadow = true;
-    
-    scene.add(leafMesh);
-    console.timeEnd('Leaf Instancing');
+  } catch (error) {
+    console.error('処理エラー:', error);
+    alert('バックエンドサーバーとの通信に失敗しました。コンソールを確認してください。');
+  } finally {
+    if (loadingOverlay) {
+      loadingOverlay.style.display = 'none';
+    }
   }
 }
 
 // GUI
 const gui = new GUI();
 
-gui.add(params, 'prompt').name('生成したいものを入力');
+const aiFolder = gui.addFolder('AI設定');
+aiFolder.add(params, 'useAI').name('AIを使用する');
+aiFolder.add(params, 'prompt').name('生成したいものを入力');
+aiFolder.open();
 
 const setupFolder = gui.addFolder('基本設定');
 setupFolder.add(params, 'premise').name('初期状態').listen();
-setupFolder.add(params, 'generations', 0, 14, 0.1).name('世代数').listen();
+setupFolder.add(params, 'generations', 0, 14, 1).name('世代数').listen();
 setupFolder.open();
 
-const paramsFolder = gui.addFolder('パラメーター設定');
+const paramsFolder = gui.addFolder('全体設定');
 paramsFolder.add(params, 'angle', 0, 90, 0.1).name('角度').onChange(updateRuleDisplay).listen();
 paramsFolder.add(params, 'angleVariance', 0, 45, 0.1).name('角度 (偏差)').listen();
 paramsFolder.add(params, 'turn', 0, 180, 0.1).name('ひねり').onChange(updateRuleDisplay).listen();

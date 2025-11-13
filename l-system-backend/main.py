@@ -7,18 +7,21 @@ import json
 import re
 
 print("AIモデルを読み込み中...")
+
 try:
+    model_id = "microsoft/Phi-3-mini-4k-instruct"
+    
     llm_pipeline = pipeline(
         "text-generation",
-        model="microsoft/Phi-3-mini-4k-instruct",
+        model=model_id,
         model_kwargs={"torch_dtype": "auto"},
-        device_map="auto"
+        device="cuda" if torch.cuda.is_available() else "cpu",
     )
     print("AIモデルの読み込み完了")
+    
 except Exception as e:
     print(f"AIモデルの読み込みに失敗しました: {e}")
     llm_pipeline = None
-    
     
 app = FastAPI()
 
@@ -40,11 +43,13 @@ class PromptRequest(BaseModel):
 
 class LSystemParams(BaseModel):
     premise: str
-    generations: float
+    generations: int
     angle: float
     turn: float
     scale: float
     leafSize: float
+    branchColor: str
+    leafColor: str
 
 # システムプロンプト
 SYSTEM_PROMPT = """
@@ -59,6 +64,8 @@ JSON形式の例:
     "turn": 137.5,
     "scale": 0.7,
     "leafSize": 0.5
+    "branchColor": "#8B4513",
+    "leafColor": "#228B22"
 }
 
 ルール:
@@ -68,13 +75,18 @@ JSON形式の例:
 - 「turn」: 常に 137.5 にしてください。
 - 「scale」: プロンプトが「枝が多い」「密」なら 0.7〜0.8、「スカスカ」「まばら」なら 0.5〜0.6。
 - 「leafSize」: プロンプトが「葉が大きい」なら 0.7〜1.0、「葉が小さい」なら 0.3〜0.5。
+- 「branchColor」: ほとんどの場合、茶色 ("#8B4513") にしてください。
+- 「generations」: 「大きい」「背が高い」なら 6〜7、「小さい」なら 4〜5。
 
-ユーザーのプロンプトを解釈し、最適なパラメータをJSON形式で出力してください。
+★ 特別なルール:
+- 「桜」や「cherry blossom」: `leafColor` をピンク色 (例: "#FFC0CB") にし、`angle` を広め (30-40) にしてください。
+- 「もみじ」や「紅葉」「maple」: `leafColor` を赤色 (例: "#FF4500") か オレンジ色 ("#FFA500") にし、`generations` を多め (6) にしてください。
+- 「枯れ木」や「dead tree」: `leafSize` を 0.0 にし、`branchColor` を暗い茶色 ("#5C4033") にしてください。
 """
 
 # JSON部分を抽出する関数
 def extract_json_from_response(text: str) -> str | None:
-    match = re.search(r"\{.*\}", text, re.DOTALL)
+    match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
     if match:
         return match.group(0)
     return None
@@ -82,6 +94,9 @@ def extract_json_from_response(text: str) -> str | None:
 # APIエンドポイント
 @app.post("/generate-params", response_model=LSystemParams)
 async def generate_params(request: PromptRequest):
+    
+    print(f"\n--- リクエスト受信 ---")
+    print(f"プロンプト: {request.prompt}")
     
     if llm_pipeline is None:
         print("AIモデルが利用できません")
@@ -92,17 +107,18 @@ async def generate_params(request: PromptRequest):
             angle=30.0,
             turn=137.5,
             scale=0.7,
-            leafSize=0.5
+            leafSize=0.5,
+            branchColor="#8B4513",
+            leafColor="#228B22",
         )
-        
-    print(f"AIがプロンプトを処理中: {request.prompt}")
     
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": request.prompt}
+        {"role": "user", "content": request.prompt},
     ]
     
     try:
+        print("ステップ1/3: AI推論を開始します... (時間がかかります)")
         outputs = llm_pipeline(
             messages,
             max_new_tokens=256,
@@ -113,18 +129,21 @@ async def generate_params(request: PromptRequest):
         )
         
         ai_response_text = outputs[0]['generated_text'][-1]["content"]
+        print("ステップ2/3: AI推論が完了しました。")
         
         print(f"AIの応答:\n{ai_response_text}")
         
         json_str = extract_json_from_response(ai_response_text)
-        
         if not json_str:
             raise ValueError("AIがJSONを返しませんでした")
         
         params_dict = json.loads(json_str)
+        print("ステップ3/3: JSONのパースに成功しました。")
         
-        return LSystemParams(**params_dict)
-    
+        response_data = LSystemParams(**params_dict)
+        print(f"--- レスポンス送信 ---")
+        return response_data
+        
     except Exception as e:
         print(f"AI処理エラー: {e}")
         
@@ -134,5 +153,7 @@ async def generate_params(request: PromptRequest):
             angle=30.0,
             turn=137.5,
             scale=0.7,
-            leafSize=0.5
+            leafSize=0.5,
+            branchColor="#8B4513",
+            leafColor="#228B22",
         )

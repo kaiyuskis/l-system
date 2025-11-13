@@ -42,13 +42,13 @@ const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
 scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-directionalLight.position.set(15, 25, 15);
+directionalLight.position.set(15, 30, 15);
 directionalLight.target.position.set(0, 10, 0);
 directionalLight.castShadow = true;
-directionalLight.shadow.camera.top = 20;
-directionalLight.shadow.camera.bottom = -20;
-directionalLight.shadow.camera.left = -20;
-directionalLight.shadow.camera.right = 20;
+directionalLight.shadow.camera.top = 50;
+directionalLight.shadow.camera.bottom = -50;
+directionalLight.shadow.camera.left = -50;
+directionalLight.shadow.camera.right = 50;
 directionalLight.shadow.mapSize.width = 2048;
 directionalLight.shadow.mapSize.height = 2048;
 scene.add(directionalLight);
