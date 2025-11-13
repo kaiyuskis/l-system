@@ -14,7 +14,7 @@ const params = {
   useAI: false,
   prompt: '背の高い木',
   premise: 'X(10, 0.2)',
-  generations: 7,
+  generations: 7.0,
   angle: 30.0,
   angleVariance: 10.0,
   turn: 137.5,
@@ -79,7 +79,9 @@ scene.add(groundMesh);
 async function regenerateLSystem() {
 
   if (loadingOverlay) {
-    loadingOverlay.style.display = 'flex';
+    if (params.useAI) {
+      loadingOverlay.style.display = 'flex';
+    }
   }
   
   // --- 1. バックエンドにプロンプトを送信 ---
@@ -104,7 +106,6 @@ async function regenerateLSystem() {
 
       // サーバーのパラメータをローカルの params オブジェクトに上書き
       params.premise = serverParams.premise;
-      params.generations = serverParams.generations;
       params.angle = serverParams.angle;
       params.turn = serverParams.turn;
       params.scale = serverParams.scale;
@@ -130,7 +131,7 @@ async function regenerateLSystem() {
     const lSystemString = generateLSystemString(
       params.premise,
       rules,
-      params.generations,
+      Math.floor(params.generations),
       params
     );
     console.timeEnd('L-System Generation');
@@ -167,9 +168,11 @@ async function regenerateLSystem() {
       scene.add(leafMesh);
       console.timeEnd('Leaf Instancing');
     }
+
   } catch (error) {
     console.error('処理エラー:', error);
     alert('バックエンドサーバーとの通信に失敗しました。コンソールを確認してください。');
+
   } finally {
     if (loadingOverlay) {
       loadingOverlay.style.display = 'none';
@@ -187,7 +190,7 @@ aiFolder.open();
 
 const setupFolder = gui.addFolder('基本設定');
 setupFolder.add(params, 'premise').name('初期状態').listen();
-setupFolder.add(params, 'generations', 0, 14, 1).name('世代数').listen();
+setupFolder.add(params, 'generations', 0, 12, 0.1).name('世代数').onChange(regenerateLSystem).listen();
 setupFolder.open();
 
 const paramsFolder = gui.addFolder('全体設定');

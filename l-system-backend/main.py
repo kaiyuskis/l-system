@@ -43,7 +43,6 @@ class PromptRequest(BaseModel):
 
 class LSystemParams(BaseModel):
     premise: str
-    generations: int
     angle: float
     turn: float
     scale: float
@@ -59,7 +58,6 @@ SYSTEM_PROMPT = """
 JSON形式の例:
 {
     "premise": "X(10, 0.2)",
-    "generations": 5,
     "angle": 30.0,
     "turn": 137.5,
     "scale": 0.7,
@@ -70,17 +68,15 @@ JSON形式の例:
 
 ルール:
 - 「premise」は常に "X(10, 0.2)" にしてください。
-- 「generations」: プロンプトが「大きい」「背が高い」「複雑」なら 6〜7、「小さい」「シンプル」なら 4〜5。
-- 「angle」: プロンプトが「広がっている」「開いている」なら 30〜40、「閉じている」「細い」なら 15〜25。
 - 「turn」: 常に 137.5 にしてください。
-- 「scale」: プロンプトが「枝が多い」「密」なら 0.7〜0.8、「スカスカ」「まばら」なら 0.5〜0.6。
-- 「leafSize」: プロンプトが「葉が大きい」なら 0.7〜1.0、「葉が小さい」なら 0.3〜0.5。
 - 「branchColor」: ほとんどの場合、茶色 ("#8B4513") にしてください。
-- 「generations」: 「大きい」「背が高い」なら 6〜7、「小さい」なら 4〜5。
+- 「angle」: 「広がっている」なら 30〜40、「閉じている」なら 15〜25。
+- 「scale」: 「枝が多い」「密」なら 0.7〜0.8、「まばら」なら 0.5〜0.6。
+- 「leafSize」: 「葉が大きい」なら 0.7〜1.0、「葉が小さい」なら 0.3〜0.5。
 
-★ 特別なルール:
+特別なルール:
 - 「桜」や「cherry blossom」: `leafColor` をピンク色 (例: "#FFC0CB") にし、`angle` を広め (30-40) にしてください。
-- 「もみじ」や「紅葉」「maple」: `leafColor` を赤色 (例: "#FF4500") か オレンジ色 ("#FFA500") にし、`generations` を多め (6) にしてください。
+- 「もみじ」や「紅葉」「maple」: `leafColor` を赤色 (例: "#FF4500") か オレンジ色 ("#FFA500") にしてください。
 - 「枯れ木」や「dead tree」: `leafSize` を 0.0 にし、`branchColor` を暗い茶色 ("#5C4033") にしてください。
 """
 
@@ -103,7 +99,6 @@ async def generate_params(request: PromptRequest):
         
         return LSystemParams(
             premise="X(10, 0.2)",
-            generations=5,
             angle=30.0,
             turn=137.5,
             scale=0.7,
@@ -128,7 +123,7 @@ async def generate_params(request: PromptRequest):
             top_p=0.9,
         )
         
-        ai_response_text = outputs[0]['generated_text'][-1]["content"]
+        ai_response_text = outputs[0]['generated_text']
         print("ステップ2/3: AI推論が完了しました。")
         
         print(f"AIの応答:\n{ai_response_text}")
@@ -149,7 +144,6 @@ async def generate_params(request: PromptRequest):
         
         return LSystemParams(
             premise="X(10, 0.2)",
-            generations=5,
             angle=30.0,
             turn=137.5,
             scale=0.7,
