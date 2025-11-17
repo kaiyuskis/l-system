@@ -34,7 +34,8 @@ export function generateLSystemString(
   premise: string,
   rules: { [key: string]: (...args: any[]) => string },
   generations: number,
-  globalParams: any
+  globalParams: any,
+  vary: (base: number, variance: number) => number,
 ): string {
   let currentString = premise;
 
@@ -51,7 +52,7 @@ export function generateLSystemString(
         const rule = rules[command];
 
         if (rule) {
-          const replacement = rule.apply(null, [...values, globalParams]);
+          const replacement = rule.apply(null, [...values, globalParams, vary]);
           nextString += replacement;
           j = nextIndex;
         } else {

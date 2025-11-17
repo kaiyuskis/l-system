@@ -1,19 +1,23 @@
 import './style.css';
-import GUI from 'lil-gui';
 import * as THREE from 'three';
+import { Pane } from 'tweakpane';
 import { scene } from './three-setup.ts';
 import { generateLSystemString, createLSystem3D } from './l-system.ts';
 
-let ruleXController: import('lil-gui').Controller;
+interface LSystemRules {
+  char: string;
+  rule: string;
+}
+
 let currentPlant: THREE.Group | null = null;
 let leafMesh: THREE.InstancedMesh | null = null;
-
 const loadingOverlay = document.getElementById('loading-overlay');
 
 const params = {
   useAI: false,
   prompt: 'もみじ',
-  premise: 'X(10, 0.2)',
+
+  premise: 'A(10, 0.2)',
   generations: 7.0,
   angle: 30.0,
   angleVariance: 10.0,
@@ -23,38 +27,19 @@ const params = {
   branchColor: '#8B4513',
   leafColor: '#228B22',
   leafSize: 1,
-  ruleXDisplay: "", 
-  ruleFDisplay: "",
+
+  rules: [
+    { char: "A", rule: "F[+(30)&(137.5)A(len*0.7)L(1)]"},
+    { char: "", rule: "" },
+    { char: "", rule: "" },
+    { char: "", rule: "" },
+    { char: "", rule: "" },
+  ] as LSystemRules[],
 };
 
 const vary = (base: number, variance: number) => {
   return base + (Math.random() * 2 - 1) * variance;
 };
-
-const hardcodedRules = {
-  'X': (len: number, width: number, p: typeof params) => {
-    const newLen = len * p.scale;
-    const newWidth = width * p.scale;
-
-    const angle1 = vary(p.angle, p.angleVariance);
-    const turn1 = vary(p.turn, p.turnVariance);
-    const angle2 = vary(p.angle, p.angleVariance);
-    const turn2 = vary(p.turn, p.turnVariance);
-    
-
-    return `F(${len.toFixed(2)}, ${width.toFixed(2)})
-[+(${angle1.toFixed(1)}) &(${turn1.toFixed(1)}) X(${newLen.toFixed(2)}, ${newWidth.toFixed(2)})L(${p.leafSize})]
-[-(${angle2.toFixed(1)}) ^(${turn2.toFixed(1)}) X(${newLen.toFixed(2)}, ${newWidth.toFixed(2)})L(${p.leafSize})]`;
-  },
-};
-
-function updateRuleDisplay() {
-  params.ruleXDisplay = `F[+(${params.angle})&(${params.turn})X(len*${params.scale.toFixed(2)})L(${params.leafSize})]`;
-
-  if (ruleXController) {
-    ruleXController.updateDisplay();
-  }
-}
 
 const textureLoader = new THREE.TextureLoader();
 const leafTexture = textureLoader.load('leaf.png');
@@ -76,8 +61,45 @@ groundMesh.position.y = 0;
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
-async function regenerateLSystem() {
+// ★★★ トランスパイラ関数 (簡易文法 -> JSコード) ★★★
+/**
+ * 簡易文法を new Function() が解釈できるJSコードに変換する
+ * @param simpleRule "F(len, width)[+X(len*p.scale)]"
+ * @returns "return `F(${len}, ${width})[+(${p.angle})X(${len*p.scale})]`"
+ */
+function transpileRule(simpleRule: string): string {
+  let jsCode = simpleRule;
 
+  // 1. パラメータ付きコマンド (例: F(len*p.scale)) を
+  //    JSテンプレートリテラル (例: F(${len*p.scale})) に変換
+  //    正規表現: [A-Z] (アルファベット大文字) の直後の (...)
+  jsCode = jsCode.replace(/([A-Z])\((.*?)\)/g, (match, char, params) => {
+    // F(len, width) -> F(${len}, ${width})
+    // F(len*p.scale) -> F(${len*p.scale})
+    const jsParams = params.split(',').map((p: string) => `\${${p.trim()}}`).join(', ');
+    return `${char}(${jsParams})`;
+  });
+
+  // 2. パラメータなしの回転コマンド (例: +, -, &, ^, \, /) を
+  //    自動的にグローバルパラメータ (p.angle, p.turn) で補完する
+  //    正規表現: [+-] (または \&, \^, \\, \/) で、直後に "(" が *ない* もの
+  jsCode = jsCode.replace(/([+-])(?![\\(])/g, (match, char) => {
+    // + -> +(${p.angle})
+    return `${char}(\${p.angle})`;
+  });
+  jsCode = jsCode.replace(/([&^])(?![\\(])/g, (match, char) => {
+    // & -> &(${p.turn})
+    return `${char}(\${p.turn})`;
+  });
+  jsCode = jsCode.replace(/([\\\/])(?![\\(])/g, (match, char) => {
+    // \ -> \(${p.angle})
+    return `${char}(\${p.angle})`;
+  });
+  
+  return `return \`${jsCode}\`;`;
+}
+
+async function regenerateLSystem() {
   if (loadingOverlay) {
     if (params.useAI) {
       loadingOverlay.style.display = 'flex';
@@ -90,10 +112,8 @@ async function regenerateLSystem() {
       console.log(`サーバーにプロンプト送信: ${params.prompt}`);
       const response = await fetch('http://localhost:8000/generate-params', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt: params.prompt }), // { "prompt": "..." } を送信
+        headers: { 'Content-Type': 'application/json', },
+        body: JSON.stringify({ prompt: params.prompt }), 
       });
       
       if (!response.ok) {
@@ -112,31 +132,49 @@ async function regenerateLSystem() {
       params.leafSize = serverParams.leafSize;
       params.branchColor = serverParams.branchColor;
       params.leafColor = serverParams.leafColor;
-    }
 
-    updateRuleDisplay();
-    
-    if (currentPlant) {
-      scene.remove(currentPlant);
+      params.rules.forEach((slot, i) => {
+        if (serverParams.rules[i]) {
+          slot.char = serverParams.rules[i].char;
+          slot.rule = serverParams.rules[i].code;
+        } else {
+          slot.char = "";
+          slot.rule = "";
+        }
+      });
+
+      pane.refresh();
     }
+    
+    if (currentPlant) { scene.remove(currentPlant); }
     if (leafMesh) {
       scene.remove(leafMesh);
       leafMesh.dispose();
     }
 
-    const rules = hardcodedRules;
-    const leafMatrices: THREE.Matrix4[] = [];
+    const rules: { [key: string]: (...args: any[]) => string } = {};
+    try {
+      for (const rule of params.rules) {
+        if (rule.char && rule.rule.trim() !== '') {
+          const jsCode = transpileRule(rule.rule);
+          rules[rule.char] = new Function('len', 'width', 'p', 'vary', jsCode) as (...args: any[]) => string;
+        }
+      }
+    } catch (e) {
+      console.error("ルールの文法エラー:", e);
+      alert("ルールの文法が間違っています。コンソールを確認してください。");
+      throw e;
+    }
 
-    console.time('L-System Generation');
+    const leafMatrices: THREE.Matrix4[] = [];
     const lSystemString = generateLSystemString(
       params.premise,
       rules,
       Math.floor(params.generations),
-      params
+      params,
+      vary,
     );
-    console.timeEnd('L-System Generation');
 
-    console.time('Branch Interpretation');
     currentPlant = createLSystem3D(
       lSystemString,
       params.angle,
@@ -145,33 +183,26 @@ async function regenerateLSystem() {
       params.branchColor,
       leafMatrices
     );
-    console.timeEnd('Branch Interpretation');
     scene.add(currentPlant);
 
     if (leafMatrices.length > 0) {
       console.time('Leaf Instancing');
-
       leafPrototypeMat.color.set(params.leafColor);
-
       leafMesh = new THREE.InstancedMesh(
         leafPrototypeGeo,
         leafPrototypeMat,
         leafMatrices.length
       );
-
       for (let i = 0; i < leafMatrices.length; i++) {
         leafMesh.setMatrixAt(i, leafMatrices[i]);
       }
-
       leafMesh.castShadow = true;
       leafMesh.receiveShadow = true;
       scene.add(leafMesh);
-      console.timeEnd('Leaf Instancing');
     }
 
   } catch (error) {
     console.error('処理エラー:', error);
-    alert('バックエンドサーバーとの通信に失敗しました。コンソールを確認してください。');
 
   } finally {
     if (loadingOverlay) {
@@ -180,49 +211,53 @@ async function regenerateLSystem() {
   }
 }
 
-// GUI
-const gui = new GUI();
+// Tweakpane UI
+const pane = new Pane({ title: 'L-System 設定' });
 
-const aiFolder = gui.addFolder('AI設定');
-aiFolder.add(params, 'useAI').name('AIを使用する');
-aiFolder.add(params, 'prompt').name('生成したいものを入力');
-aiFolder.open();
+// 生成ボタン
+pane.addButton({ title: 'モデルを生成' }).on('click', regenerateLSystem);
 
-const setupFolder = gui.addFolder('基本設定');
-setupFolder.add(params, 'premise').name('初期状態').listen();
-setupFolder.add(params, 'generations', 0, 12, 0.1).name('世代数').onChange(regenerateLSystem).listen();
-setupFolder.open();
+// タブでUIを分割
+const tab = pane.addTab({
+  pages: [
+    { title: 'AI 設定' },
+    { title: '基本設定' },
+    { title: 'ルール設定' },
+  ],
+});
 
-const paramsFolder = gui.addFolder('全体設定');
-paramsFolder.add(params, 'angle', 0, 90, 0.1).name('角度').onChange(updateRuleDisplay).listen();
-paramsFolder.add(params, 'angleVariance', 0, 45, 0.1).name('角度 (偏差)').listen();
-paramsFolder.add(params, 'turn', 0, 180, 0.1).name('ひねり').onChange(updateRuleDisplay).listen();
-paramsFolder.add(params, 'turnVariance', 0, 90, 0.1).name('ひねり (偏差)').listen();
-paramsFolder.add(params, 'scale', 0.5, 1.0, 0.01).name('成長率').onChange(updateRuleDisplay).listen();
-paramsFolder.addColor(params, 'branchColor').name('幹の色').listen();
-paramsFolder.addColor(params, 'leafColor').name('葉の色').listen();
-paramsFolder.add(params, 'leafSize', 0, 5, 0.1).name('葉のサイズ').onChange(updateRuleDisplay).listen();
-paramsFolder.open();
+// --- AI設定タブ ---
+const aiTab = tab.pages[0];
+aiTab.addBinding(params, 'useAI', { label: 'AIでパラメータを生成' });
+aiTab.addBinding(params, 'prompt', { 
+  label: 'プロンプト', 
+  multiline: true, 
+  rows: 4 
+});
 
-const rulesFolder = gui.addFolder('実行中のルール (変更不可)');
-ruleXController = rulesFolder.add(params, 'ruleXDisplay').name('ルールX').disable();
+// --- 基本設定タブ (スライダー類) ---
+const setupTab = tab.pages[1];
+setupTab.addBinding(params, 'premise', { label: '前提 (Premise)' });
+setupTab.addBinding(params, 'generations', { label: '世代数', min: 1, max: 10, step: 0.1 });
+setupTab.addBinding(params, 'angle', { label: 'p.角度 (基本値)', min: 0, max: 90 });
+setupTab.addBinding(params, 'angleVariance', { label: 'p.角度の偏差', min: 0, max: 45 });
+setupTab.addBinding(params, 'turn', { label: 'p.ひねり (基本値)', min: 0, max: 180 });
+setupTab.addBinding(params, 'turnVariance', { label: 'p.ひねりの偏差', min: 0, max: 90 });
+setupTab.addBinding(params, 'scale', { label: 'p.成長率 (Scale)', min: 0.5, max: 1.0 });
+setupTab.addBinding(params, 'branchColor', { label: '枝の色' });
+setupTab.addBinding(params, 'leafColor', { label: '葉の色' });
+setupTab.addBinding(params, 'leafSize', { label: '葉のサイズ', min: 0.1, max: 2.0 });
 
-const textarea = document.createElement('textarea');
-textarea.value = params.ruleXDisplay;
-textarea.disabled = true;
-textarea.style.height = '70px';
-textarea.style.width = '100%';
-textarea.style.resize = 'none';
-textarea.style.fontFamily = 'monospace';
+// --- ルール設定タブ ---
+const rulesTab = tab.pages[2];
+params.rules.forEach((rule, index) => {
+  const folder = rulesTab.addFolder({ title: `ルール ${index + 1}` });
+  folder.addBinding(rule, 'char', { label: '文字' });
+  folder.addBinding(rule, 'rule', { 
+    label: 'ルール',
+    multiline: true,
+    rows: 10,
+  });
+});
 
-const inputElement = (ruleXController as any).$input as HTMLInputElement;
-inputElement.parentNode?.replaceChild(textarea, inputElement);
-(ruleXController as any).$input = textarea;
-
-rulesFolder.add(params, 'ruleFDisplay').name('ルールF').disable();
-rulesFolder.open();
-
-gui.add({ generate: regenerateLSystem }, 'generate').name('モデルを生成');
-
-updateRuleDisplay();
 regenerateLSystem();
