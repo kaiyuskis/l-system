@@ -12,7 +12,7 @@ const loadingOverlay = document.getElementById('loading-overlay');
 
 const params = {
   useAI: false,
-  prompt: '背の高い木',
+  prompt: 'もみじ',
   premise: 'X(10, 0.2)',
   generations: 7.0,
   angle: 30.0,
