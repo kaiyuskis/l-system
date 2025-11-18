@@ -1,263 +1,181 @@
-import './style.css';
-import * as THREE from 'three';
-import { Pane } from 'tweakpane';
-import { scene } from './three-setup.ts';
-import { generateLSystemString, createLSystem3D } from './l-system.ts';
+import "./style.css";
+import * as THREE from "three";
+import { Pane } from "tweakpane";
+import { scene, loader } from "./three-setup.ts"; // ★ GLTFLoader をインポート
 
-interface LSystemRules {
+// ★ l-system.ts はインポートしない
+
+interface LSystemRule {
   char: string;
   rule: string;
 }
 
 let currentPlant: THREE.Group | null = null;
-let leafMesh: THREE.InstancedMesh | null = null;
-const loadingOverlay = document.getElementById('loading-overlay');
+const loadingOverlay = document.getElementById("loading-overlay");
 
+// --- 1. UIのパラメータ定義 ---
 const params = {
-  useAI: false,
-  prompt: 'もみじ',
+  // ★ AI関連は後で追加 (AIトグル、プロンプト)
 
-  premise: 'A(10, 0.2)',
-  generations: 7.0,
+  // 基本設定
+  premise: "X",
+  generations: 5,
+  initialLength: 1.0,
+  initialThickness: 0.2,
+
+  // 全体設定 (p.)
   angle: 30.0,
-  angleVariance: 10.0,
   turn: 137.5,
-  turnVariance: 20.0,
   scale: 0.7,
-  branchColor: '#8B4513',
-  leafColor: '#228B22',
-  leafSize: 1,
+  leafSize: 0.5,
 
+  // 色 (バックエンドでは使わないが、フロントエンドでのマテリアル設定用に残す)
+  branchColor: "#8B4113",
+  leafColor: "#228B22",
+
+  // ルール (Houdini風 簡易文法)
   rules: [
-    { char: "A", rule: "F[+(30)&(137.5)A(len*0.7)L(1)]"},
+    {
+      char: "X",
+      rule: "F(p.initialLength)!(p.initialThickness)[+(p.angle)&(p.turn)_(p.scale)X]L(p.leafSize)",
+    },
+    { char: "F", rule: "F" },
     { char: "", rule: "" },
     { char: "", rule: "" },
-    { char: "", rule: "" },
-    { char: "", rule: "" },
-  ] as LSystemRules[],
+  ] as LSystemRule[],
 };
 
-const vary = (base: number, variance: number) => {
-  return base + (Math.random() * 2 - 1) * variance;
-};
-
-const textureLoader = new THREE.TextureLoader();
-const leafTexture = textureLoader.load('leaf.png');
-const leafPrototypeGeo = new THREE.PlaneGeometry(1, 1);
-const leafPrototypeMat = new THREE.MeshStandardMaterial({
-  map: leafTexture,
-  color: 0xffffff,
-  side: THREE.DoubleSide,
-  transparent: true,
-  alphaTest: 0.5,
-});
-
-// 地面
-const groundGeo = new THREE.PlaneGeometry(100, 100);
-const groundMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5 });
-const groundMesh = new THREE.Mesh(groundGeo, groundMat);
-groundMesh.rotation.x = -Math.PI / 2;
-groundMesh.position.y = 0;
-groundMesh.receiveShadow = true;
-scene.add(groundMesh);
-
-// ★★★ トランスパイラ関数 (簡易文法 -> JSコード) ★★★
-/**
- * 簡易文法を new Function() が解釈できるJSコードに変換する
- * @param simpleRule "F(len, width)[+X(len*p.scale)]"
- * @returns "return `F(${len}, ${width})[+(${p.angle})X(${len*p.scale})]`"
- */
-function transpileRule(simpleRule: string): string {
-  let jsCode = simpleRule;
-
-  // 1. パラメータ付きコマンド (例: F(len*p.scale)) を
-  //    JSテンプレートリテラル (例: F(${len*p.scale})) に変換
-  //    正規表現: [A-Z] (アルファベット大文字) の直後の (...)
-  jsCode = jsCode.replace(/([A-Z])\((.*?)\)/g, (_match, char, params) => {
-    // F(len, width) -> F(${len}, ${width})
-    // F(len*p.scale) -> F(${len*p.scale})
-    const jsParams = params.split(',').map((p: string) => `\${${p.trim()}}`).join(', ');
-    return `${char}(${jsParams})`;
-  });
-
-  // 2. パラメータなしの回転コマンド (例: +, -, &, ^, \, /) を
-  //    自動的にグローバルパラメータ (p.angle, p.turn) で補完する
-  //    正規表現: [+-] (または \&, \^, \\, \/) で、直後に "(" が *ない* もの
-  jsCode = jsCode.replace(/([+-])(?![\\(])/g, (_match, char) => {
-    // + -> +(${p.angle})
-    return `${char}(\${p.angle})`;
-  });
-  jsCode = jsCode.replace(/([&^])(?![\\(])/g, (_match, char) => {
-    // & -> &(${p.turn})
-    return `${char}(\${p.turn})`;
-  });
-  jsCode = jsCode.replace(/([\\\/])(?![\\(])/g, (_match, char) => {
-    // \ -> \(${p.angle})
-    return `${char}(\${p.angle})`;
-  });
-  
-  return `return \`${jsCode}\`;`;
-}
+// --- 2. メインロジック (glTFをFetch) ---
 
 async function regenerateLSystem() {
   if (loadingOverlay) {
-    if (params.useAI) {
-      loadingOverlay.style.display = 'flex';
-    }
+    loadingOverlay.style.display = "flex";
   }
-  
-  // --- 1. バックエンドにプロンプトを送信 ---
+
+  // 古いモデルを削除
+  if (currentPlant) {
+    scene.remove(currentPlant);
+    // (ジオメトリ等の解放処理も必要だが簡略化)
+  }
+
   try {
-    if (params.useAI) {
-      console.log(`サーバーにプロンプト送信: ${params.prompt}`);
-      const response = await fetch('http://localhost:8000/generate-params', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', },
-        body: JSON.stringify({ prompt: params.prompt }), 
-      });
-      
-      if (!response.ok) {
-        throw new Error(`サーバーエラー: ${response.statusText}`);
-      }
-      
-      // サーバーから返ってきたJSONを取得
-      const serverParams = await response.json();
-      console.log("サーバーから受信:", serverParams);
+    // 1. Tweakpaneから現在のパラメータを取得
+    // (params オブジェクトが Tweakpane によって直接更新されている)
+    const requestBody = {
+      ...params,
+      generations: Math.floor(params.generations), // 世代数は整数
+    };
 
-      // サーバーのパラメータをローカルの params オブジェクトに上書き
-      params.premise = serverParams.premise;
-      params.angle = serverParams.angle;
-      params.turn = serverParams.turn;
-      params.scale = serverParams.scale;
-      params.leafSize = serverParams.leafSize;
-      params.branchColor = serverParams.branchColor;
-      params.leafColor = serverParams.leafColor;
+    // 2. バックエンド (Python) にJSONを送信
+    const response = await fetch("http://localhost:8000/generate-model", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
 
-      params.rules.forEach((slot, i) => {
-        if (serverParams.rules[i]) {
-          slot.char = serverParams.rules[i].char;
-          slot.rule = serverParams.rules[i].code;
-        } else {
-          slot.char = "";
-          slot.rule = "";
+    if (!response.ok) {
+      throw new Error(`サーバーエラー: ${response.statusText}`);
+    }
+
+    // 3. レスポンスをArrayBuffer (glTFバイナリ) として取得
+    const glb = await response.arrayBuffer();
+
+    // 4. GLTFLoaderで ArrayBuffer をパース
+    loader.parse(glb, "", (gltf) => {
+      currentPlant = gltf.scene;
+
+      // 5. 影の設定
+      currentPlant.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          // ★ バックエンドは色情報を含めない簡易glTFなので、
+          // ★ フロントエンド側でマテリアル(色)を上書きする
+          // (0番が枝、1番が葉、のようにバックエンドと決めておく必要がある)
+          // (今回は簡易的に、すべてのマテリアルの色を変更)
+          child.material = new THREE.MeshStandardMaterial({
+            color: params.branchColor, // (葉の色分けは別途必要)
+          });
         }
       });
 
-      pane.refresh();
-    }
-    
-    if (currentPlant) { scene.remove(currentPlant); }
-    if (leafMesh) {
-      scene.remove(leafMesh);
-      leafMesh.dispose();
-    }
+      scene.add(currentPlant);
 
-    const rules: { [key: string]: (...args: any[]) => string } = {};
-    try {
-      for (const rule of params.rules) {
-        if (rule.char && rule.rule.trim() !== '') {
-          const jsCode = transpileRule(rule.rule);
-          rules[rule.char] = new Function('len', 'width', 'p', 'vary', jsCode) as (...args: any[]) => string;
-        }
+      if (loadingOverlay) {
+        loadingOverlay.style.display = "none";
       }
-    } catch (e) {
-      console.error("ルールの文法エラー:", e);
-      alert("ルールの文法が間違っています。コンソールを確認してください。");
-      throw e;
-    }
-
-    const leafMatrices: THREE.Matrix4[] = [];
-    const lSystemString = generateLSystemString(
-      params.premise,
-      rules,
-      Math.floor(params.generations),
-      params,
-      vary,
-    );
-
-    currentPlant = createLSystem3D(
-      lSystemString,
-      params.angle,
-      1.0,
-      0.1,
-      params.branchColor,
-      leafMatrices
-    );
-    scene.add(currentPlant);
-
-    if (leafMatrices.length > 0) {
-      console.time('Leaf Instancing');
-      leafPrototypeMat.color.set(params.leafColor);
-      leafMesh = new THREE.InstancedMesh(
-        leafPrototypeGeo,
-        leafPrototypeMat,
-        leafMatrices.length
-      );
-      for (let i = 0; i < leafMatrices.length; i++) {
-        leafMesh.setMatrixAt(i, leafMatrices[i]);
-      }
-      leafMesh.castShadow = true;
-      leafMesh.receiveShadow = true;
-      scene.add(leafMesh);
-    }
-
+    });
   } catch (error) {
-    console.error('処理エラー:', error);
-
-  } finally {
+    console.error("生成エラー:", error);
     if (loadingOverlay) {
-      loadingOverlay.style.display = 'none';
+      loadingOverlay.style.display = "none";
     }
   }
 }
 
-// Tweakpane UI
-const pane = new Pane({ title: 'L-System 設定' });
+// --- 3. Tweakpane UIのセットアップ ---
+const pane = new Pane({ title: "L-System 設定" });
+pane.addButton({ title: "モデルを生成" }).on("click", regenerateLSystem);
 
-// 生成ボタン
-pane.addButton({ title: 'モデルを生成' }).on('click', regenerateLSystem);
-
-// タブでUIを分割
 const tab = pane.addTab({
-  pages: [
-    { title: 'AI 設定' },
-    { title: '基本設定' },
-    { title: 'ルール設定' },
-  ],
+  pages: [{ title: "基本設定" }, { title: "ルール設定" }],
 });
 
-// --- AI設定タブ ---
-const aiTab = tab.pages[0];
-aiTab.addBinding(params, 'useAI', { label: 'AIでパラメータを生成' });
-aiTab.addBinding(params, 'prompt', { 
-  label: 'プロンプト', 
-  multiline: true, 
-  rows: 4 
+// --- 基本設定タブ ---
+const setupTab = tab.pages[0];
+setupTab.addBinding(params, "premise", { label: "前提 (Premise)" });
+setupTab.addBinding(params, "generations", {
+  label: "世代数",
+  min: 1,
+  max: 10,
+  step: 1,
+});
+setupTab.addBinding(params, "initialLength", {
+  label: "初期 長さ",
+  min: 0.1,
+  max: 20,
+});
+setupTab.addBinding(params, "initialThickness", {
+  label: "初期 太さ",
+  min: 0.01,
+  max: 1.0,
 });
 
-// --- 基本設定タブ (スライダー類) ---
-const setupTab = tab.pages[1];
-setupTab.addBinding(params, 'premise', { label: '前提 (Premise)' });
-setupTab.addBinding(params, 'generations', { label: '世代数', min: 1, max: 10, step: 0.1 });
-setupTab.addBinding(params, 'angle', { label: 'p.角度 (基本値)', min: 0, max: 90 });
-setupTab.addBinding(params, 'angleVariance', { label: 'p.角度の偏差', min: 0, max: 45 });
-setupTab.addBinding(params, 'turn', { label: 'p.ひねり (基本値)', min: 0, max: 180 });
-setupTab.addBinding(params, 'turnVariance', { label: 'p.ひねりの偏差', min: 0, max: 90 });
-setupTab.addBinding(params, 'scale', { label: 'p.成長率 (Scale)', min: 0.5, max: 1.0 });
-setupTab.addBinding(params, 'branchColor', { label: '枝の色' });
-setupTab.addBinding(params, 'leafColor', { label: '葉の色' });
-setupTab.addBinding(params, 'leafSize', { label: '葉のサイズ', min: 0.1, max: 2.0 });
+setupTab.addBinding(params, "angle", {
+  label: "p.角度 (Pitch)",
+  min: 0,
+  max: 90,
+});
+setupTab.addBinding(params, "turn", {
+  label: "p.ひねり (Twist)",
+  min: 0,
+  max: 180,
+});
+setupTab.addBinding(params, "scale", {
+  label: "p.成長率 (Scale)",
+  min: 0.5,
+  max: 1.0,
+});
+
+setupTab.addBinding(params, "branchColor", { label: "枝の色" });
+setupTab.addBinding(params, "leafColor", { label: "葉の色" });
+setupTab.addBinding(params, "leafSize", {
+  label: "p.葉のサイズ",
+  min: 0.1,
+  max: 2.0,
+});
 
 // --- ルール設定タブ ---
-const rulesTab = tab.pages[2];
+const rulesTab = tab.pages[1];
 params.rules.forEach((rule, index) => {
   const folder = rulesTab.addFolder({ title: `ルール ${index + 1}` });
-  folder.addBinding(rule, 'char', { label: '文字' });
-  folder.addBinding(rule, 'rule', { 
-    label: 'ルール',
+  folder.addBinding(rule, "char", { label: "文字" });
+  folder.addBinding(rule, "rule", {
+    label: "簡易文法",
     multiline: true,
-    rows: 10,
+    rows: 5,
   });
 });
 
+// --- 4. 初回実行 ---
 regenerateLSystem();

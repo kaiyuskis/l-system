@@ -1,186 +1,121 @@
 from fastapi import FastAPI
+from fastapi.responses import Response
 from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
-import torch
-from transformers import pipeline
-import json
-import re
-import datetime
+from typing import List, Dict, Any
+import pygltflib # glTF生成
+import numpy as np # メッシュ計算
+import struct
 
-print("AIモデルを読み込み中...")
+from l_system_engine import generate_l_system_string, create_l_system_geometry
 
-try:
-    model_id = "microsoft/Phi-3-mini-4k-instruct"
-    
-    llm_pipeline = pipeline(
-        "text-generation",
-        model=model_id,
-        model_kwargs={"torch_dtype": "auto"},
-        device="cuda" if torch.cuda.is_available() else "cpu",
-    )
-    print("AIモデルの読み込み完了")
-    
-except Exception as e:
-    print(f"AIモデルの読み込みに失敗しました: {e}")
-    llm_pipeline = None
-    
 app = FastAPI()
 
-origins = [
-    "http://localhost:5173",
-    "http://localhost",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class PromptRequest(BaseModel):
-    prompt: str
-    
+# --- 1. Pydanticモデル (フロントエンドから受け取るJSON) ---
 class LSystemRule(BaseModel):
     char: str
     rule: str
 
-class LSystemParams(BaseModel):
+class LSystemRequest(BaseModel):
     premise: str
+    generations: int
+    initialLength: float
+    initialThickness: float
     angle: float
     turn: float
     scale: float
     leafSize: float
     branchColor: str
     leafColor: str
-    rules: list[LSystemRule]
+    rules: List[LSystemRule]
 
-# システムプロンプト
-SYSTEM_PROMPT = """
-あなたは、自然言語のプロンプトをL-systemのパラメータ（JSON形式）に変換するアシスタントです。
-以下のJSON形式で「必ず」回答してください。説明や前置きは一切不要です。
-
-JSON形式の例:
-{
-    "premise": "X(10, 0.2)",
-    "angle": 30.0,
-    "turn": 137.5,
-    "scale": 0.7,
-    "leafSize": 0.5,
-    "branchColor": "#8B4513",
-    "leafColor": "#228B22",
-    "rules": [
-        {"char": "X", "rule": "F(len, width)[+(p.angle)&(p.turn)X(len*p.scale, width*p.scale)]L(p.leafSize)"},
-        {"char": "F", "rule": "F(len, width)"}
-    ]
-}
-
-ルール:
-- 「rules」キーには、ルールの配列を含めてください。
-- 「char」: ルールを適用する文字 (例: "X")。
-- 「rule」: 実行する「簡易L-system文法」の文字列。
-- 「rule」の中では、`len`, `width`, `p.angle`, `p.scale` などの変数や計算式を `()` の中に直接記述できます。
-- `+`, `-`, `&`, `^`, `\`, `/` の直後に `()` がない場合、それらは自動的に `p.angle` または `p.turn` を使います。
-- （例: `[+X]` は `[+(p.angle)X]` と解釈されます）
-
-★ 特別なルール:
-- 「桜」: `leafColor` をピンク ("#FFC0CB") にし、`rules` の `X` を `F(len, width)[+X(len*p.scale*0.9)][-X(len*p.scale*0.9)]` のように単純な分岐にし、`angle` を広め (35) にしてください。
-- 「もみじ」: `leafColor` を赤 ("#FF4500") にし、`rules` の `X` を `F(len, width)[\(p.angle)F(len*p.scale)X(len*p.scale)]...` のようにZ軸回転 `\` を使って複雑にしてください。
-- 「枯れ木」: `leafSize` を 0.0 にし、`rules` の `X` から `L(p.leafSize)` コマンドを削除してください。
-"""
-
-# JSON部分を抽出する関数
-def extract_json_from_response(text: str) -> str | None:
-    match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
-    if match:
-        return match.group(0)
-    return None
-
-# APIエンドポイント
-@app.post("/generate-params", response_model=LSystemParams)
-async def generate_params(request: PromptRequest):
+# --- 2. glTF生成ヘルパー (簡易版) ---
+def create_gltf_binary(branches, leaves, branch_color_hex, leaf_color_hex):
+    """
+    枝(線)と葉(点)のリストからglTF(GLB)バイナリを生成する
+    """
     
-    start_time = datetime.datetime.now()
-    print(f"\n--- リクエスト受信 ({start_time.strftime('%Y-%m-%d %H:%M:%S')}) ---")
-    print(f"プロンプト: {request.prompt}")
+    # (ここでは簡略化のため、枝を「線」、葉を「点」としてglTFを生成します)
     
-    if llm_pipeline is None:
-        print("AIモデルが利用できません")
-        
-        return LSystemParams(
-            premise="X(10, 0.2)",
-            angle=30.0,
-            turn=137.5,
-            scale=0.7,
-            leafSize=0.5,
-            branchColor="#8B4513",
-            leafColor="#228B22",
-        )
+    # 1. 枝の頂点データを作成
+    branch_vertices = []
+    for start, end, thickness in branches:
+        branch_vertices.extend(start)
+        branch_vertices.extend(end)
     
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": request.prompt},
-    ]
-    
-    try:
-        inference_start_time = datetime.datetime.now()
-        print(f"ステップ1/3: AI推論を開始... ({inference_start_time.strftime('%H:%M:%S')})")
-        
-        try:
-            outputs = llm_pipeline(
-                messages,
-                max_new_tokens=256,
-                eos_token_id=llm_pipeline.tokenizer.eos_token_id,
-                do_sample=True,
-                temperature=0.3,
-                top_p=0.9,
-            )
-        except KeyboardInterrupt:
-            print("\n[中断] AI推論が Ctrl+C によりキャンセル")
-            raise
-        
-        inference_end_time = datetime.datetime.now()
-        inference_duration = (inference_end_time - inference_start_time).total_seconds()
-        print(f"ステップ2/3: AI推論が完了({inference_end_time.strftime('%H:%M:%S')})")
-        
-        ai_response_text = outputs[0]['generated_text'][-1]["content"]
-        print(f"AIの応答:\n{ai_response_text}")
-        
-        json_str = extract_json_from_response(ai_response_text)
-        if not json_str:
-            raise ValueError("AIがJSONを返しませんでした")
-        
-        params_dict = json.loads(json_str)
-        print("ステップ3/3: JSONのパースに成功")
-        
-        response_data = LSystemParams(**params_dict)
-        
-        total_duration = (datetime.datetime.now() - start_time).total_seconds()
-        print(f"--- レスポンス送信 (総所要時間: {total_duration:.2f} 秒)---")
-        
-        return response_data
-        
-    except KeyboardInterrupt:
-        print("\n[中断] リクエスト処理がキャンセルされました。")
-        
-        return LSystemParams(
-            premise="X(10, 0.2)", 
-            angle=30.0, 
-            turn=137.5, 
-            scale=0.7, 
-            leafSize=0.5, 
-            branchColor="#8B4513", 
-            leafColor="#228B22")
-    
-    except Exception as e:
-        print(f"AI処理エラー: {e}")
+    branch_vertices_array = np.array(branch_vertices, dtype=np.float32)
+    branch_vertices_blob = branch_vertices_array.tobytes()
 
-        return LSystemParams(
-            premise="X(10, 0.2)", angle=30.0, turn=137.5, scale=0.7, leafSize=0.5,
-            branchColor="#8B4513", leafColor="#228B22",
-            rules=[
-                {"char": "X", "rule": "F(len, width)[+(p.angle)&(p.turn)X(len*p.scale, width*p.scale)]L(p.leafSize)"},
-                {"char": "F", "rule": "F(len, width)"}
-            ]
-        )
+    # 2. 葉の頂点データを作成
+    leaf_vertices = []
+    for pos, scale in leaves:
+        leaf_vertices.extend(pos)
+        
+    leaf_vertices_array = np.array(leaf_vertices, dtype=np.float32)
+    leaf_vertices_blob = leaf_vertices_array.tobytes()
+    
+    # データを連結
+    buffer_blob = branch_vertices_blob + leaf_vertices_blob
+    
+    gltf = pygltflib.GLTF2()
+    gltf.buffers.append(pygltflib.Buffer(byteLength=len(buffer_blob)))
+    
+    # 0: 枝の頂点, 1: 葉の頂点
+    gltf.bufferViews.append(pygltflib.BufferView(buffer=0, byteOffset=0, byteLength=len(branch_vertices_blob), target=pygltflib.ARRAY_BUFFER))
+    gltf.bufferViews.append(pygltflib.BufferView(buffer=0, byteOffset=len(branch_vertices_blob), byteLength=len(leaf_vertices_blob), target=pygltflib.ARRAY_BUFFER))
+    
+    # アクセサ (データ型を定義)
+    gltf.accessors.append(pygltflib.Accessor(bufferView=0, componentType=pygltflib.FLOAT, count=len(branches) * 2, type=pygltflib.VEC3, min=branch_vertices_array.min(axis=0).tolist(), max=branch_vertices_array.max(axis=0).tolist()))
+    gltf.accessors.append(pygltflib.Accessor(bufferView=1, componentType=pygltflib.FLOAT, count=len(leaves), type=pygltflib.VEC3, min=leaf_vertices_array.min(axis=0).tolist(), max=leaf_vertices_array.max(axis=0).tolist()))
+    
+    # マテリアル (色)
+    gltf.materials.append(pygltflib.Material(pbrMetallicRoughness=pygltflib.PbrMetallicRoughness(baseColorFactor=[0.5, 0.5, 0.5, 1.0]))) # (色は後でThree.js側で設定)
+    
+    # メッシュプリミティブ
+    gltf.meshes.append(pygltflib.Mesh(primitives=[
+        pygltflib.Primitive(attributes=pygltflib.Attributes(POSITION=0), material=0, mode=pygltflib.LINES), # 枝 (線)
+        pygltflib.Primitive(attributes=pygltflib.Attributes(POSITION=1), material=0, mode=pygltflib.POINTS)  # 葉 (点)
+    ]))
+    
+    # ノードとシーン
+    gltf.nodes.append(pygltflib.Node(mesh=0))
+    gltf.scenes.append(pygltflib.Scene(nodes=[0]))
+    
+    gltf.set_binary_blob(buffer_blob)
+    
+    # GLB (バイナリ形式) で保存
+    return gltf.save_to_bytes()
+
+# --- 3. APIエンドポイント ---
+@app.post("/generate-model")
+async def generate_model(request: LSystemRequest):
+    
+    print("モデル生成リクエスト受信...")
+    
+    # 1. UIのルールをPythonの辞書に変換
+    rules_dict = {rule.char: rule.rule for rule in request.rules if rule.char}
+    
+    # 2. L-system文字列を生成
+    l_system_string = generate_l_system_string(
+        request.premise,
+        rules_dict,
+        request.generations,
+        request.dict() # p.scale などを置換するため
+    )
+    
+    # 3. L-system解釈器を実行
+    initial_state = {
+        "length": request.initialLength,
+        "thickness": request.initialThickness,
+        "angle": request.angle,
+        "turn": request.turn,
+    }
+    branches, leaves = create_l_system_geometry(l_system_string, initial_state)
+    
+    print(f"生成完了: {len(branches)} 本の枝, {len(leaves)} 枚の葉")
+    
+    # 4. glTFバイナリを生成
+    # (色情報はglTFに含めることもできるが、ここでは簡略化)
+    glb_binary = create_gltf_binary(branches, leaves, request.branchColor, request.leafColor)
+    
+    # 5. glbファイルとしてフロントエンドに返す
+    return Response(content=glb_binary, media_type="model/gltf-binary")

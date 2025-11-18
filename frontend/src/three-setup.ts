@@ -1,84 +1,91 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import Stats from 'stats.js';
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import Stats from "stats.js";
 
-// Statsを初期化
-export const stats = new Stats();
+// --- 1. Stats (FPS) ---
+const stats = new Stats();
 stats.showPanel(0);
 document.body.appendChild(stats.dom);
 
-// --- シーン ---
+// --- 2. シーンとカメラ ---
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf0f0f0);
 
-// --- カメラ ---
-const frustumSize = 50;
+const frustumSize = 20;
 const aspect = window.innerWidth / window.innerHeight;
-
 export const camera = new THREE.OrthographicCamera(
-  frustumSize * aspect / -2, // left
-  frustumSize * aspect / 2,  // right
-  frustumSize / 2,           // top
-  frustumSize / -2,          // bottom
-  -100,                       // near
-  1000                       // far
+  (frustumSize * aspect) / -2,
+  (frustumSize * aspect) / 2,
+  frustumSize / 2,
+  frustumSize / -2,
+  -100,
+  1000
 );
 camera.position.set(10, 15, 25);
-camera.lookAt(0, 0, 0);
+camera.lookAt(0, 10, 0);
 
-// --- レンダラー ---
+// --- 3. レンダラー (影を有効化) ---
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const app = document.querySelector<HTMLDivElement>('#app');
+const app = document.querySelector<HTMLDivElement>("#app");
 if (app) {
   app.appendChild(renderer.domElement);
 }
 
-// --- ライト ---
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+// --- 4. ライト (影を有効化) ---
+const ambientLight = new THREE.AmbientLight(0xa0a0a0);
 scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-directionalLight.position.set(15, 30, 15);
+directionalLight.position.set(15, 25, 15);
 directionalLight.target.position.set(0, 10, 0);
 directionalLight.castShadow = true;
-directionalLight.shadow.camera.top = 50;
-directionalLight.shadow.camera.bottom = -50;
-directionalLight.shadow.camera.left = -50;
-directionalLight.shadow.camera.right = 50;
+directionalLight.shadow.camera.top = 20;
+directionalLight.shadow.camera.bottom = -20;
+directionalLight.shadow.camera.left = -20;
+directionalLight.shadow.camera.right = 20;
 directionalLight.shadow.mapSize.width = 2048;
 directionalLight.shadow.mapSize.height = 2048;
 scene.add(directionalLight);
 scene.add(directionalLight.target);
 
-// --- コントロール ---
+// --- 5. 地面 ---
+const groundGeo = new THREE.PlaneGeometry(50, 50);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+groundMesh.rotation.x = -Math.PI / 2;
+groundMesh.receiveShadow = true;
+scene.add(groundMesh);
+
+// --- 6. コントロール ---
 export const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 10, 0);
 controls.update();
 
-// --- アニメーションループ ---
+// --- 7. GLTFローダー ---
+export const loader = new GLTFLoader();
+
+// --- 8. アニメーションループ ---
 function animate() {
   stats.begin();
-
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
-
   stats.end();
 }
-animate(); // ループを開始
+animate();
 
-// --- リサイズ対応 ---
-window.addEventListener('resize', () => {
+// --- 9. リサイズ処理 ---
+window.addEventListener("resize", () => {
   const aspect = window.innerWidth / window.innerHeight;
-  camera.left = frustumSize * aspect / -2;
-  camera.right = frustumSize * aspect / 2;
+  camera.left = (frustumSize * aspect) / -2;
+  camera.right = (frustumSize * aspect) / 2;
   camera.top = frustumSize / 2;
   camera.bottom = frustumSize / -2;
-
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
