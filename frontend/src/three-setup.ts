@@ -3,12 +3,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import Stats from "stats.js";
 
-// --- 1. Stats (FPS) ---
+// Statsの初期化
 const stats = new Stats();
 stats.showPanel(0);
 document.body.appendChild(stats.dom);
 
-// --- 2. シーンとカメラ ---
+// シーン、カメラ
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf0f0f0);
 
@@ -25,7 +25,7 @@ export const camera = new THREE.OrthographicCamera(
 camera.position.set(10, 15, 25);
 camera.lookAt(0, 10, 0);
 
-// --- 3. レンダラー (影を有効化) ---
+// レンダラー
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -36,7 +36,7 @@ if (app) {
   app.appendChild(renderer.domElement);
 }
 
-// --- 4. ライト (影を有効化) ---
+// ライト
 const ambientLight = new THREE.AmbientLight(0xa0a0a0);
 scene.add(ambientLight);
 
@@ -53,7 +53,7 @@ directionalLight.shadow.mapSize.height = 2048;
 scene.add(directionalLight);
 scene.add(directionalLight.target);
 
-// --- 5. 地面 ---
+// 地面
 const groundGeo = new THREE.PlaneGeometry(50, 50);
 const groundMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
 const groundMesh = new THREE.Mesh(groundGeo, groundMat);
@@ -61,15 +61,15 @@ groundMesh.rotation.x = -Math.PI / 2;
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
-// --- 6. コントロール ---
+// コントロール
 export const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 10, 0);
 controls.update();
 
-// --- 7. GLTFローダー ---
+// GLTFローダー
 export const loader = new GLTFLoader();
 
-// --- 8. アニメーションループ ---
+// アニメーションループ
 function animate() {
   stats.begin();
   requestAnimationFrame(animate);
@@ -79,7 +79,7 @@ function animate() {
 }
 animate();
 
-// --- 9. リサイズ処理 ---
+// リサイズ処理
 window.addEventListener("resize", () => {
   const aspect = window.innerWidth / window.innerHeight;
   camera.left = (frustumSize * aspect) / -2;

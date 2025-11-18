@@ -6,10 +6,12 @@ import { generateLSystemString, createLSystem3D } from "./l-system.ts";
 
 let currentPlant: THREE.Group | null = null;
 
+// 型定義
 interface LSystemRule {
   expression: string;
 }
 
+// パラメータ
 const params = {
   premise: "FFFA",
   generations: 7,
@@ -31,21 +33,21 @@ const params = {
   ] as LSystemRule[],
 };
 
+// 植物再生成
 function regenerate() {
   if (currentPlant) scene.remove(currentPlant);
 
-  // 1. ルール辞書作成
+  // ルール辞書作成
   const rules: { [key: string]: string } = {};
 
   params.rules.forEach((r) => {
     const expr = r.expression.trim();
-    if (!expr) return; // 空ならスキップ
+    if (!expr) return;
 
     // "=" で分割する
     const parts = expr.split("=");
     if (parts.length >= 2) {
-      const char = parts[0].trim(); // 左辺 (A)
-      // 右辺 (ルール) は、= が複数ある場合も考慮して残りを結合
+      const char = parts[0].trim();
       const ruleBody = parts.slice(1).join("=").trim();
 
       if (char && ruleBody) {
@@ -54,14 +56,14 @@ function regenerate() {
     }
   });
 
-  // 2. 文字列生成
+  // 文字列生成
   const str = generateLSystemString(
     params.premise,
     rules,
     Math.floor(params.generations)
   );
 
-  // 3. 3D生成 (パラメータを渡す)
+  // 3Dモデル生成
   const leafMats: THREE.Matrix4[] = [];
   currentPlant = createLSystem3D(
     str,
@@ -69,7 +71,7 @@ function regenerate() {
       initLen: params.initLength,
       initWid: params.initThickness,
       angle: params.angle,
-      turn: 0, // 今回は angle で統一
+      turn: 0,
       scale: params.scale,
     },
     params.branchColor,
@@ -78,7 +80,7 @@ function regenerate() {
   scene.add(currentPlant);
 }
 
-// --- UI ---
+// UI
 const pane = new Pane({ title: "L-System" });
 pane.addButton({ title: "生成" }).on("click", regenerate);
 

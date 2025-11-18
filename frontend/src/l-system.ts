@@ -158,7 +158,7 @@ export function createLSystem3D(
         i = res.nextIdx;
         break;
 
-      // --- 構造 ([ ]) ---
+      // スタック操作
       case "[":
         stack.push({
           position: turtle.position.clone(),
@@ -174,7 +174,7 @@ export function createLSystem3D(
         i++;
         break;
 
-      // --- 葉 (独自拡張 L) ---
+      // 葉
       case "L":
         res = parsePara(str, i, 1.0);
         i = res.nextIdx;
