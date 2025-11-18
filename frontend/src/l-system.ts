@@ -60,7 +60,7 @@ export function generateLSystemString(
           j = nextIndex;
         }
       } else {
-        const { values, nextIndex } = parseParameters(currentString, j + 1, []);
+        const { nextIndex } = parseParameters(currentString, j + 1, []);
         nextString += currentString.substring(j, nextIndex);
         j = nextIndex;
       }

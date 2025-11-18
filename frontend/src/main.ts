@@ -73,7 +73,7 @@ function transpileRule(simpleRule: string): string {
   // 1. パラメータ付きコマンド (例: F(len*p.scale)) を
   //    JSテンプレートリテラル (例: F(${len*p.scale})) に変換
   //    正規表現: [A-Z] (アルファベット大文字) の直後の (...)
-  jsCode = jsCode.replace(/([A-Z])\((.*?)\)/g, (match, char, params) => {
+  jsCode = jsCode.replace(/([A-Z])\((.*?)\)/g, (_match, char, params) => {
     // F(len, width) -> F(${len}, ${width})
     // F(len*p.scale) -> F(${len*p.scale})
     const jsParams = params.split(',').map((p: string) => `\${${p.trim()}}`).join(', ');
@@ -83,15 +83,15 @@ function transpileRule(simpleRule: string): string {
   // 2. パラメータなしの回転コマンド (例: +, -, &, ^, \, /) を
   //    自動的にグローバルパラメータ (p.angle, p.turn) で補完する
   //    正規表現: [+-] (または \&, \^, \\, \/) で、直後に "(" が *ない* もの
-  jsCode = jsCode.replace(/([+-])(?![\\(])/g, (match, char) => {
+  jsCode = jsCode.replace(/([+-])(?![\\(])/g, (_match, char) => {
     // + -> +(${p.angle})
     return `${char}(\${p.angle})`;
   });
-  jsCode = jsCode.replace(/([&^])(?![\\(])/g, (match, char) => {
+  jsCode = jsCode.replace(/([&^])(?![\\(])/g, (_match, char) => {
     // & -> &(${p.turn})
     return `${char}(\${p.turn})`;
   });
-  jsCode = jsCode.replace(/([\\\/])(?![\\(])/g, (match, char) => {
+  jsCode = jsCode.replace(/([\\\/])(?![\\(])/g, (_match, char) => {
     // \ -> \(${p.angle})
     return `${char}(\${p.angle})`;
   });
