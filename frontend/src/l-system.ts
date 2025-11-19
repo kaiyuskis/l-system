@@ -62,11 +62,11 @@ export function createLSystem3D(
     leafSize: number;
   },
   col: THREE.ColorRepresentation,
-  leafMats: THREE.Matrix4[]
-): THREE.Group {
-  const group = new THREE.Group();
+  branchMatrices: THREE.Matrix4[],
+  leafMatrices: THREE.Matrix4[]
+): void {
   const stack: TurtleState[] = [];
-  const mat = new THREE.MeshStandardMaterial({ color: col });
+  const branchDummy = new THREE.Object3D();
   const leafDummy = new THREE.Object3D();
 
   // タートルの初期化
@@ -93,16 +93,12 @@ export function createLSystem3D(
         res = parsePara(str, i, params.initLen * turtle.lenScalar);
         const L = res.val;
         i = res.nextIdx;
-
         const W = params.initWid * turtle.widScalar;
-        const geo = new THREE.CylinderGeometry(W, W, L, 6);
-        geo.translate(0, L / 2, 0);
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.copy(turtle.position);
-        mesh.quaternion.copy(turtle.rotation);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        group.add(mesh);
+        branchDummy.position.copy(turtle.position);
+        branchDummy.quaternion.copy(turtle.rotation);
+        branchDummy.scale.set(W, L, W);
+        branchDummy.updateMatrix();
+        branchMatrices.push(branchDummy.matrix.clone());
 
         turtle.position.add(
           Y.clone().applyQuaternion(turtle.rotation).multiplyScalar(L)
@@ -120,7 +116,7 @@ export function createLSystem3D(
         leafDummy.scale.setScalar(s);
         leafDummy.translateY(s * 0.5);
         leafDummy.updateMatrix();
-        leafMats.push(leafDummy.matrix.clone());
+        leafMatrices.push(leafDummy.matrix.clone());
         break;
 
       case "+": // 右回転 (Yaw -)
@@ -200,5 +196,4 @@ export function createLSystem3D(
         break;
     }
   }
-  return group;
 }
