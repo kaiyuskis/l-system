@@ -5,6 +5,7 @@ import { scene } from "./three-setup.ts";
 import { generateLSystemString, createLSystem3D } from "./l-system.ts";
 
 let currentPlant: THREE.Group | null = null;
+let leafMesh: THREE.InstancedMesh | null = null;
 
 // 型定義
 interface LSystemRule {
@@ -20,9 +21,13 @@ const params = {
   initThickness: 0.1,
 
   angle: 28.0,
-  scale: 1.0,
+  angleVariance: 10.0,
+
+  scale: 0.7,
+  leafSize: 0.7,
 
   branchColor: "#8B4113",
+  leafColor: "#228B22",
 
   rules: [
     { expression: 'A=!"[B]////[B]////[B]' },
@@ -33,9 +38,34 @@ const params = {
   ] as LSystemRule[],
 };
 
-// 植物再生成
+// 葉のテクスチャとジオメトリ/マテリアル
+const textureLoader = new THREE.TextureLoader();
+const leafTexture = textureLoader.load('leaf.png'); 
+
+const leafPrototypeGeo = new THREE.PlaneGeometry(1, 1);
+const leafPrototypeMat = new THREE.MeshStandardMaterial({
+  map: leafTexture,
+  color: 0xffffff,
+  side: THREE.DoubleSide,
+  transparent: true,
+  alphaTest: 0.5,
+});
+
+// 再生成
 function regenerate() {
-  if (currentPlant) scene.remove(currentPlant);
+  if (currentPlant) {
+    scene.remove(currentPlant);
+    currentPlant.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        obj.geometry.dispose();
+        (obj.material as THREE.Material).dispose();
+      }
+    });
+  }
+  if (leafMesh) {
+    scene.remove(leafMesh);
+    leafMesh.dispose();
+  }
 
   // ルール辞書作成
   const rules: { [key: string]: string } = {};
@@ -64,20 +94,34 @@ function regenerate() {
   );
 
   // 3Dモデル生成
-  const leafMats: THREE.Matrix4[] = [];
+  const leafMatrices: THREE.Matrix4[] = [];
   currentPlant = createLSystem3D(
     str,
     {
       initLen: params.initLength,
       initWid: params.initThickness,
       angle: params.angle,
+      angleVariance: params.angleVariance,
       turn: 0,
       scale: params.scale,
+      leafSize: params.leafSize,
     },
     params.branchColor,
-    leafMats
+    leafMatrices
   );
   scene.add(currentPlant);
+
+  if (leafMatrices.length > 0) {
+    leafPrototypeMat.color.set(params.leafColor);
+    leafMesh = new THREE.InstancedMesh(leafPrototypeGeo, leafPrototypeMat, leafMatrices.length);
+    leafMesh.castShadow = true;
+    leafMesh.receiveShadow = true;
+    for (let i = 0; i < leafMatrices.length; i++) {
+      leafMesh.setMatrixAt(i, leafMatrices[i]);
+    }
+    leafMesh.instanceMatrix.needsUpdate = true;
+    scene.add(leafMesh);
+  }
 }
 
 // UI
@@ -86,22 +130,18 @@ pane.addButton({ title: "生成" }).on("click", regenerate);
 
 const tab = pane.addTab({ pages: [{ title: "基本" }, { title: "ルール" }] });
 const p1 = tab.pages[0];
-p1.addBinding(params, "premise").on("change", regenerate);
-p1.addBinding(params, "generations", { min: 1, max: 12, step: 1 }).on(
-  "change",
-  regenerate
-);
-p1.addBinding(params, "initLength", { min: 0.1, max: 5 }).on(
-  "change",
-  regenerate
-);
-p1.addBinding(params, "initThickness", { min: 0.01, max: 1 }).on(
-  "change",
-  regenerate
-);
-p1.addBinding(params, "angle", { min: 0, max: 180 }).on("change", regenerate);
-p1.addBinding(params, "scale", { min: 0.1, max: 2 }).on("change", regenerate);
-p1.addBinding(params, "branchColor").on("change", regenerate);
+p1.addBinding(params, "premise", { label: "初期状態" }).on("change", regenerate);
+p1.addBinding(params, "generations", { label: "世代", min: 1, max: 13, step: 1 }).on("change", regenerate);
+p1.addBinding(params, "initLength", { label: "初期の長さ", min: 0.1, max: 5 }).on("change", regenerate);
+p1.addBinding(params, "initThickness", { label: "初期の太さ", min: 0.01, max: 1 }).on("change", regenerate);
+
+p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180 }).on("change", regenerate);
+p1.addBinding(params, "angleVariance", { label: "偏差", min: 0, max: 45 }).on("change", regenerate);
+
+p1.addBinding(params, "scale", { label: "成長率", min: 0.1, max: 2 }).on("change", regenerate);
+p1.addBinding(params, "branchColor", { label: "枝の色" }).on("change", regenerate);
+p1.addBinding(params, "leafColor", { label: "葉の色" }).on("change", regenerate);
+p1.addBinding(params, "leafSize", { label: "葉の大きさ", min: 0.1, max: 5.0 }).on("change", regenerate);
 
 const p2 = tab.pages[1];
 params.rules.forEach((r, i) => {

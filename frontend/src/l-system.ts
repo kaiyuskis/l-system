@@ -44,6 +44,11 @@ export function generateLSystemString(
   return str;
 }
 
+// 偏差計算
+function  vary(base: number, variance: number): number {
+  return base + (Math.random() * 2 - 1) * variance;
+}
+
 // L-System 3Dモデル生成
 export function createLSystem3D(
   str: string,
@@ -51,8 +56,10 @@ export function createLSystem3D(
     initLen: number;
     initWid: number;
     angle: number;
+    angleVariance: number;
     turn: number;
     scale: number;
+    leafSize: number;
   },
   col: THREE.ColorRepresentation,
   leafMats: THREE.Matrix4[]
@@ -62,7 +69,7 @@ export function createLSystem3D(
   const mat = new THREE.MeshStandardMaterial({ color: col });
   const leafDummy = new THREE.Object3D();
 
-  // 初期状態
+  // タートルの初期化
   let turtle: TurtleState = {
     position: new THREE.Vector3(0, 0, 0),
     rotation: new THREE.Quaternion(),
@@ -100,43 +107,57 @@ export function createLSystem3D(
         turtle.position.add(
           Y.clone().applyQuaternion(turtle.rotation).multiplyScalar(L)
         );
+
+        break;
+
+      case "A": case "B": case "L": case "X":
+        res = parsePara(str, i, params.leafSize);
+        const s = res.val;
+        i = res.nextIdx;
+
+        leafDummy.position.copy(turtle.position);
+        leafDummy.quaternion.copy(turtle.rotation);
+        leafDummy.scale.setScalar(s);
+        leafDummy.translateY(s * 0.5);
+        leafDummy.updateMatrix();
+        leafMats.push(leafDummy.matrix.clone());
         break;
 
       case "+": // 右回転 (Yaw -)
         res = parsePara(str, i, params.angle);
-        q.setFromAxisAngle(Z, THREE.MathUtils.degToRad(-res.val));
+        q.setFromAxisAngle(Z, THREE.MathUtils.degToRad(-vary(res.val, params.angleVariance)));
         turtle.rotation.multiply(q);
         i = res.nextIdx;
         break;
       case "-": // 左回転 (Yaw +)
         res = parsePara(str, i, params.angle);
-        q.setFromAxisAngle(Z, THREE.MathUtils.degToRad(res.val));
+        q.setFromAxisAngle(Z, THREE.MathUtils.degToRad(vary(res.val, params.angleVariance)));
         turtle.rotation.multiply(q);
         i = res.nextIdx;
         break;
 
       case "&": // ピッチダウン (Pitch +)
         res = parsePara(str, i, params.angle);
-        q.setFromAxisAngle(X, THREE.MathUtils.degToRad(res.val));
+        q.setFromAxisAngle(X, THREE.MathUtils.degToRad(vary(res.val, params.angleVariance)));
         turtle.rotation.multiply(q);
         i = res.nextIdx;
         break;
       case "^": // ピッチアップ (Pitch -)
         res = parsePara(str, i, params.angle);
-        q.setFromAxisAngle(X, THREE.MathUtils.degToRad(-res.val));
+        q.setFromAxisAngle(X, THREE.MathUtils.degToRad(-vary(res.val, params.angleVariance)));
         turtle.rotation.multiply(q);
         i = res.nextIdx;
         break;
 
       case "\\": // ロール (Roll +)
-        res = parsePara(str, i, params.angle); // 一般的にはここもAngle
-        q.setFromAxisAngle(Y, THREE.MathUtils.degToRad(res.val));
+        res = parsePara(str, i, params.angle);
+        q.setFromAxisAngle(Y, THREE.MathUtils.degToRad(vary(res.val, params.angleVariance)));
         turtle.rotation.multiply(q);
         i = res.nextIdx;
         break;
       case "/": // ロール (Roll -)
         res = parsePara(str, i, params.angle);
-        q.setFromAxisAngle(Y, THREE.MathUtils.degToRad(-res.val));
+        q.setFromAxisAngle(Y, THREE.MathUtils.degToRad(-vary(res.val, params.angleVariance)));
         turtle.rotation.multiply(q);
         i = res.nextIdx;
         break;
@@ -172,17 +193,6 @@ export function createLSystem3D(
         const popped = stack.pop();
         if (popped) turtle = popped;
         i++;
-        break;
-
-      // 葉
-      case "L":
-        res = parsePara(str, i, 1.0);
-        i = res.nextIdx;
-        leafDummy.position.copy(turtle.position);
-        leafDummy.quaternion.copy(turtle.rotation);
-        leafDummy.scale.setScalar(res.val);
-        leafDummy.updateMatrix();
-        leafMats.push(leafDummy.matrix.clone());
         break;
 
       default:

@@ -23,7 +23,7 @@ export const camera = new THREE.OrthographicCamera(
   1000
 );
 camera.position.set(10, 15, 25);
-camera.lookAt(0, 10, 0);
+camera.lookAt(0, 0, 0);
 
 // レンダラー
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -42,19 +42,19 @@ scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
 directionalLight.position.set(15, 25, 15);
-directionalLight.target.position.set(0, 10, 0);
+directionalLight.target.position.set(0, 0, 0);
 directionalLight.castShadow = true;
-directionalLight.shadow.camera.top = 20;
-directionalLight.shadow.camera.bottom = -20;
-directionalLight.shadow.camera.left = -20;
-directionalLight.shadow.camera.right = 20;
-directionalLight.shadow.mapSize.width = 2048;
-directionalLight.shadow.mapSize.height = 2048;
+directionalLight.shadow.camera.top = 100;
+directionalLight.shadow.camera.bottom = -100;
+directionalLight.shadow.camera.left = -100;
+directionalLight.shadow.camera.right = 100;
+directionalLight.shadow.mapSize.width = 4096;
+directionalLight.shadow.mapSize.height = 4096;
 scene.add(directionalLight);
 scene.add(directionalLight.target);
 
 // 地面
-const groundGeo = new THREE.PlaneGeometry(50, 50);
+const groundGeo = new THREE.PlaneGeometry(100, 100);
 const groundMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
 const groundMesh = new THREE.Mesh(groundGeo, groundMat);
 groundMesh.rotation.x = -Math.PI / 2;
@@ -63,7 +63,7 @@ scene.add(groundMesh);
 
 // コントロール
 export const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 10, 0);
+controls.target.set(0, 0, 0);
 controls.update();
 
 // GLTFローダー
