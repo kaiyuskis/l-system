@@ -160,7 +160,7 @@ function regenerate() {
 
     console.log(`生成完了: 枝の数=${branchMatrices.length}, 葉の数=${leafMatrices.length}`);
   } catch (error) {
-    console.error(`生成エラー: ${error}`);
+    console.error(`再生成中にエラーが発生: ${error}`);
   }
 }
 
