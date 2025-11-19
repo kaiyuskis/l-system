@@ -128,26 +128,28 @@ function regenerate() {
 const pane = new Pane({ title: "L-System" });
 pane.addButton({ title: "生成" }).on("click", regenerate);
 
-const tab = pane.addTab({ pages: [{ title: "基本" }, { title: "ルール" }] });
+const tab = pane.addTab({ pages: [{ title: "基本設定" }, { title: "ルール" }] });
 const p1 = tab.pages[0];
-p1.addBinding(params, "premise", { label: "初期状態" }).on("change", regenerate);
-p1.addBinding(params, "generations", { label: "世代", min: 1, max: 13, step: 1 }).on("change", regenerate);
 p1.addBinding(params, "initLength", { label: "初期の長さ", min: 0.1, max: 5 }).on("change", regenerate);
 p1.addBinding(params, "initThickness", { label: "初期の太さ", min: 0.01, max: 1 }).on("change", regenerate);
 
+p1.addBlade({ view: "separator" });
+p1.addBinding(params, "generations", { label: "世代", min: 1, max: 13, step: 1 }).on("change", regenerate);
+p1.addBinding(params, "scale", { label: "成長率", min: 0.1, max: 2 }).on( "change", regenerate);
 p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180 }).on("change", regenerate);
-p1.addBinding(params, "angleVariance", { label: "偏差", min: 0, max: 45 }).on("change", regenerate);
-
-p1.addBinding(params, "scale", { label: "成長率", min: 0.1, max: 2 }).on("change", regenerate);
+p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45 }).on("change", regenerate);
 p1.addBinding(params, "branchColor", { label: "枝の色" }).on("change", regenerate);
+
+p1.addBlade({ view: "separator" });
 p1.addBinding(params, "leafColor", { label: "葉の色" }).on("change", regenerate);
 p1.addBinding(params, "leafSize", { label: "葉の大きさ", min: 0.1, max: 5.0 }).on("change", regenerate);
 
 const p2 = tab.pages[1];
+p2.addBinding(params, "premise", { label: "初期状態" }).on("change", regenerate);
+p2.addBlade({ view: "separator" });
+
 params.rules.forEach((r, i) => {
-  p2.addBinding(r, "expression", {
-    label: `Rule ${i + 1}`,
-  });
+  p2.addBinding(r, "expression", {label: `ルール ${i + 1}`});
 });
 
 regenerate();
