@@ -55,19 +55,21 @@ export function createLSystem3D(
   params: {
     initLen: number;
     initWid: number;
+    scale: number;
     angle: number;
     angleVariance: number;
-    turn: number;
-    scale: number;
+    flowerSize: number;
     leafSize: number;
+    budSize: number;
   },
-  col: THREE.ColorRepresentation,
   branchMatrices: THREE.Matrix4[],
-  leafMatrices: THREE.Matrix4[]
+  flowerMatrices: THREE.Matrix4[],
+  leafMatrices: THREE.Matrix4[],
+  budMatrices: THREE.Matrix4[]
 ): void {
   const stack: TurtleState[] = [];
   const branchDummy = new THREE.Object3D();
-  const leafDummy = new THREE.Object3D();
+  const objDummy = new THREE.Object3D();
 
   // タートルの初期化
   let turtle: TurtleState = {
@@ -76,6 +78,9 @@ export function createLSystem3D(
     lenScalar: 1.0,
     widScalar: 1.0,
   };
+
+  // 分散計算
+  const vary = (base: number, variance: number) => base + (Math.random() * 2 - 1) * variance;
 
   // 軸ベクトル
   const X = new THREE.Vector3(1, 0, 0);
@@ -94,6 +99,7 @@ export function createLSystem3D(
         const L = res.val;
         i = res.nextIdx;
         const W = params.initWid * turtle.widScalar;
+
         branchDummy.position.copy(turtle.position);
         branchDummy.quaternion.copy(turtle.rotation);
         branchDummy.scale.set(W, L, W);
@@ -105,18 +111,41 @@ export function createLSystem3D(
         );
 
         break;
-
-      case "A": case "B": case "L": case "X":
-        res = parsePara(str, i, params.leafSize);
-        const s = res.val;
+      
+      // 花
+      case "K":
+        res = parsePara(str, i, params.flowerSize);
         i = res.nextIdx;
+        objDummy.position.copy(turtle.position);
+        objDummy.quaternion.copy(turtle.rotation);
+        objDummy.scale.setScalar(res.val);
+        objDummy.translateY(res.val * 0.5);
+        objDummy.updateMatrix();
+        flowerMatrices.push(objDummy.matrix.clone());
+        break;
 
-        leafDummy.position.copy(turtle.position);
-        leafDummy.quaternion.copy(turtle.rotation);
-        leafDummy.scale.setScalar(s);
-        leafDummy.translateY(s * 0.5);
-        leafDummy.updateMatrix();
-        leafMatrices.push(leafDummy.matrix.clone());
+      // 葉
+      case "L":
+        res = parsePara(str, i, params.leafSize);
+        i = res.nextIdx;
+        objDummy.position.copy(turtle.position);
+        objDummy.quaternion.copy(turtle.rotation);
+        objDummy.scale.setScalar(res.val);
+        objDummy.translateY(res.val * 0.5);
+        objDummy.updateMatrix();
+        leafMatrices.push(objDummy.matrix.clone());
+        break;
+
+      // つぼみ
+      case "M":
+        res = parsePara(str, i, params.budSize);
+        i = res.nextIdx;
+        objDummy.position.copy(turtle.position);
+        objDummy.quaternion.copy(turtle.rotation);
+        objDummy.scale.setScalar(res.val);
+        objDummy.translateY(res.val * 0.5);
+        objDummy.updateMatrix();
+        budMatrices.push(objDummy.matrix.clone());
         break;
 
       case "+": // 右回転 (Yaw -)
