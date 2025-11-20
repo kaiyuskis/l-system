@@ -1,5 +1,29 @@
 import * as THREE from "three";
 
+export interface BranchSegment {
+  start: THREE.Vector3;
+  end: THREE.Vector3;
+  thickness: number;
+}
+
+export interface FlowerPoint  {
+  position: THREE.Vector3;
+  rotation: THREE.Quaternion;
+  scale: number;
+}
+
+export interface LeafPoint  {
+  position: THREE.Vector3;
+  rotation: THREE.Quaternion;
+  scale: number;
+}
+
+export interface BudPoint  {
+  position: THREE.Vector3;
+  rotation: THREE.Quaternion;
+  scale: number;
+}
+
 // 型定義
 interface TurtleState {
   position: THREE.Vector3;
@@ -44,13 +68,8 @@ export function generateLSystemString(
   return str;
 }
 
-// 偏差計算
-function  vary(base: number, variance: number): number {
-  return base + (Math.random() * 2 - 1) * variance;
-}
-
 // L-System 3Dモデル生成
-export function createLSystem3D(
+export function createLSystemData(
   str: string,
   params: {
     initLen: number;
@@ -61,15 +80,15 @@ export function createLSystem3D(
     flowerSize: number;
     leafSize: number;
     budSize: number;
-  },
-  branchMatrices: THREE.Matrix4[],
-  flowerMatrices: THREE.Matrix4[],
-  leafMatrices: THREE.Matrix4[],
-  budMatrices: THREE.Matrix4[]
-): void {
+  }
+): { branches: BranchSegment[], flowers: FlowerPoint[], leaves: LeafPoint[], buds: BudPoint[] } {
+
+  const branches: BranchSegment[] = [];
+  const flowers: FlowerPoint[] = [];
+  const leaves: LeafPoint[] = [];
+  const buds: BudPoint[] = [];
+
   const stack: TurtleState[] = [];
-  const branchDummy = new THREE.Object3D();
-  const objDummy = new THREE.Object3D();
 
   // タートルの初期化
   let turtle: TurtleState = {
@@ -79,14 +98,13 @@ export function createLSystem3D(
     widScalar: 1.0,
   };
 
-  // 分散計算
-  const vary = (base: number, variance: number) => base + (Math.random() * 2 - 1) * variance;
-
-  // 軸ベクトル
   const X = new THREE.Vector3(1, 0, 0);
   const Y = new THREE.Vector3(0, 1, 0);
   const Z = new THREE.Vector3(0, 0, 1);
   const q = new THREE.Quaternion();
+
+  // 偏差計算
+  const vary = (base: number, variance: number) => base + (Math.random() * 2 - 1) * variance;
 
   let i = 0;
   while (i < str.length) {
@@ -100,15 +118,18 @@ export function createLSystem3D(
         i = res.nextIdx;
         const W = params.initWid * turtle.widScalar;
 
-        branchDummy.position.copy(turtle.position);
-        branchDummy.quaternion.copy(turtle.rotation);
-        branchDummy.scale.set(W, L, W);
-        branchDummy.updateMatrix();
-        branchMatrices.push(branchDummy.matrix.clone());
+        const startPos = turtle.position.clone();
 
         turtle.position.add(
           Y.clone().applyQuaternion(turtle.rotation).multiplyScalar(L)
         );
+        const endPos = turtle.position.clone();
+
+        branches.push({
+          start: startPos,
+          end: endPos,
+          thickness: W
+        });
 
         break;
       
@@ -116,36 +137,37 @@ export function createLSystem3D(
       case "K":
         res = parsePara(str, i, params.flowerSize);
         i = res.nextIdx;
-        objDummy.position.copy(turtle.position);
-        objDummy.quaternion.copy(turtle.rotation);
-        objDummy.scale.setScalar(res.val);
-        objDummy.translateY(res.val * 0.5);
-        objDummy.updateMatrix();
-        flowerMatrices.push(objDummy.matrix.clone());
+
+        flowers.push({
+          position: turtle.position.clone(),
+          rotation: turtle.rotation.clone(),
+          scale: res.val
+        });
         break;
 
       // 葉
       case "L":
-        res = parsePara(str, i, params.leafSize);
+        res = parsePara(str, i, params.leafSize); 
+        const s = res.val;
         i = res.nextIdx;
-        objDummy.position.copy(turtle.position);
-        objDummy.quaternion.copy(turtle.rotation);
-        objDummy.scale.setScalar(res.val);
-        objDummy.translateY(res.val * 0.5);
-        objDummy.updateMatrix();
-        leafMatrices.push(objDummy.matrix.clone());
+
+        leaves.push({
+          position: turtle.position.clone(),
+          rotation: turtle.rotation.clone(),
+          scale: s
+        });
         break;
 
       // つぼみ
       case "M":
         res = parsePara(str, i, params.budSize);
         i = res.nextIdx;
-        objDummy.position.copy(turtle.position);
-        objDummy.quaternion.copy(turtle.rotation);
-        objDummy.scale.setScalar(res.val);
-        objDummy.translateY(res.val * 0.5);
-        objDummy.updateMatrix();
-        budMatrices.push(objDummy.matrix.clone());
+        
+        buds.push({
+          position: turtle.position.clone(),
+          rotation: turtle.rotation.clone(),
+          scale: res.val
+        });
         break;
 
       case "+": // 右回転 (Yaw -)
@@ -225,4 +247,6 @@ export function createLSystem3D(
         break;
     }
   }
+
+  return { branches, flowers, leaves, buds };
 }

@@ -42,7 +42,7 @@ scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
 directionalLight.position.set(15, 25, 15);
-directionalLight.target.position.set(0, 5, 0);
+directionalLight.target.position.set(0, 0, 0);
 directionalLight.castShadow = true;
 directionalLight.shadow.camera.top = 100;
 directionalLight.shadow.camera.bottom = -100;
@@ -63,7 +63,7 @@ scene.add(groundMesh);
 
 // コントロール
 export const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 5, 0);
+controls.target.set(0, 0, 0);
 controls.update();
 
 // GLTFローダー
