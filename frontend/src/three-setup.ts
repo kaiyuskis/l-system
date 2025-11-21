@@ -12,18 +12,18 @@ document.body.appendChild(stats.dom);
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf0f0f0);
 
-const frustumSize = 20;
+const frustumSize = 25;
 const aspect = window.innerWidth / window.innerHeight;
 export const camera = new THREE.OrthographicCamera(
   (frustumSize * aspect) / -2,
   (frustumSize * aspect) / 2,
   frustumSize / 2,
   frustumSize / -2,
-  -100,
+  -1000,
   1000
 );
-camera.position.set(10, 15, 25);
-camera.lookAt(0, 5, 0);
+camera.position.set(10, 10, 25);
+camera.lookAt(0, 0, 0);
 
 // レンダラー
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -41,8 +41,8 @@ const ambientLight = new THREE.AmbientLight(0xa0a0a0);
 scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-directionalLight.position.set(15, 25, 15);
-directionalLight.target.position.set(0, 0, 0);
+directionalLight.position.set(15, 30, 15);
+directionalLight.target.position.set(0, 5, 0);
 directionalLight.castShadow = true;
 directionalLight.shadow.camera.top = 100;
 directionalLight.shadow.camera.bottom = -100;
@@ -54,8 +54,8 @@ scene.add(directionalLight);
 scene.add(directionalLight.target);
 
 // 地面
-const groundGeo = new THREE.PlaneGeometry(100, 100);
-const groundMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+const groundGeo = new THREE.PlaneGeometry(500, 500);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
 const groundMesh = new THREE.Mesh(groundGeo, groundMat);
 groundMesh.rotation.x = -Math.PI / 2;
 groundMesh.receiveShadow = true;
@@ -63,7 +63,7 @@ scene.add(groundMesh);
 
 // コントロール
 export const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0, 0);
+controls.target.set(0, 7, 0);
 controls.update();
 
 // GLTFローダー

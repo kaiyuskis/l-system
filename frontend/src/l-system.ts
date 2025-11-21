@@ -3,7 +3,15 @@ import * as THREE from "three";
 export interface BranchSegment {
   start: THREE.Vector3;
   end: THREE.Vector3;
-  thickness: number;
+  rotation: THREE.Quaternion;
+  radiusBottom: number;
+  radiusTop: number;
+}
+
+export interface OrganPoint {
+  position: THREE.Vector3;
+  rotation: THREE.Quaternion;
+  scale: number;
 }
 
 export interface FlowerPoint  {
@@ -30,6 +38,7 @@ interface TurtleState {
   rotation: THREE.Quaternion;
   lenScalar: number;
   widScalar: number;
+  currentWidth: number;
 }
 
 // パラメータ付きコマンド解析
@@ -75,13 +84,19 @@ export function createLSystemData(
     initLen: number;
     initWid: number;
     scale: number;
+    widthDecay: number;
     angle: number;
     angleVariance: number;
     flowerSize: number;
     leafSize: number;
     budSize: number;
   }
-): { branches: BranchSegment[], flowers: FlowerPoint[], leaves: LeafPoint[], buds: BudPoint[] } {
+): { 
+  branches: BranchSegment[],
+  flowers: FlowerPoint[],
+  leaves: LeafPoint[],
+  buds: BudPoint[],
+} {
 
   const branches: BranchSegment[] = [];
   const flowers: FlowerPoint[] = [];
@@ -96,6 +111,7 @@ export function createLSystemData(
     rotation: new THREE.Quaternion(),
     lenScalar: 1.0,
     widScalar: 1.0,
+    currentWidth: params.initWid,
   };
 
   const X = new THREE.Vector3(1, 0, 0);
@@ -114,23 +130,29 @@ export function createLSystemData(
     switch (char) {
       case "F": // 前進して枝を描画
         res = parsePara(str, i, params.initLen * turtle.lenScalar);
-        const L = res.val;
+        const len = res.val;
         i = res.nextIdx;
-        const W = params.initWid * turtle.widScalar;
 
         const startPos = turtle.position.clone();
+        const startRot = turtle.rotation.clone();
+
+        const rBot = turtle.currentWidth;
+        const rTop = turtle.currentWidth * params.widthDecay;
 
         turtle.position.add(
-          Y.clone().applyQuaternion(turtle.rotation).multiplyScalar(L)
+          Y.clone().applyQuaternion(turtle.rotation).multiplyScalar(len)
         );
         const endPos = turtle.position.clone();
 
         branches.push({
           start: startPos,
           end: endPos,
-          thickness: W
+          rotation: startRot,
+          radiusBottom: rBot,
+          radiusTop: rTop,
         });
 
+        turtle.currentWidth = rTop;
         break;
       
       // 花
@@ -148,13 +170,12 @@ export function createLSystemData(
       // 葉
       case "L":
         res = parsePara(str, i, params.leafSize); 
-        const s = res.val;
         i = res.nextIdx;
 
         leaves.push({
           position: turtle.position.clone(),
           rotation: turtle.rotation.clone(),
-          scale: s
+          scale: res.val
         });
         break;
 
@@ -215,12 +236,12 @@ export function createLSystemData(
         i++;
         break;
 
-      case "!": // 太さ乗算 (Default: scale)
+      case "!": // 太さ乗算
         res = parsePara(str, i, params.scale);
-        turtle.widScalar *= res.val;
+        turtle.currentWidth *= res.val;
         i = res.nextIdx;
         break;
-      case '"': // 長さ乗算 (Default: scale)
+      case '"': // 長さ乗算
         res = parsePara(str, i, params.scale);
         turtle.lenScalar *= res.val;
         i = res.nextIdx;
@@ -229,10 +250,9 @@ export function createLSystemData(
       // スタック操作
       case "[":
         stack.push({
+          ...turtle,
           position: turtle.position.clone(),
           rotation: turtle.rotation.clone(),
-          lenScalar: turtle.lenScalar,
-          widScalar: turtle.widScalar,
         });
         i++;
         break;
