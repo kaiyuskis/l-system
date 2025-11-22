@@ -21,10 +21,14 @@ interface LSystemRule { expression: string; }
 
 // パラメータ
 const params = {
-  initLength: 1.0,
-  initThickness: 1.0,
+  growthMode: true,
 
-  generations: 7,
+  initLength: 1.0,
+  maxLength: 1.0,
+  initThickness: 1.0,
+  maxThickness: 1.0,
+
+  generations: 6,
   angle: 28.0,
   angleVariance: 5.0,
   branchColor: "#ffffff",
@@ -146,10 +150,21 @@ function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeomet
 // --- 再生成関数 ---
 function regenerate() {
   treeGroup.clear();
-  if (branchMesh) { branchMesh.geometry.dispose(); branchMesh = null; }
-  if (flowerMesh) { flowerMesh.dispose(); flowerMesh = null; }
-  if (leafMesh) { leafMesh.dispose(); leafMesh = null; }
-  if (budMesh) { budMesh.dispose(); budMesh = null; }
+
+  if (params.growthMode) {
+    // 世代数に応じてサイズを変える (例: シグモイド関数や線形補間で滑らかに)
+    // ここではシンプルに「現在の世代 / 最大世代(10)」の割合でスケール
+    const ratio = Math.min(params.generations / 10.0, 1.0);
+    
+    // 若い木は細く短く
+    params.initLength = params.maxLength * ratio;
+    
+    // 太さは長さ以上に細くした方が「苗木っぽく」見える (2乗など)
+    params.initThickness = params.maxThickness * (ratio * ratio); 
+    
+    // Tweakpaneの表示も更新
+    pane.refresh(); 
+  }
 
   // ルール解析
   const rules: { [key: string]: string } = {};
@@ -244,6 +259,7 @@ function updateColors() {
 }
 
 // Tweakpane UI
+const generationsMax = 12;
 const pane = new Pane({ title: "L-System" });
 
 const tab = pane.addTab({
@@ -255,11 +271,22 @@ const tab = pane.addTab({
 });
 
 const p1 = tab.pages[0];
-p1.addBinding(params, "initLength", { label: "初期の長さ", min: 0.1, max: 2, step: 0.1 }).on("change", regenerate);
-p1.addBinding(params, "initThickness", { label: "初期の太さ", min: 0.1, max: 2, step: 0.1 }).on("change", regenerate);
+p1.addBinding(params, 'growthMode', { label: '成長連動' }).on('change', regenerate);
 
 p1.addBlade({ view: "separator" });
-p1.addBinding(params, "generations", { label: "世代", min: 0, max: 10, step: 1 }).on("change", regenerate);
+p1.addBinding(params, "maxLength", { label: "最大の長さ", min: 0.1, max: 2, step: 0.01 }).on("change", () => {
+  params.initLength = params.maxLength;
+  regenerate();
+});
+p1.addBinding(params, "initLength", { label: "現在の長さ", readonly: true })
+p1.addBinding(params, "maxThickness", { label: "最大の太さ", min: 0.01, max: 2, step: 0.01 }).on("change", () => {
+  params.initThickness = params.maxThickness;
+  regenerate();
+});
+p1.addBinding(params, "initThickness", { label: "現在の太さ", readonly: true })
+
+p1.addBlade({ view: "separator" });
+p1.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", regenerate);
 p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", regenerate);
 p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", regenerate);
 p1.addBinding(params, "branchColor", { label: "枝の色" }).on("change", updateColors);
@@ -274,7 +301,7 @@ p1.addBinding(params, 'resultInfo', {
   readonly: true
 });
 p1.addBinding(params, 'resultText', { 
-  label: '文字列',
+  label: '文字列(1000文字まで)',
   multiline: true,
   rows: 10,
   readonly: true
@@ -293,7 +320,7 @@ p2.addBinding(params, 'budColor').on('change', updateColors);
 p2.addBinding(params, 'budSize', { label: "つぼみ", min: 0, max: 5 }).on('change', regenerate);
 
 const p3 = tab.pages[2];
-p3.addBinding(params, "generations", { label: "世代", min: 0, max: 10, step: 1 }).on("change", regenerate);
+p3.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", regenerate);
 
 p3.addBlade({ view: "separator" });
 p3.addBinding(params, "premise", { label: "初期状態" }).on("change", regenerate);

@@ -48,8 +48,8 @@ directionalLight.shadow.camera.top = 100;
 directionalLight.shadow.camera.bottom = -100;
 directionalLight.shadow.camera.left = -100;
 directionalLight.shadow.camera.right = 100;
-directionalLight.shadow.mapSize.width = 2048;
-directionalLight.shadow.mapSize.height = 2048;
+directionalLight.shadow.mapSize.width = 4096;
+directionalLight.shadow.mapSize.height = 4096;
 scene.add(directionalLight);
 scene.add(directionalLight.target);
 
