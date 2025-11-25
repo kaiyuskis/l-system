@@ -90,6 +90,7 @@ export function createLSystemData(
     flowerSize: number;
     leafSize: number;
     budSize: number;
+    gravity: number;
   }
 ): { 
   branches: BranchSegment[],
@@ -122,6 +123,10 @@ export function createLSystemData(
   // 偏差計算
   const vary = (base: number, variance: number) => base + (Math.random() * 2 - 1) * variance;
 
+  const gravityVec = new THREE.Vector3(0, -1, 0);
+  // const tempVec = new THREE.Vector3();
+  const tempQuat = new THREE.Quaternion();
+
   let i = 0;
   while (i < str.length) {
     const char = str[i];
@@ -132,6 +137,16 @@ export function createLSystemData(
         res = parsePara(str, i, params.initLen * turtle.lenScalar);
         const len = res.val;
         i = res.nextIdx;
+
+        // 重量の適用
+        if (params.gravity !== 0) {
+          const currentHeading = Y.clone().applyQuaternion(turtle.rotation).normalize();
+          const targetDir = gravityVec.clone().multiplyScalar(Math.sign(params.gravity));
+          const strength = Math.min(Math.abs(params.gravity) * 0.01, 1.0);
+          const nextHeading = currentHeading.clone().lerp(targetDir, strength).normalize();
+          tempQuat.setFromUnitVectors(currentHeading, nextHeading);
+          turtle.rotation.premultiply(tempQuat);
+        }
 
         const startPos = turtle.position.clone();
         const startRot = turtle.rotation.clone();

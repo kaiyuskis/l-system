@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+// import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+// import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import Stats from "stats.js";
 
 // Statsの初期化
@@ -8,22 +9,22 @@ const stats = new Stats();
 stats.showPanel(0);
 document.body.appendChild(stats.dom);
 
-// シーン、カメラ
+// シーン
 export const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf0f0f0);
+const fogColor = 0xdcebf5
+scene.background = new THREE.Color(fogColor);
+scene.fog = new THREE.Fog(fogColor, 20, 200);
 
-const frustumSize = 25;
-const aspect = window.innerWidth / window.innerHeight;
-export const camera = new THREE.OrthographicCamera(
-  (frustumSize * aspect) / -2,
-  (frustumSize * aspect) / 2,
-  frustumSize / 2,
-  frustumSize / -2,
-  -1000,
+
+// カメラ
+export const camera = new THREE.PerspectiveCamera(
+  45,
+  window.innerWidth / window.innerHeight,
+  0.1,
   1000
 );
-camera.position.set(10, 10, 25);
-camera.lookAt(0, 0, 0);
+camera.position.set(0, 10, 40);
+camera.lookAt(0, 10, 0);
 
 // レンダラー
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -31,31 +32,45 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
 const app = document.querySelector<HTMLDivElement>("#app");
 if (app) {
   app.appendChild(renderer.domElement);
 }
 
-// ライト
-const ambientLight = new THREE.AmbientLight(0xa0a0a0);
-scene.add(ambientLight);
+// ライティング
+const hemiLight = new THREE.HemisphereLight(0xddeeff, 0x222222, 1.5); 
+scene.add(hemiLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-directionalLight.position.set(15, 30, 15);
-directionalLight.target.position.set(0, 5, 0);
+export const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0);
+directionalLight.position.set(10, 30, 20);
 directionalLight.castShadow = true;
-directionalLight.shadow.camera.top = 100;
-directionalLight.shadow.camera.bottom = -100;
-directionalLight.shadow.camera.left = -100;
-directionalLight.shadow.camera.right = 100;
-directionalLight.shadow.mapSize.width = 4096;
-directionalLight.shadow.mapSize.height = 4096;
-scene.add(directionalLight);
-scene.add(directionalLight.target);
 
-// 地面
-const groundGeo = new THREE.PlaneGeometry(500, 500);
-const groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+directionalLight.shadow.mapSize.width = 2048;
+directionalLight.shadow.mapSize.height = 2048;
+directionalLight.shadow.camera.near = 0.5;
+directionalLight.shadow.camera.far = 500;
+
+const d = 30
+directionalLight.shadow.camera.top = d;
+directionalLight.shadow.camera.bottom = -d;
+directionalLight.shadow.camera.left = -d;
+directionalLight.shadow.camera.right = d;
+directionalLight.shadow.bias = -0.0001;
+directionalLight.shadow.radius = 4;
+scene.add(directionalLight);
+
+// 床
+// グリッド
+const gridHelper = new THREE.GridHelper(100, 100, 0x888888, 0xdddddd);
+gridHelper.position.y = 0.01;
+scene.add(gridHelper);
+
+// 透明な床
+const groundGeo = new THREE.PlaneGeometry(200, 200);
+const groundMat = new THREE.ShadowMaterial({ opacity: 0.3 });
 const groundMesh = new THREE.Mesh(groundGeo, groundMat);
 groundMesh.rotation.x = -Math.PI / 2;
 groundMesh.receiveShadow = true;
@@ -64,10 +79,9 @@ scene.add(groundMesh);
 // コントロール
 export const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 7, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
 controls.update();
-
-// GLTFローダー
-export const loader = new GLTFLoader();
 
 // アニメーションループ
 function animate() {
@@ -81,11 +95,7 @@ animate();
 
 // リサイズ処理
 window.addEventListener("resize", () => {
-  const aspect = window.innerWidth / window.innerHeight;
-  camera.left = (frustumSize * aspect) / -2;
-  camera.right = (frustumSize * aspect) / 2;
-  camera.top = frustumSize / 2;
-  camera.bottom = frustumSize / -2;
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });

@@ -1,14 +1,15 @@
 import "./style.css";
 import * as THREE from "three";
-import { Pane } from "tweakpane";
 import { scene } from "./three-setup.ts";
 import { generateLSystemString, createLSystemData, type BranchSegment, type OrganPoint } from "./l-system.ts";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-
+import { setupUI } from './ui-setup.ts';
 
 // --- グローバル変数 ---
 const treeGroup = new THREE.Group();
 scene.add(treeGroup);
+
+let pane: any;
 
 // メッシュのインスタンス変数
 let branchMesh: THREE.Mesh | null = null;
@@ -31,6 +32,7 @@ const params = {
   generations: 6,
   angle: 28.0,
   angleVariance: 5.0,
+  gravity: 1.0,
   branchColor: "#ffffff",
 
   scale: 0.95,
@@ -119,7 +121,7 @@ const matBud = new THREE.MeshStandardMaterial({
 
 function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
-  const radialSegments = 8;
+  const radialSegments = 20;
 
   for (const seg of segments) {
     const length = seg.start.distanceTo(seg.end);
@@ -144,26 +146,63 @@ function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeomet
   }
 
   if (geometries.length === 0) return new THREE.BufferGeometry();
-  return BufferGeometryUtils.mergeGeometries(geometries, false);
+  const mergedGeo = BufferGeometryUtils.mergeGeometries(geometries, false);
+
+  geometries.forEach(geo => geo.dispose());
+
+  return mergedGeo;
+}
+
+// 徹底的なメモリ掃除関数
+function cleanUp(obj: THREE.Object3D) {
+  if (!obj) return;
+
+  // 子要素も再帰的に削除
+  while (obj.children.length > 0) {
+    cleanUp(obj.children[0]);
+    obj.remove(obj.children[0]);
+  }
+
+  if (obj instanceof THREE.Mesh) {
+    // ジオメトリの削除 (GPUメモリ解放)
+    if (obj.geometry) {
+      obj.geometry.dispose();
+    }
+
+    // マテリアルの削除
+    if (obj.material) {
+      // 配列の場合 (Material[])
+      if (Array.isArray(obj.material)) {
+        obj.material.forEach((m) => m.dispose());
+      } 
+      // 単体の場合 (Material)
+      else {
+        obj.material.dispose();
+      }
+    }
+  }
 }
 
 // --- 再生成関数 ---
 function regenerate() {
+  if (pane) pane.refresh();
+
+  cleanUp(treeGroup);
   treeGroup.clear();
 
+  // グローバル変数のメッシュも掃除
+  if (branchMesh) { cleanUp(branchMesh); branchMesh = null; }
+  if (leafMesh) { cleanUp(leafMesh); leafMesh = null; }
+  if (flowerMesh) { cleanUp(flowerMesh); flowerMesh = null; }
+  if (budMesh) { cleanUp(budMesh); budMesh = null; }
+
   if (params.growthMode) {
-    // 世代数に応じてサイズを変える (例: シグモイド関数や線形補間で滑らかに)
-    // ここではシンプルに「現在の世代 / 最大世代(10)」の割合でスケール
     const ratio = Math.min(params.generations / 10.0, 1.0);
     
-    // 若い木は細く短く
     params.initLength = params.maxLength * ratio;
-    
-    // 太さは長さ以上に細くした方が「苗木っぽく」見える (2乗など)
     params.initThickness = params.maxThickness * (ratio * ratio); 
     
-    // Tweakpaneの表示も更新
-    pane.refresh(); 
+    if (pane) pane.refresh(); 
   }
 
   // ルール解析
@@ -191,7 +230,7 @@ function regenerate() {
     params.resultText = str;
   }
   
-  pane.refresh();
+  if (pane) pane.refresh();
 
   // L-System データ生成
   const data = createLSystemData(
@@ -206,6 +245,7 @@ function regenerate() {
       flowerSize: params.flowerSize,
       leafSize: params.leafSize,
       budSize: params.budSize,
+      gravity: params.gravity,
     }
   );
 
@@ -246,7 +286,7 @@ function regenerate() {
   flowerMesh = createInstanced(data.flowers, matFlower, params.flowerColor) || null;
   budMesh = createInstanced(data.buds, matBud, params.budColor) || null;
 
-  console.log(`生成完了: 枝の数=${data.branches.length}, 花の数=${data.flowers.length}, 葉の数=${data.leaves.length}, つぼみの数=${data.buds.length}`);
+  console.log(`生成完了: 枝の数=${data.branches.length}`);
 }
 
 
@@ -258,76 +298,8 @@ function updateColors() {
   matBud.color.set(params.budColor);
 }
 
-// Tweakpane UI
-const generationsMax = 12;
-const pane = new Pane({ title: "L-System" });
+// Tweakpaneのセットアップ
+pane = setupUI(params, regenerate, updateColors);
 
-const tab = pane.addTab({
-  pages: [
-    { title: "基本設定" },
-    { title: "器官設定" },
-    { title: "ルール" },
-  ]
-});
-
-const p1 = tab.pages[0];
-p1.addBinding(params, 'growthMode', { label: '成長連動' }).on('change', regenerate);
-
-p1.addBlade({ view: "separator" });
-p1.addBinding(params, "maxLength", { label: "最大の長さ", min: 0.1, max: 2, step: 0.01 }).on("change", () => {
-  params.initLength = params.maxLength;
-  regenerate();
-});
-p1.addBinding(params, "initLength", { label: "現在の長さ", readonly: true })
-p1.addBinding(params, "maxThickness", { label: "最大の太さ", min: 0.01, max: 2, step: 0.01 }).on("change", () => {
-  params.initThickness = params.maxThickness;
-  regenerate();
-});
-p1.addBinding(params, "initThickness", { label: "現在の太さ", readonly: true })
-
-p1.addBlade({ view: "separator" });
-p1.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", regenerate);
-p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", regenerate);
-p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", regenerate);
-p1.addBinding(params, "branchColor", { label: "枝の色" }).on("change", updateColors);
-
-p1.addBlade({ view: "separator" });
-p1.addBinding(params, "scale", { label: '長さ減衰率(")', min: 0.0, max: 2.0, step: 0.01 }).on( "change", regenerate);
-p1.addBinding(params, 'widthDecay', { label: '太さ減衰率(!)', min: 0.5, max: 1.0, step: 0.01 }).on('change', regenerate);
-
-p1.addBlade({ view: "separator" });
-p1.addBinding(params, 'resultInfo', { 
-  label: '文字数', 
-  readonly: true
-});
-p1.addBinding(params, 'resultText', { 
-  label: '文字列(1000文字まで)',
-  multiline: true,
-  rows: 10,
-  readonly: true
-});
-
-const p2 = tab.pages[1];
-p2.addBinding(params, 'flowerColor').on('change', updateColors);
-p2.addBinding(params, 'flowerSize', { label: "花", min: 0, max: 5 }).on('change', regenerate);
-
-p2.addBlade({ view: 'separator' });
-p2.addBinding(params, 'leafColor').on('change', updateColors);
-p2.addBinding(params, 'leafSize', { label: "葉", min: 0, max: 5 }).on('change', regenerate);
-
-p2.addBlade({ view: 'separator'});
-p2.addBinding(params, 'budColor').on('change', updateColors);
-p2.addBinding(params, 'budSize', { label: "つぼみ", min: 0, max: 5 }).on('change', regenerate);
-
-const p3 = tab.pages[2];
-p3.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", regenerate);
-
-p3.addBlade({ view: "separator" });
-p3.addBinding(params, "premise", { label: "初期状態" }).on("change", regenerate);
-params.rules.forEach((r, i) => {
-  p3.addBinding(r, "expression", {label: `ルール${i + 1}`});
-});
-
-pane.addButton({ title: "生成" }).on("click", regenerate);
-
+// 初回実行
 regenerate();
