@@ -4,6 +4,7 @@ import { scene } from "./three-setup.ts";
 import { generateLSystemString, createLSystemData, type BranchSegment, type OrganPoint } from "./l-system.ts";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { setupUI } from './ui-setup.ts';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 
 // --- グローバル変数 ---
 const treeGroup = new THREE.Group();
@@ -298,8 +299,138 @@ function updateColors() {
   matBud.color.set(params.budColor);
 }
 
+function downloadGLTF() {
+  if (treeGroup.children.length === 0) {
+    alert("エクスポートするモデルがありません");
+    return;
+  }
+
+  console.log("エクスポート処理開始...");
+
+  const exporter = new GLTFExporter();
+  const exportScene = new THREE.Scene();
+
+  // treeGroupの中身を走査
+  treeGroup.children.forEach((child) => {
+    
+    // A. InstancedMesh (葉・花・つぼみ) の場合 -> バラバラのMeshに変換
+    if (child instanceof THREE.InstancedMesh) {
+      const count = child.count;
+      const originalGeo = child.geometry;
+      const originalMat = child.material;
+      
+      console.log(`InstancedMeshを変換中... 個数: ${count}`);
+
+      for (let i = 0; i < count; i++) {
+        const matrix = new THREE.Matrix4();
+        child.getMatrixAt(i, matrix);
+
+        const mesh = new THREE.Mesh(originalGeo, originalMat);
+        
+        // ★ 重要: 行列を直接コピーし、自動更新を止める
+        mesh.matrixAutoUpdate = false;
+        mesh.matrix.copy(matrix);
+        
+        // 名前を一意にする (例: Leaf_0, Leaf_1...)
+        mesh.name = `${child.name || 'Instance'}_${i}`;
+        
+        exportScene.add(mesh);
+      }
+    } 
+    // B. 普通の Mesh (枝) の場合 -> そのままクローン
+    else if (child instanceof THREE.Mesh) {
+      console.log("Mesh (枝) をコピー");
+      const mesh = child.clone();
+      exportScene.add(mesh);
+    }
+  });
+
+  // ★ 最重要: エクスポート前に全ての位置情報を確定させる
+  exportScene.updateMatrixWorld(true);
+
+  // エクスポート実行
+  exporter.parse(
+    exportScene,
+    (gltf) => {
+      console.log("GLTF生成完了。ダウンロードを開始します。");
+      const blob = new Blob([gltf as ArrayBuffer], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = url;
+      link.download = 'l-system-tree.glb';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+    (error) => {
+      console.error('エクスポートエラー:', error);
+    },
+    { binary: true }
+  );
+}
+
+// ★ 1. プリセット保存関数 (JSONダウンロード)
+function savePreset() {
+  // params オブジェクトをきれいなJSON文字列に変換
+  const jsonStr = JSON.stringify(params, null, 2);
+  
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  // ファイル名に日時を入れると便利
+  const date = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+  link.download = `lsystem_preset_${date}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+// ★ 2. プリセット読込関数 (JSONアップロード)
+function loadPreset() {
+  // ファイル選択ダイアログを動的に作成
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json'; // JSONファイルのみ
+  
+  input.onchange = (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    if (!target.files || target.files.length === 0) return;
+    
+    const file = target.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const data = JSON.parse(content);
+        
+        // 読み込んだデータで params を上書き
+        // (Object.assign で既存の params に値をコピー)
+        Object.assign(params, data);
+        
+        // UIの表示を更新
+        pane.refresh();
+        
+        // 色と形状を反映
+        updateColors();
+        regenerate();
+        
+        console.log("プリセットを読み込みました");
+      } catch (error) {
+        console.error("読み込みエラー:", error);
+        alert("ファイルの読み込みに失敗しました。正しいJSONファイルですか？");
+      }
+    };
+    reader.readAsText(file);
+  };
+  
+  input.click(); // ダイアログを開く
+}
+
 // Tweakpaneのセットアップ
-pane = setupUI(params, regenerate, updateColors);
+pane = setupUI(params, regenerate, updateColors, downloadGLTF, savePreset, loadPreset);
 
 // 初回実行
 regenerate();

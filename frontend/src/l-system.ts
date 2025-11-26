@@ -138,7 +138,7 @@ export function createLSystemData(
         const len = res.val;
         i = res.nextIdx;
 
-        // 重量の適用
+        // 重力の適用
         if (params.gravity !== 0) {
           const currentHeading = Y.clone().applyQuaternion(turtle.rotation).normalize();
           const targetDir = gravityVec.clone().multiplyScalar(Math.sign(params.gravity));

@@ -2,12 +2,15 @@ import { Pane } from 'tweakpane';
 import * as THREE from "three";
 import { scene, renderer, directionalLight } from './three-setup.ts';
 
-const generationsMax = 15;
+const generationsMax = 12;
 
 export function setupUI(
   params: any,
   onRegenerate: () => void,
   onUpdateColor: () => void,
+  downloadGLTF: () => void,
+  savePreset: () => void,
+  loadPreset: () => void,
 
 ) {
     const pane = new Pane({ title: "L-System" });
@@ -89,9 +92,9 @@ export function setupUI(
       p3.addBinding(r, "expression", {label: `ルール${i + 1}`});
     });
 
-    const envTab = pane.addTab({ pages: [{ title: '環境設定' }] }).pages[0];
+    const envFolder = pane.addFolder({ title: '環境設定', expanded: false });
     // 露出
-    envTab.addBinding(renderer, 'toneMappingExposure', {
+    envFolder.addBinding(renderer, 'toneMappingExposure', {
       label: '露出 (Exposure)',
       min: 0,
       max: 2,
@@ -99,30 +102,39 @@ export function setupUI(
     });
 
     // 太陽光の強さ
-    envTab.addBinding(directionalLight, 'intensity', {
+    envFolder.addBinding(directionalLight, 'intensity', {
       label: '太陽光 (Sun)',
       min: 0,
-      max: 3,
+      max: 5,
       step: 0.1
     });
 
-    envTab.addBlade({ view: 'separator'});
+    envFolder.addBlade({ view: 'separator'});
 
     // フォグの開始距離
-    envTab.addBinding(scene.fog as THREE.Fog, 'near', {
+    envFolder.addBinding(scene.fog as THREE.Fog, 'near', {
       label: 'フォグの開始距離',
       min: 0,
       max: 100,
     });
 
     // フォグの終了距離
-    envTab.addBinding(scene.fog as THREE.Fog, 'far', {
+    envFolder.addBinding(scene.fog as THREE.Fog, 'far', {
       label: 'フォグの終了距離',
       min: 50,
       max: 500,
     });
     
-    pane.addButton({ title: "生成" }).on("click", onRegenerate);
+    const btnFolder = pane.addFolder({ title: 'アクション' });
+    btnFolder.addButton({ title: "生成" }).on("click", onRegenerate);
+
+    btnFolder.addBlade({ view: 'separator' }); // 区切り線
+    btnFolder.addButton({ title: '保存 (.glb)' }).on('click', downloadGLTF);   
+    
+    // ★ プリセットボタンを追加
+    btnFolder.addBlade({ view: 'separator' }); // 区切り線
+    btnFolder.addButton({ title: '設定を保存 (Save JSON)' }).on('click', savePreset);
+    btnFolder.addButton({ title: '設定を読込 (Load JSON)' }).on('click', loadPreset);
 
     return pane;
 }

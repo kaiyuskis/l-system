@@ -13,7 +13,7 @@ document.body.appendChild(stats.dom);
 export const scene = new THREE.Scene();
 const fogColor = 0xdcebf5
 scene.background = new THREE.Color(fogColor);
-scene.fog = new THREE.Fog(fogColor, 20, 200);
+scene.fog = new THREE.Fog(fogColor, 20, 250);
 
 
 // カメラ
@@ -44,7 +44,7 @@ if (app) {
 const hemiLight = new THREE.HemisphereLight(0xddeeff, 0x222222, 1.5); 
 scene.add(hemiLight);
 
-export const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0);
+export const directionalLight = new THREE.DirectionalLight(0xffffff, 3.0);
 directionalLight.position.set(10, 30, 20);
 directionalLight.castShadow = true;
 
