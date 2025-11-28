@@ -1,6 +1,6 @@
 import { Pane } from 'tweakpane';
 import * as THREE from "three";
-import { scene, renderer, directionalLight } from './three-setup.ts';
+import { scene, renderer, directionalLight, windUniforms } from './three-setup.ts';
 
 const generationsMax = 12;
 
@@ -23,7 +23,8 @@ export function setupUI(
         { title: "ルール" },
       ]
     });
-    
+
+    // タブ1: 基本設定
     const p1 = tab.pages[0];
     p1.addBinding(params, 'growthMode', { label: '成長連動' }).on('change', onRegenerate);
     
@@ -73,6 +74,7 @@ export function setupUI(
       readonly: true
     });
     
+    // タブ2: 器官設定
     const p2 = tab.pages[1];
     p2.addBinding(params, 'flowerColor').on('change', onUpdateColor);
     p2.addBinding(params, 'flowerSize', { label: "花", min: 0, max: 5 }).on('change', onRegenerate);
@@ -85,6 +87,7 @@ export function setupUI(
     p2.addBinding(params, 'budColor').on('change', onUpdateColor);
     p2.addBinding(params, 'budSize', { label: "つぼみ", min: 0, max: 5 }).on('change', onRegenerate);
     
+    // タブ3: ルール
     const p3 = tab.pages[2];
     p3.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", handleGenChange);
 
@@ -98,27 +101,46 @@ export function setupUI(
 
     envFolder.addButton({ title: 'カメラリセット' }).on('click', resetCamera);
 
-    envFolder.addBlade({ view: 'separator'});
-    envFolder.addBinding(renderer, 'toneMappingExposure', {
+    const envTab = envFolder.addTab({
+      pages: [
+        { title: "風" },
+        { title: "ライティング/フォグ" },
+      ]
+    });
+
+    const windTab = envTab.pages[0];
+    windTab.addBinding(windUniforms.speed, 'value', { 
+      label: '風速', 
+      min: 0.0, 
+      max: 5.0 
+    });
+    windTab.addBinding(windUniforms.strength, 'value', { 
+      label: '風の強さ', 
+      min: 0.0, 
+      max: 2.0 
+    });
+
+    const lightingTab = envTab.pages[1];
+    lightingTab.addBinding(renderer, 'toneMappingExposure', {
       label: '露出 (Exposure)',
       min: 0,
       max: 2,
       step: 0.01
     });
-    envFolder.addBinding(directionalLight, 'intensity', {
+    lightingTab.addBinding(directionalLight, 'intensity', {
       label: '太陽光 (Sun)',
       min: 0,
       max: 5,
       step: 0.1
     });
 
-    envFolder.addBlade({ view: 'separator'});
-    envFolder.addBinding(scene.fog as THREE.Fog, 'near', {
+    lightingTab.addBlade({ view: 'separator'});
+    lightingTab.addBinding(scene.fog as THREE.Fog, 'near', {
       label: 'フォグの開始距離',
       min: 0,
       max: 100,
     });
-    envFolder.addBinding(scene.fog as THREE.Fog, 'far', {
+    lightingTab.addBinding(scene.fog as THREE.Fog, 'far', {
       label: 'フォグの終了距離',
       min: 50,
       max: 500,

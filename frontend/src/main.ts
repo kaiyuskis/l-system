@@ -1,6 +1,6 @@
 import "./style.css";
 import * as THREE from "three";
-import { scene, camera, controls } from "./three-setup.ts";
+import { scene, camera, controls, windUniforms } from "./three-setup.ts";
 import { generateLSystemString, createLSystemData, type BranchSegment, type OrganPoint } from "./l-system.ts";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { setupUI } from './ui-setup.ts';
@@ -68,6 +68,60 @@ const params = {
   resultText: '',
 };
 
+// シェーダーで使うGLSLコード
+const windShaderChunk = {
+  header: `
+    uniform float time;
+    uniform float windStrength;
+
+    float noise(vec2 p) {
+      return fract(sin(dot(p ,vec2(12.9898,78.233))) * 43758.5453);
+    }
+    
+    vec3 applyWind(vec3 pos, float t) { 
+      // 高さが高いほど大きく揺れる
+      float heightFactor = pow(max(0.0, pos.y), 1.5) * 0.05;
+
+      // x軸とz軸方向にサイン波で揺らす
+      float swayX = sin(t * 0.5 + pos.x * 0.2) * 0.5;
+      float swayZ = cos(t * 0.3 + pos.z * 0.2) * 0.5;
+
+      // 葉っぱ用の揺れ
+      float flutter = sin(t * 2.0 + pos.y * 3.0) * 0.2;
+
+      float totalSwayX = (swayX + flutter) * heightFactor * windStrength;
+      float totalSwayZ = (swayZ + flutter) * heightFactor * windStrength;
+
+      pos.x += totalSwayX;
+      pos.z += totalSwayZ;
+
+      return pos;
+    }
+  `,
+  main: `
+    transformed = applyWind(transformed, time);
+  `
+};
+
+// マテリアルに風シェーダーを適用する関数
+function enableWind(material: THREE.MeshStandardMaterial) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.time = windUniforms.time;
+    shader.uniforms.windStrength = windUniforms.strength;
+
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <common>',
+      `#include <common>\n` + windShaderChunk.header
+    );
+
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>\n` + windShaderChunk.main
+    );
+  };
+
+}
+
 // --- テクスチャの準備 ---
 const texLoader = new THREE.TextureLoader();
 const barkColor = texLoader.load('bark_willow_02_diff_4k.jpg');
@@ -93,6 +147,7 @@ const matBranch = new THREE.MeshStandardMaterial({
   roughnessMap: barkRoughness,
   color: params.branchColor,
 });
+enableWind(matBranch);
 
 const geoPlane = new THREE.PlaneGeometry(1, 1);
 
@@ -104,6 +159,7 @@ const matFlower = new THREE.MeshStandardMaterial({
   transparent: true,
   alphaTest: 0.5
 });
+enableWind(matFlower);
 
 // 葉
 const matLeaf = new THREE.MeshStandardMaterial({
@@ -113,6 +169,7 @@ const matLeaf = new THREE.MeshStandardMaterial({
   transparent: true,
   alphaTest: 0.5
 });
+enableWind(matLeaf);
 
 // つぼみ
 const matBud = new THREE.MeshStandardMaterial({
@@ -122,6 +179,7 @@ const matBud = new THREE.MeshStandardMaterial({
   transparent: true,
   alphaTest: 0.5
 });
+enableWind(matBud);
 
 function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];

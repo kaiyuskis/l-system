@@ -81,10 +81,19 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.update();
 
+// 風エフェクト用ユニフォーム
+export const windUniforms = {
+  time: { value: 0 },
+  speed: { value: 1.0 },
+  strength: { value: 0.1 },
+};
+
 // アニメーションループ
 function animate() {
   stats.begin();
   requestAnimationFrame(animate);
+  const delta = 0.01 * windUniforms.speed.value;
+  windUniforms.time.value += delta;
   controls.update();
   renderer.render(scene, camera);
   stats.end();
