@@ -11,6 +11,7 @@ export function setupUI(
   downloadGLTF: () => void,
   savePreset: () => void,
   loadPreset: () => void,
+  resetCamera: () => void,
 
 ) {
     const pane = new Pane({ title: "L-System" });
@@ -52,6 +53,7 @@ export function setupUI(
     p1.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", handleGenChange);
     p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", onRegenerate);
     p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", onRegenerate);
+    p1.addBinding(params, 'seed', { label: 'シード値', min: 0, max: 100000, step: 1 }).on('change', onRegenerate);
     p1.addBinding(params, "gravity", { label: "重力", min: -15, max: 15, step: 0.1 }).on("change", onRegenerate);
     p1.addBinding(params, "branchColor", { label: "枝の色" }).on("change", onUpdateColor);
     
@@ -93,15 +95,16 @@ export function setupUI(
     });
 
     const envFolder = pane.addFolder({ title: '環境設定', expanded: false });
-    // 露出
+
+    envFolder.addButton({ title: 'カメラリセット' }).on('click', resetCamera);
+
+    envFolder.addBlade({ view: 'separator'});
     envFolder.addBinding(renderer, 'toneMappingExposure', {
       label: '露出 (Exposure)',
       min: 0,
       max: 2,
       step: 0.01
     });
-
-    // 太陽光の強さ
     envFolder.addBinding(directionalLight, 'intensity', {
       label: '太陽光 (Sun)',
       min: 0,
@@ -110,15 +113,11 @@ export function setupUI(
     });
 
     envFolder.addBlade({ view: 'separator'});
-
-    // フォグの開始距離
     envFolder.addBinding(scene.fog as THREE.Fog, 'near', {
       label: 'フォグの開始距離',
       min: 0,
       max: 100,
     });
-
-    // フォグの終了距離
     envFolder.addBinding(scene.fog as THREE.Fog, 'far', {
       label: 'フォグの終了距離',
       min: 50,
@@ -128,13 +127,19 @@ export function setupUI(
     const btnFolder = pane.addFolder({ title: 'アクション' });
     btnFolder.addButton({ title: "生成" }).on("click", onRegenerate);
 
-    btnFolder.addBlade({ view: 'separator' }); // 区切り線
+    btnFolder.addBlade({ view: 'separator' });
+    btnFolder.addButton({ title: 'ランダムシード' }).on('click', () => {
+      params.seed = Math.floor(Math.random() * 100000);
+      pane.refresh();
+      onRegenerate();
+    });
+
+    btnFolder.addBlade({ view: 'separator' });
     btnFolder.addButton({ title: '保存 (.glb)' }).on('click', downloadGLTF);   
     
-    // ★ プリセットボタンを追加
-    btnFolder.addBlade({ view: 'separator' }); // 区切り線
-    btnFolder.addButton({ title: '設定を保存 (Save JSON)' }).on('click', savePreset);
-    btnFolder.addButton({ title: '設定を読込 (Load JSON)' }).on('click', loadPreset);
+    btnFolder.addBlade({ view: 'separator' });
+    btnFolder.addButton({ title: 'プリセット保存' }).on('click', savePreset);
+    btnFolder.addButton({ title: 'プリセット読み込み' }).on('click', loadPreset);
 
     return pane;
 }

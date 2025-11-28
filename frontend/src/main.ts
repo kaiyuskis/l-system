@@ -1,15 +1,17 @@
 import "./style.css";
 import * as THREE from "three";
-import { scene } from "./three-setup.ts";
+import { scene, camera, controls } from "./three-setup.ts";
 import { generateLSystemString, createLSystemData, type BranchSegment, type OrganPoint } from "./l-system.ts";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { setupUI } from './ui-setup.ts';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+import { setSeed } from "./rng.js";
 
 // --- グローバル変数 ---
 const treeGroup = new THREE.Group();
 scene.add(treeGroup);
 
+// Tweakpaneのインスタンス変数
 let pane: any;
 
 // メッシュのインスタンス変数
@@ -33,6 +35,7 @@ const params = {
   generations: 6,
   angle: 28.0,
   angleVariance: 5.0,
+  seed: 0,
   gravity: 1.0,
   branchColor: "#ffffff",
 
@@ -186,6 +189,7 @@ function cleanUp(obj: THREE.Object3D) {
 
 // --- 再生成関数 ---
 function regenerate() {
+  setSeed(params.seed);
   if (pane) pane.refresh();
 
   cleanUp(treeGroup);
@@ -291,7 +295,7 @@ function regenerate() {
 }
 
 
-// --- 色更新だけの関数 ---
+// 色だけ更新関数
 function updateColors() {
   matBranch.color.set(params.branchColor);
   matFlower.color.set(params.flowerColor);
@@ -299,6 +303,7 @@ function updateColors() {
   matBud.color.set(params.budColor);
 }
 
+// GLTFエクスポート関数
 function downloadGLTF() {
   if (treeGroup.children.length === 0) {
     alert("エクスポートするモデルがありません");
@@ -310,10 +315,8 @@ function downloadGLTF() {
   const exporter = new GLTFExporter();
   const exportScene = new THREE.Scene();
 
-  // treeGroupの中身を走査
   treeGroup.children.forEach((child) => {
     
-    // A. InstancedMesh (葉・花・つぼみ) の場合 -> バラバラのMeshに変換
     if (child instanceof THREE.InstancedMesh) {
       const count = child.count;
       const originalGeo = child.geometry;
@@ -327,17 +330,14 @@ function downloadGLTF() {
 
         const mesh = new THREE.Mesh(originalGeo, originalMat);
         
-        // ★ 重要: 行列を直接コピーし、自動更新を止める
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(matrix);
         
-        // 名前を一意にする (例: Leaf_0, Leaf_1...)
         mesh.name = `${child.name || 'Instance'}_${i}`;
         
         exportScene.add(mesh);
       }
     } 
-    // B. 普通の Mesh (枝) の場合 -> そのままクローン
     else if (child instanceof THREE.Mesh) {
       console.log("Mesh (枝) をコピー");
       const mesh = child.clone();
@@ -345,7 +345,6 @@ function downloadGLTF() {
     }
   });
 
-  // ★ 最重要: エクスポート前に全ての位置情報を確定させる
   exportScene.updateMatrixWorld(true);
 
   // エクスポート実行
@@ -371,28 +370,26 @@ function downloadGLTF() {
   );
 }
 
-// ★ 1. プリセット保存関数 (JSONダウンロード)
+// プリセット保存関数
 function savePreset() {
-  // params オブジェクトをきれいなJSON文字列に変換
   const jsonStr = JSON.stringify(params, null, 2);
   
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  // ファイル名に日時を入れると便利
+
   const date = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
   link.download = `lsystem_preset_${date}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
-// ★ 2. プリセット読込関数 (JSONアップロード)
+// プリセット読込関数
 function loadPreset() {
-  // ファイル選択ダイアログを動的に作成
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.json'; // JSONファイルのみ
+  input.accept = '.json';
   
   input.onchange = (e: Event) => {
     const target = e.target as HTMLInputElement;
@@ -406,14 +403,10 @@ function loadPreset() {
         const content = e.target?.result as string;
         const data = JSON.parse(content);
         
-        // 読み込んだデータで params を上書き
-        // (Object.assign で既存の params に値をコピー)
         Object.assign(params, data);
         
-        // UIの表示を更新
         pane.refresh();
         
-        // 色と形状を反映
         updateColors();
         regenerate();
         
@@ -426,11 +419,17 @@ function loadPreset() {
     reader.readAsText(file);
   };
   
-  input.click(); // ダイアログを開く
+  input.click();
+}
+
+function resetCamera() {
+  camera.position.set(0, 10, 40);
+  controls.target.set(0, 7, 0);
+  controls.update();
 }
 
 // Tweakpaneのセットアップ
-pane = setupUI(params, regenerate, updateColors, downloadGLTF, savePreset, loadPreset);
+pane = setupUI(params, regenerate, updateColors, downloadGLTF, savePreset, loadPreset, resetCamera);
 
 // 初回実行
 regenerate();

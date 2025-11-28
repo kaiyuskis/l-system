@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { random } from "./rng.js";
 
 export interface BranchSegment {
   start: THREE.Vector3;
@@ -121,7 +122,7 @@ export function createLSystemData(
   const q = new THREE.Quaternion();
 
   // 偏差計算
-  const vary = (base: number, variance: number) => base + (Math.random() * 2 - 1) * variance;
+  const vary = (base: number, variance: number) => base + (random() * 2 - 1) * variance;
 
   const gravityVec = new THREE.Vector3(0, -1, 0);
   // const tempVec = new THREE.Vector3();
