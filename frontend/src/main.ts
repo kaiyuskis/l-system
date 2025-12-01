@@ -35,7 +35,7 @@ const params = {
   initThickness: 1.0,
   maxThickness: 1.0,
 
-  generations: 6,
+  generations: 7,
   angle: 28.0,
   angleVariance: 5.0,
   seed: 0,
@@ -110,13 +110,16 @@ const windShaderHeader = `
     
     float noiseVal = snoise(vec2(worldPos.x * 0.05 + time * 0.3, worldPos.z * 0.05));
     float gust = 1.0 + noiseVal * 0.5;
-    float heightFactor = pow(max(0.0, height), 2.0);
+    float resistance = pow(thickness + 0.5, 3.0);
+    float distFromRoot = length(worldPos);
+  
+    float swayFactor = smoothstep(0.0, 5.0, distFromRoot);
 
-    return windDir3 * windStrength * gust * heightFactor * 0.002;
+    return windDir3 * (windStrength * gust * swayFactor / resistance) * 0.01;
   }
 `;
 
-// [葉のみ] ローカル変形 (パタパタ)
+// 葉のパタパタ
 const leafFlutter = `
   vec3 instancePos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
   
@@ -128,7 +131,7 @@ const leafFlutter = `
   transformed = pos;
 `;
 
-// [枝・葉 共通] 全体揺れ (View Space)
+// 全体揺れ
 const applySway = `
   vec4 wPos = modelMatrix * vec4( position, 1.0 );
   
@@ -155,7 +158,7 @@ function setupMaterial(mat: THREE.MeshStandardMaterial, isLeaf: boolean) {
       '#include <common>\n' + windShaderHeader
     );
     
-    // 葉の場合のみ：ローカル変形 (パタパタ) を begin_vertex に挿入
+    // 葉の場合のみ
     if (isLeaf) {
       shader.vertexShader = shader.vertexShader.replace(
         '#include <begin_vertex>',
@@ -163,7 +166,37 @@ function setupMaterial(mat: THREE.MeshStandardMaterial, isLeaf: boolean) {
       );
     }
 
-    // 共通：全体揺れ (Sway) を project_vertex の最後に挿入
+    // 枝も
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <project_vertex>',
+      '#include <project_vertex>\n' + applySway
+    );
+  };
+}
+
+function setupDepthMaterial(mat: THREE.Material, isLeaf: boolean) {
+  mat.onBeforeCompile = (shader) => {
+    // メインマテリアルと同じユニフォームを渡す
+    shader.uniforms.time = windUniforms.time;
+    shader.uniforms.windStrength = windUniforms.strength;
+    shader.uniforms.windDirection = windUniforms.direction;
+
+    // 共通ヘッダー（ノイズ関数、getWindVectorなど）を注入
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <common>',
+      '#include <common>\n' + windShaderHeader
+    );
+    
+    // 葉の場合のみ：ローカル変形 (パタパタ) を注入
+    if (isLeaf) {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n' + leafFlutter
+      );
+    }
+
+    // 共通：全体揺れ (Sway) を注入
+    // MeshDepthMaterialでも project_vertex への注入で正しく動作します
     shader.vertexShader = shader.vertexShader.replace(
       '#include <project_vertex>',
       '#include <project_vertex>\n' + applySway
@@ -242,22 +275,32 @@ function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeomet
       seg.radiusBottom,
       length,
       radialSegments,
+      1,
+      true,
     );
+
+    // 頂点のY座標を見て、太さをradiusBottom(下)〜radiusTop(上)で補間する
+    const posAttribute = geo.getAttribute('position');
+    const vertexCount = posAttribute.count;
+    const thicknessArray = new Float32Array(vertexCount);
+
+    for (let i = 0; i < vertexCount; i++) {
+      const y = posAttribute.getY(i);
+      const t = Math.max(0, Math.min(1, (y + length / 2) / length));
+      thicknessArray[i] = (1 - t) * seg.radiusBottom + t * seg.radiusTop;
+    }
+    
+    geo.setAttribute('aThickness', new THREE.BufferAttribute(thicknessArray, 1));
 
     geo.translate(0, length / 2, 0);
     geo.rotateX(Math.PI / 2);
     geo.lookAt(new THREE.Vector3().subVectors(seg.end, seg.start));
     geo.translate(seg.start.x, seg.start.y, seg.start.z);
 
-    const count = geo.attributes.position.count;
-    const thicknessArray = new Float32Array(count).fill(seg.radiusBottom);
-    geo.setAttribute('aThickness', new THREE.BufferAttribute(thicknessArray, 1));
-
     geometries.push(geo);
 
     const jointGeo = new THREE.SphereGeometry(seg.radiusBottom, radialSegments, radialSegments);
     jointGeo.translate(seg.start.x, seg.start.y, seg.start.z);
-
     const jointCount = jointGeo.attributes.position.count;
     const jointThicknessArray = new Float32Array(jointCount).fill(seg.radiusBottom);
     jointGeo.setAttribute('aThickness', new THREE.BufferAttribute(jointThicknessArray, 1));
@@ -267,7 +310,6 @@ function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeomet
 
   if (geometries.length === 0) return new THREE.BufferGeometry();
   const mergedGeo = BufferGeometryUtils.mergeGeometries(geometries, false);
-
   geometries.forEach(geo => geo.dispose());
 
   return mergedGeo;
@@ -355,6 +397,16 @@ function regenerate() {
       branchMesh = new THREE.Mesh(mergedGeo, matBranch);
       branchMesh.castShadow = true;
       branchMesh.receiveShadow = true;
+
+      const depthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+      setupDepthMaterial(depthMat, false); // 枝なので isLeaf は false
+      branchMesh.customDepthMaterial = depthMat;
+
+      // ポイントライトの影用（今回はDirectionalLightなので必須ではないが、念のため）
+      const distanceMat = new THREE.MeshDistanceMaterial();
+      setupDepthMaterial(distanceMat, false);
+      branchMesh.customDistanceMaterial = distanceMat;
+      
       treeGroup.add(branchMesh);
     }
 
@@ -366,6 +418,25 @@ function regenerate() {
       const mesh = new THREE.InstancedMesh(geoPlane, mat, pts.length);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+
+      // マテリアルが葉かどうかを判定
+      const isLeaf = mat === matLeaf;
+
+      // 透過を考慮してメインマテリアルからmapとalphaTestをコピー
+      const depthMat = new THREE.MeshDepthMaterial({
+        depthPacking: THREE.RGBADepthPacking,
+        map: mat.map,       // テクスチャを渡す
+        alphaTest: mat.alphaTest // アルファテストの閾値を渡す
+      });
+      setupDepthMaterial(depthMat, isLeaf);
+      mesh.customDepthMaterial = depthMat;
+
+      const distanceMat = new THREE.MeshDistanceMaterial({
+        map: mat.map,
+        alphaTest: mat.alphaTest
+      });
+      setupDepthMaterial(distanceMat, isLeaf);
+      mesh.customDistanceMaterial = distanceMat;
 
       const thicknessArray = new Float32Array(pts.length);
 

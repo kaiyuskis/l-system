@@ -125,8 +125,10 @@ export function createLSystemData(
         if (params.gravity !== 0) {
           const currentHeading = Y.clone().applyQuaternion(turtle.rotation).normalize();
           const targetDir = gravityVec.clone().multiplyScalar(Math.sign(params.gravity));
-          const strength = Math.min(Math.abs(params.gravity) * 0.01, 1.0);
-          const nextHeading = currentHeading.clone().lerp(targetDir, strength).normalize();
+          const resistance = Math.pow(turtle.currentWidth * 5.0, 2.0);
+          const strength = (Math.abs(params.gravity) * 0.05) / (resistance + 1.0);
+          const clampedStrength = Math.min(strength, 0.2);
+          const nextHeading = currentHeading.clone().lerp(targetDir, clampedStrength).normalize();
           tempQuat.setFromUnitVectors(currentHeading, nextHeading);
           turtle.rotation.premultiply(tempQuat);
         }

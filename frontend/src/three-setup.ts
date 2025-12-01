@@ -13,7 +13,6 @@ const fogColor = 0xdcebf5
 scene.background = new THREE.Color(fogColor);
 scene.fog = new THREE.Fog(fogColor, 20, 250);
 
-
 // カメラ
 export const camera = new THREE.PerspectiveCamera(
   45,
@@ -51,7 +50,7 @@ directionalLight.shadow.mapSize.height = 2048;
 directionalLight.shadow.camera.near = 0.5;
 directionalLight.shadow.camera.far = 500;
 
-const d = 30
+const d = 50;
 directionalLight.shadow.camera.top = d;
 directionalLight.shadow.camera.bottom = -d;
 directionalLight.shadow.camera.left = -d;

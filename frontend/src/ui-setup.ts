@@ -2,7 +2,7 @@ import { Pane } from 'tweakpane';
 import * as THREE from "three";
 import { scene, renderer, directionalLight, windUniforms } from './three-setup.ts';
 
-const generationsMax = 12;
+const generationsMax = 14;
 
 export function setupUI(
   params: any,
@@ -61,7 +61,7 @@ export function setupUI(
     p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", onFinish);
     p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", onFinish);
     p1.addBinding(params, 'seed', { label: 'シード値', min: 0, max: 100000, step: 1 }).on('change', onFinish);
-    p1.addBinding(params, "gravity", { label: "重力", min: -15, max: 15, step: 0.1 }).on("change", onFinish);
+    p1.addBinding(params, "gravity", { label: "重力", min: -10, max: 10, step: 0.1 }).on("change", onFinish);
     p1.addBinding(params, "branchColor", { label: "枝の色" }).on("change", onUpdateColor);
     
     p1.addBlade({ view: "separator" });
@@ -116,7 +116,7 @@ export function setupUI(
 
     const windTab = envTab.pages[0];
     windTab.addBinding(windUniforms.speed, 'value', { label: '風速', min: 0, max: 10, step: 0.01 });
-    windTab.addBinding(windUniforms.strength, 'value', { label: '風の強さ', min: 0, max: 5, step: 0.01 });
+    windTab.addBinding(windUniforms.strength, 'value', { label: '風の強さ', min: 0, max: 10, step: 0.01 });
     windTab.addBinding(windUniforms.direction.value, 'x', { label: '風向きX', min: -1, max: 1, step: 0.01 });
     windTab.addBinding(windUniforms.direction.value, 'y', { label: '風向きZ', min: -1, max: 1, step: 0.01 });
 
