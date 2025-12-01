@@ -68,58 +68,109 @@ const params = {
   resultText: '',
 };
 
-// シェーダーで使うGLSLコード
-const windShaderChunk = {
-  header: `
-    uniform float time;
-    uniform float windStrength;
+const windShaderHeader = `
+  uniform float time;
+  uniform float windStrength;
+  uniform vec2 windDirection;
+  
+  // 頂点属性として「太さ」を受け取る
+  // (枝は BufferAttribute, 葉は InstancedBufferAttribute だが、シェーダーでは同じ)
+  attribute float aThickness;
 
-    float noise(vec2 p) {
-      return fract(sin(dot(p ,vec2(12.9898,78.233))) * 43758.5453);
-    }
-    
-    vec3 applyWind(vec3 pos, float t) { 
-      // 高さが高いほど大きく揺れる
-      float heightFactor = pow(max(0.0, pos.y), 1.5) * 0.05;
+  // ノイズ関数
+  vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+  float snoise(vec2 v){
+    const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+    vec2 i  = floor(v + dot(v, C.yy) );
+    vec2 x0 = v -   i + dot(i, C.xx);
+    vec2 i1;
+    i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+    vec4 x12 = x0.xyxy + C.xxzz;
+    x12.xy -= i1;
+    i = mod(i, 289.0);
+    vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
+    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+    m = m*m ;
+    m = m*m ;
+    vec3 x = 2.0 * fract(p * C.www) - 1.0;
+    vec3 h = abs(x) - 0.5;
+    vec3 ox = floor(x + 0.5);
+    vec3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+    vec3 g;
+    g.x  = a0.x  * x0.x  + h.x  * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+  }
+`;
 
-      // x軸とz軸方向にサイン波で揺らす
-      float swayX = sin(t * 0.5 + pos.x * 0.2) * 0.5;
-      float swayZ = cos(t * 0.3 + pos.z * 0.2) * 0.5;
+// 枝用の揺れロジック (太いと揺れない)
+const branchWindMain = `
+  vec3 pos = transformed;
+  
+  // 風のベクトル (3D)
+  vec3 windDir3 = normalize(vec3(windDirection.x, 0.0, windDirection.y));
+  
+  // ノイズ (ゆらぎ)
+  float noiseVal = snoise(vec2(pos.x * 0.05 + time * 0.3, pos.z * 0.05));
+  float gust = 1.0 + noiseVal * 0.5;
+  
+  // ★ 修正: 太さ(aThickness)による計算を削除
+  // float flexibility = 1.0 / max(0.05, aThickness); ... (削除)
 
-      // 葉っぱ用の揺れ
-      float flutter = sin(t * 2.0 + pos.y * 3.0) * 0.2;
+  // 高さによる影響 (2乗することで、上の方ほど急激に揺れるようにする)
+  float heightFactor = pow(max(0.0, pos.y), 2.0);
 
-      float totalSwayX = (swayX + flutter) * heightFactor * windStrength;
-      float totalSwayZ = (swayZ + flutter) * heightFactor * windStrength;
+  // ★ 修正: 係数を小さく (0.01 -> 0.002)
+  vec3 displacement = windDir3 * windStrength * gust * heightFactor * 0.002;
+  
+  pos += displacement;
+  transformed = pos;
+`;
 
-      pos.x += totalSwayX;
-      pos.z += totalSwayZ;
+// 葉用の揺れロジック (パタパタ + 枝への追従)
+const leafWindMain = `
+  vec3 pos = transformed;
+  
+  vec3 windDir3 = normalize(vec3(windDirection.x, 0.0, windDirection.y));
+  float noiseVal = snoise(vec2(time * 0.5)); // 簡易ノイズ
+  float gust = 1.0 + noiseVal * 0.5;
+  
+  float heightFactor = pow(max(0.0, pos.y), 2.0);
+  
+  // 1. 枝への追従 (枝と全く同じ計算式)
+  vec3 branchMove = windDir3 * windStrength * gust * heightFactor * 0.002;
+  pos += branchMove;
 
-      return pos;
-    }
-  `,
-  main: `
-    transformed = applyWind(transformed, time);
-  `
-};
+  // 2. 葉っぱ特有の「パタパタ」 (Flutter)
+  // (ここは変更なし。ただし係数を少し調整)
+  float flutter = sin(time * 8.0 + instanceMatrix[3][1] * 0.5) * 0.1; 
+  
+  // 葉のローカル座標での揺れ
+  // (transformed.y は葉のローカル高さ)
+  pos.x += flutter * (transformed.y + 0.5) * windStrength; 
+  pos.z += flutter * (transformed.y + 0.5) * windStrength;
 
-// マテリアルに風シェーダーを適用する関数
-function enableWind(material: THREE.MeshStandardMaterial) {
-  material.onBeforeCompile = (shader) => {
+  transformed = pos;
+`;
+
+function setupMaterial(mat: THREE.MeshStandardMaterial, isLeaf: boolean) {
+  mat.onBeforeCompile = (shader) => {
     shader.uniforms.time = windUniforms.time;
     shader.uniforms.windStrength = windUniforms.strength;
+    shader.uniforms.windDirection = windUniforms.direction;
 
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
-      `#include <common>\n` + windShaderChunk.header
+      '#include <common>\n' + windShaderHeader
     );
-
+    
+    const logic = isLeaf ? leafWindMain : branchWindMain;
     shader.vertexShader = shader.vertexShader.replace(
       '#include <begin_vertex>',
-      `#include <begin_vertex>\n` + windShaderChunk.main
+      '#include <begin_vertex>\n' + logic
     );
   };
-
 }
 
 // --- テクスチャの準備 ---
@@ -147,7 +198,7 @@ const matBranch = new THREE.MeshStandardMaterial({
   roughnessMap: barkRoughness,
   color: params.branchColor,
 });
-enableWind(matBranch);
+setupMaterial(matBranch, false);
 
 const geoPlane = new THREE.PlaneGeometry(1, 1);
 
@@ -159,7 +210,7 @@ const matFlower = new THREE.MeshStandardMaterial({
   transparent: true,
   alphaTest: 0.5
 });
-enableWind(matFlower);
+setupMaterial(matFlower, true);
 
 // 葉
 const matLeaf = new THREE.MeshStandardMaterial({
@@ -169,7 +220,7 @@ const matLeaf = new THREE.MeshStandardMaterial({
   transparent: true,
   alphaTest: 0.5
 });
-enableWind(matLeaf);
+setupMaterial(matLeaf, true);
 
 // つぼみ
 const matBud = new THREE.MeshStandardMaterial({
@@ -179,31 +230,40 @@ const matBud = new THREE.MeshStandardMaterial({
   transparent: true,
   alphaTest: 0.5
 });
-enableWind(matBud);
+setupMaterial(matBud, true);
 
 function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
-  const radialSegments = 20;
+  const radialSegments = 18;
 
   for (const seg of segments) {
     const length = seg.start.distanceTo(seg.end);
 
-    const cylGeo = new THREE.CylinderGeometry(
+    const geo = new THREE.CylinderGeometry(
       seg.radiusTop,
       seg.radiusBottom,
       length,
       radialSegments,
     );
 
-    cylGeo.translate(0, length / 2, 0);
-    cylGeo.rotateX(Math.PI / 2);
-    cylGeo.lookAt(new THREE.Vector3().subVectors(seg.end, seg.start));
-    cylGeo.translate(seg.start.x, seg.start.y, seg.start.z);
+    geo.translate(0, length / 2, 0);
+    geo.rotateX(Math.PI / 2);
+    geo.lookAt(new THREE.Vector3().subVectors(seg.end, seg.start));
+    geo.translate(seg.start.x, seg.start.y, seg.start.z);
 
-    geometries.push(cylGeo);
+    const count = geo.attributes.position.count;
+    const thicknessArray = new Float32Array(count).fill(seg.radiusBottom);
+    geo.setAttribute('aThickness', new THREE.BufferAttribute(thicknessArray, 1));
+
+    geometries.push(geo);
 
     const jointGeo = new THREE.SphereGeometry(seg.radiusBottom, radialSegments, radialSegments);
     jointGeo.translate(seg.start.x, seg.start.y, seg.start.z);
+
+    const jointCount = jointGeo.attributes.position.count;
+    const jointThicknessArray = new Float32Array(jointCount).fill(seg.radiusBottom);
+    jointGeo.setAttribute('aThickness', new THREE.BufferAttribute(jointThicknessArray, 1));
+
     geometries.push(jointGeo);
   }
 
@@ -215,49 +275,21 @@ function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeomet
   return mergedGeo;
 }
 
-// 徹底的なメモリ掃除関数
-function cleanUp(obj: THREE.Object3D) {
-  if (!obj) return;
-
-  // 子要素も再帰的に削除
-  while (obj.children.length > 0) {
-    cleanUp(obj.children[0]);
-    obj.remove(obj.children[0]);
-  }
-
-  if (obj instanceof THREE.Mesh) {
-    // ジオメトリの削除 (GPUメモリ解放)
-    if (obj.geometry) {
-      obj.geometry.dispose();
-    }
-
-    // マテリアルの削除
-    if (obj.material) {
-      // 配列の場合 (Material[])
-      if (Array.isArray(obj.material)) {
-        obj.material.forEach((m) => m.dispose());
-      } 
-      // 単体の場合 (Material)
-      else {
-        obj.material.dispose();
-      }
-    }
-  }
-}
-
 // --- 再生成関数 ---
 function regenerate() {
   setSeed(params.seed);
   if (pane) pane.refresh();
 
-  cleanUp(treeGroup);
+  if (branchMesh) {
+    branchMesh.geometry.dispose();
+  }
+
   treeGroup.clear();
 
-  // グローバル変数のメッシュも掃除
-  if (branchMesh) { cleanUp(branchMesh); branchMesh = null; }
-  if (leafMesh) { cleanUp(leafMesh); leafMesh = null; }
-  if (flowerMesh) { cleanUp(flowerMesh); flowerMesh = null; }
-  if (budMesh) { cleanUp(budMesh); budMesh = null; }
+  branchMesh = null;
+  flowerMesh = null;
+  leafMesh = null;
+  budMesh = null;
 
   if (params.growthMode) {
     const ratio = Math.min(params.generations / 10.0, 1.0);
@@ -327,19 +359,26 @@ function regenerate() {
   // 器官のインスタンス生成関数
   const createInstanced = (pts: OrganPoint[], mat: THREE.MeshStandardMaterial, col: string) => {
     if(pts.length===0) return;
+
     mat.color.set(col);
     const mesh = new THREE.InstancedMesh(geoPlane, mat, pts.length);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+
+    const thicknessArray = new Float32Array(pts.length);
+
     const dummy = new THREE.Object3D();
     for(let i=0; i<pts.length; i++){
+      const p = pts[i];
       dummy.position.copy(pts[i].position);
       dummy.quaternion.copy(pts[i].rotation);
       dummy.scale.setScalar(pts[i].scale);
       dummy.translateY(pts[i].scale*0.5);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
+      thicknessArray[i] = p.thickness;
     }
+    mesh.geometry.setAttribute('aThickness', new THREE.InstancedBufferAttribute(thicknessArray, 1));
     mesh.instanceMatrix.needsUpdate = true;
     treeGroup.add(mesh);
     return mesh;

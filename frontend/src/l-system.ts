@@ -13,27 +13,9 @@ export interface OrganPoint {
   position: THREE.Vector3;
   rotation: THREE.Quaternion;
   scale: number;
+  thickness: number;
 }
 
-export interface FlowerPoint  {
-  position: THREE.Vector3;
-  rotation: THREE.Quaternion;
-  scale: number;
-}
-
-export interface LeafPoint  {
-  position: THREE.Vector3;
-  rotation: THREE.Quaternion;
-  scale: number;
-}
-
-export interface BudPoint  {
-  position: THREE.Vector3;
-  rotation: THREE.Quaternion;
-  scale: number;
-}
-
-// 型定義
 interface TurtleState {
   position: THREE.Vector3;
   rotation: THREE.Quaternion;
@@ -95,15 +77,15 @@ export function createLSystemData(
   }
 ): { 
   branches: BranchSegment[],
-  flowers: FlowerPoint[],
-  leaves: LeafPoint[],
-  buds: BudPoint[],
+  flowers: OrganPoint[],
+  leaves: OrganPoint[],
+  buds: OrganPoint[],
 } {
 
   const branches: BranchSegment[] = [];
-  const flowers: FlowerPoint[] = [];
-  const leaves: LeafPoint[] = [];
-  const buds: BudPoint[] = [];
+  const flowers: OrganPoint[] = [];
+  const leaves: OrganPoint[] = [];
+  const buds: OrganPoint[] = [];
 
   const stack: TurtleState[] = [];
 
@@ -179,7 +161,8 @@ export function createLSystemData(
         flowers.push({
           position: turtle.position.clone(),
           rotation: turtle.rotation.clone(),
-          scale: res.val
+          scale: res.val,
+          thickness: turtle.currentWidth,
         });
         break;
 
@@ -191,7 +174,8 @@ export function createLSystemData(
         leaves.push({
           position: turtle.position.clone(),
           rotation: turtle.rotation.clone(),
-          scale: res.val
+          scale: res.val,
+          thickness: turtle.currentWidth,
         });
         break;
 
@@ -203,7 +187,8 @@ export function createLSystemData(
         buds.push({
           position: turtle.position.clone(),
           rotation: turtle.rotation.clone(),
-          scale: res.val
+          scale: res.val,
+          thickness: turtle.currentWidth,
         });
         break;
 

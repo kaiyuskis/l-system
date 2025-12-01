@@ -109,42 +109,18 @@ export function setupUI(
     });
 
     const windTab = envTab.pages[0];
-    windTab.addBinding(windUniforms.speed, 'value', { 
-      label: '風速', 
-      min: 0.0, 
-      max: 5.0 
-    });
-    windTab.addBinding(windUniforms.strength, 'value', { 
-      label: '風の強さ', 
-      min: 0.0, 
-      max: 2.0 
-    });
+    windTab.addBinding(windUniforms.speed, 'value', { label: '風速', min: 0, max: 5, step: 0.01 });
+    windTab.addBinding(windUniforms.strength, 'value', { label: '風の強さ', min: 0, max: 2, step: 0.01 });
+    windTab.addBinding(windUniforms.direction.value, 'x', { label: '風向きX', min: -1, max: 1, step: 0.01 });
+    windTab.addBinding(windUniforms.direction.value, 'y', { label: '風向きZ', min: -1, max: 1, step: 0.01 });
 
     const lightingTab = envTab.pages[1];
-    lightingTab.addBinding(renderer, 'toneMappingExposure', {
-      label: '露出 (Exposure)',
-      min: 0,
-      max: 2,
-      step: 0.01
-    });
-    lightingTab.addBinding(directionalLight, 'intensity', {
-      label: '太陽光 (Sun)',
-      min: 0,
-      max: 5,
-      step: 0.1
-    });
+    lightingTab.addBinding(renderer, 'toneMappingExposure', { label: '露出 (Exposure)', min: 0, max: 2, step: 0.01 });
+    lightingTab.addBinding(directionalLight, 'intensity', { label: '太陽光 (Sun)', min: 0, max: 5, step: 0.01 });
 
     lightingTab.addBlade({ view: 'separator'});
-    lightingTab.addBinding(scene.fog as THREE.Fog, 'near', {
-      label: 'フォグの開始距離',
-      min: 0,
-      max: 100,
-    });
-    lightingTab.addBinding(scene.fog as THREE.Fog, 'far', {
-      label: 'フォグの終了距離',
-      min: 50,
-      max: 500,
-    });
+    lightingTab.addBinding(scene.fog as THREE.Fog, 'near', { label: 'フォグの開始距離', min: 0, max: 100, step: 1 });
+    lightingTab.addBinding(scene.fog as THREE.Fog, 'far', { label: 'フォグの終了距離', min: 50, max: 500, step: 1 });
     
     const btnFolder = pane.addFolder({ title: 'アクション' });
     btnFolder.addButton({ title: "生成" }).on("click", onRegenerate);
