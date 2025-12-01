@@ -14,6 +14,10 @@ export function setupUI(
   resetCamera: () => void,
 
 ) {
+    const onFinish = (ev: any) => {
+      if (ev.last) onRegenerate();
+    };
+
     const pane = new Pane({ title: "L-System" });
     
     const tab = pane.addTab({
@@ -26,17 +30,19 @@ export function setupUI(
 
     // タブ1: 基本設定
     const p1 = tab.pages[0];
-    p1.addBinding(params, 'growthMode', { label: '成長連動' }).on('change', onRegenerate);
+    p1.addBinding(params, 'growthMode', { label: '成長連動' }).on('change', onFinish);
     
     p1.addBlade({ view: "separator" });
-    p1.addBinding(params, "maxLength", { label: "最大の長さ", min: 0.1, max: 2, step: 0.01 }).on("change", () => {
-      params.initLength = params.maxLength;
-      onRegenerate();
+    p1.addBinding(params, "maxLength", { label: "最大の長さ", min: 0.1, max: 2, step: 0.01 })
+    .on("change", (ev) => {
+      if (!params.growthMode) params.initLength = params.maxLength;
+      onFinish(ev);
     });
     p1.addBinding(params, "initLength", { label: "現在の長さ", readonly: true })
-    p1.addBinding(params, "maxThickness", { label: "最大の太さ", min: 0.01, max: 2, step: 0.01 }).on("change", () => {
-      params.initThickness = params.maxThickness;
-      onRegenerate();
+    p1.addBinding(params, "maxThickness", { label: "最大の太さ", min: 0.01, max: 2, step: 0.01 })
+    .on("change", (ev) => {
+      if (!params.growthMode) params.initThickness = params.maxThickness;
+      onFinish(ev);
     });
     p1.addBinding(params, "initThickness", { label: "現在の太さ", readonly: true })
     
@@ -52,15 +58,15 @@ export function setupUI(
       }
     }
     p1.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", handleGenChange);
-    p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", onRegenerate);
-    p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", onRegenerate);
-    p1.addBinding(params, 'seed', { label: 'シード値', min: 0, max: 100000, step: 1 }).on('change', onRegenerate);
-    p1.addBinding(params, "gravity", { label: "重力", min: -15, max: 15, step: 0.1 }).on("change", onRegenerate);
+    p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", onFinish);
+    p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", onFinish);
+    p1.addBinding(params, 'seed', { label: 'シード値', min: 0, max: 100000, step: 1 }).on('change', onFinish);
+    p1.addBinding(params, "gravity", { label: "重力", min: -15, max: 15, step: 0.1 }).on("change", onFinish);
     p1.addBinding(params, "branchColor", { label: "枝の色" }).on("change", onUpdateColor);
     
     p1.addBlade({ view: "separator" });
-    p1.addBinding(params, "scale", { label: '長さ減衰率(")', min: 0.0, max: 2.0, step: 0.01 }).on( "change", onRegenerate);
-    p1.addBinding(params, 'widthDecay', { label: '太さ減衰率(!)', min: 0.5, max: 1.0, step: 0.01 }).on('change', onRegenerate);
+    p1.addBinding(params, "scale", { label: '長さ減衰率(")', min: 0.0, max: 2.0, step: 0.01 }).on( "change", onFinish);
+    p1.addBinding(params, 'widthDecay', { label: '太さ減衰率(!)', min: 0.5, max: 1.0, step: 0.01 }).on('change', onFinish);
     
     p1.addBlade({ view: "separator" });
     p1.addBinding(params, 'resultInfo', { 
@@ -77,22 +83,22 @@ export function setupUI(
     // タブ2: 器官設定
     const p2 = tab.pages[1];
     p2.addBinding(params, 'flowerColor').on('change', onUpdateColor);
-    p2.addBinding(params, 'flowerSize', { label: "花", min: 0, max: 5 }).on('change', onRegenerate);
+    p2.addBinding(params, 'flowerSize', { label: "花", min: 0, max: 5 }).on('change', onFinish);
     
     p2.addBlade({ view: 'separator' });
     p2.addBinding(params, 'leafColor').on('change', onUpdateColor);
-    p2.addBinding(params, 'leafSize', { label: "葉", min: 0, max: 5 }).on('change', onRegenerate);
+    p2.addBinding(params, 'leafSize', { label: "葉", min: 0, max: 5 }).on('change', onFinish);
     
     p2.addBlade({ view: 'separator'});
     p2.addBinding(params, 'budColor').on('change', onUpdateColor);
-    p2.addBinding(params, 'budSize', { label: "つぼみ", min: 0, max: 5 }).on('change', onRegenerate);
+    p2.addBinding(params, 'budSize', { label: "つぼみ", min: 0, max: 5 }).on('change', onFinish);
     
     // タブ3: ルール
     const p3 = tab.pages[2];
     p3.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", handleGenChange);
 
     p3.addBlade({ view: "separator" });
-    p3.addBinding(params, "premise", { label: "初期状態" }).on("change", onRegenerate);
+    p3.addBinding(params, "premise", { label: "初期状態" }).on("change", onFinish);
     params.rules.forEach((r: any, i: number) => {
       p3.addBinding(r, "expression", {label: `ルール${i + 1}`});
     });
@@ -109,8 +115,8 @@ export function setupUI(
     });
 
     const windTab = envTab.pages[0];
-    windTab.addBinding(windUniforms.speed, 'value', { label: '風速', min: 0, max: 5, step: 0.01 });
-    windTab.addBinding(windUniforms.strength, 'value', { label: '風の強さ', min: 0, max: 2, step: 0.01 });
+    windTab.addBinding(windUniforms.speed, 'value', { label: '風速', min: 0, max: 10, step: 0.01 });
+    windTab.addBinding(windUniforms.strength, 'value', { label: '風の強さ', min: 0, max: 5, step: 0.01 });
     windTab.addBinding(windUniforms.direction.value, 'x', { label: '風向きX', min: -1, max: 1, step: 0.01 });
     windTab.addBinding(windUniforms.direction.value, 'y', { label: '風向きZ', min: -1, max: 1, step: 0.01 });
 
@@ -128,7 +134,6 @@ export function setupUI(
     btnFolder.addBlade({ view: 'separator' });
     btnFolder.addButton({ title: 'ランダムシード' }).on('click', () => {
       params.seed = Math.floor(Math.random() * 100000);
-      pane.refresh();
       onRegenerate();
     });
 
