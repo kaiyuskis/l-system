@@ -15,6 +15,7 @@ export function setupUI(
   savePresetBrowser: () => void,
   loadPresetBrowser: () => void,
   deletePresetBrowser: () => void,
+  triggerDoubleGust: () => void, 
 
 ) {
     const onFinish = (ev: any) => {
@@ -174,6 +175,9 @@ export function setupUI(
     windTab.addBinding(windUniforms.strength, 'value', { label: '風の強さ', min: 0, max: 10, step: 0.01 });
     windTab.addBinding(windUniforms.direction.value, 'x', { label: '風向きX', min: -1, max: 1, step: 0.01 });
     windTab.addBinding(windUniforms.direction.value, 'y', { label: '風向きZ', min: -1, max: 1, step: 0.01 });
+    windTab.addButton({ title: '突風を発生させる' }).on('click', () => {
+      triggerDoubleGust();
+    });
 
     const lightingTab = envTab.pages[1];
     lightingTab.addBinding(renderer, 'toneMappingExposure', { label: '露出 (Exposure)', min: 0, max: 2, step: 0.01 });

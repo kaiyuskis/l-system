@@ -127,6 +127,7 @@ const params = {
 const windShaderHeader = `
   uniform float time;
   uniform float windStrength;
+  uniform float gustStrength;
   uniform vec2 windDirection;
   
   attribute float aThickness;
@@ -167,7 +168,8 @@ const windShaderHeader = `
   
     float swayFactor = smoothstep(0.0, 5.0, distFromRoot);
 
-    return windDir3 * (windStrength * gust * swayFactor / resistance) * 0.01;
+    float totalStrength = windStrength + gustStrength;
+    return windDir3 * (totalStrength * gust * swayFactor / resistance) * 0.01;
   }
 `;
 
@@ -202,6 +204,7 @@ function setupMaterial(mat: THREE.MeshStandardMaterial, isLeaf: boolean) {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.time = windUniforms.time;
     shader.uniforms.windStrength = windUniforms.strength;
+    shader.uniforms.gustStrength = windUniforms.gust;
     shader.uniforms.windDirection = windUniforms.direction;
 
     // 共通ヘッダー
@@ -231,6 +234,7 @@ function setupDepthMaterial(mat: THREE.Material, isLeaf: boolean) {
     // メインマテリアルと同じユニフォームを渡す
     shader.uniforms.time = windUniforms.time;
     shader.uniforms.windStrength = windUniforms.strength;
+    shader.uniforms.gustStrength = windUniforms.gust;
     shader.uniforms.windDirection = windUniforms.direction;
 
     // 共通ヘッダー（ノイズ関数、getWindVectorなど）を注入
@@ -255,6 +259,54 @@ function setupDepthMaterial(mat: THREE.Material, isLeaf: boolean) {
     );
   };
 }
+
+// 突風を発生させる関数
+function triggerDoubleGust() {
+  // すでに突風中なら上書きして気持ちよくする
+  const base = windUniforms.strength.value;
+
+  // 突風の最大上乗せ量（好みで調整）
+  const amp = Math.max(2.0, base * 1.5 + 0.8);
+
+  const pulse = (t: number) => Math.sin(Math.PI * t); // 0→1→0 のなめらかな波
+  const now = performance.now();
+
+  const d1 = 520;   // 1発目の長さ(ms)
+  const gap = 220;  // 間(ms)
+  const d2 = 560;   // 2発目の長さ(ms)
+
+  const total = d1 + gap + d2;
+
+  function frame() {
+    const elapsed = performance.now() - now;
+
+    let g = 0;
+
+    // 1発目
+    if (elapsed <= d1) {
+      const t = elapsed / d1;
+      g += amp * pulse(t);
+    }
+
+    // 2発目
+    const t2Start = d1 + gap;
+    if (elapsed >= t2Start && elapsed <= t2Start + d2) {
+      const t = (elapsed - t2Start) / d2;
+      g += (amp * 0.85) * pulse(t); // 2発目を少し弱く（好みで）
+    }
+
+    windUniforms.gust.value = g;
+
+    if (elapsed < total) {
+      requestAnimationFrame(frame);
+    } else {
+      windUniforms.gust.value = 0;
+    }
+  }
+
+  requestAnimationFrame(frame);
+}
+
 
 // --- テクスチャの準備 ---
 const texLoader = new THREE.TextureLoader();
@@ -328,7 +380,7 @@ function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeomet
       length,
       radialSegments,
       1,
-      true,
+      false,
     );
 
     // 頂点のY座標を見て、太さをradiusBottom(下)〜radiusTop(上)で補間する
@@ -667,6 +719,7 @@ pane = setupUI(
   savePresetBrowser,
   loadPresetBrowser,
   deletePresetBrowser,
+  triggerDoubleGust,
 );
 
 // 初回実行

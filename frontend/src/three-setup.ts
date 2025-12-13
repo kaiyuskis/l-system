@@ -85,6 +85,7 @@ export const windUniforms = {
   time: { value: 0 },
   speed: { value: 1.0 },
   strength: { value: 0.0 },
+  gust: { value: 0.0 },
   direction: { value: new THREE.Vector2(1.0, 0.5).normalize() },
 };
 
