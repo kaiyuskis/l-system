@@ -6,8 +6,9 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 import { setupUI } from './ui-setup.ts';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { setSeed } from "./rng.js";
+import { toast } from "./toast";
 
-// --- グローバル変数 ---
+// 木全体をまとめるグループ
 const treeGroup = new THREE.Group();
 scene.add(treeGroup);
 
@@ -25,6 +26,57 @@ let budMesh: THREE.InstancedMesh | null = null;
 
 // 型定義
 interface LSystemRule { expression: string; }
+
+// プリセットをローカルに保存する
+const LS_KEY = "lsystem_presets_v1";
+
+type PresetEntry = {
+  savedAt: number;
+  data: any;
+};
+type PresetMap = Record<string, PresetEntry>;
+
+function loadPresetMap(): PresetMap {
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function savePresetMap(map: PresetMap) {
+  localStorage.setItem(LS_KEY, JSON.stringify(map));
+}
+
+// 保存したくない一時情報を除外
+function getPresetPayload() {
+  const { resultInfo, resultText, ...rest } = params;
+  return rest;
+}
+
+function listPresetNames(): string[] {
+  return Object.keys(loadPresetMap()).sort((a, b) => a.localeCompare(b, "ja"));
+}
+
+function savePresetToLocal(name: string) {
+  const map = loadPresetMap();
+  map[name] = { savedAt: Date.now(), data: getPresetPayload() };
+  savePresetMap(map);
+}
+
+function loadPresetFromLocal(name: string): boolean {
+  const map = loadPresetMap();
+  const entry = map[name];
+  if (!entry) return false;
+  Object.assign(params, entry.data);
+  return true;
+}
+
+function deletePresetFromLocal(name: string) {
+  const map = loadPresetMap();
+  delete map[name];
+  savePresetMap(map);
+}
 
 // パラメータ
 const params = {
@@ -71,7 +123,7 @@ const params = {
   resultText: '',
 };
 
-// シェーダー
+// 風エフェクト用シェーダーコード
 const windShaderHeader = `
   uniform float time;
   uniform float windStrength;
@@ -545,56 +597,56 @@ function downloadGLTF() {
   );
 }
 
-// プリセット保存関数
-function savePreset() {
-  const jsonStr = JSON.stringify(params, null, 2);
-  
-  const blob = new Blob([jsonStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
+// ブラウザ内のプリセット保存
+const uiState = {
+  presetName: "myPreset",
+  presetSelected: "",
+  presetList: [] as string[],
+};
 
-  const date = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
-  link.download = `lsystem_preset_${date}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
+function refreshPresetList() {
+  uiState.presetList = listPresetNames();
+  if (!uiState.presetSelected && uiState.presetList.length) {
+    uiState.presetSelected = uiState.presetList[0];
+  }
+  uiState.__rebuildPresetSelect?.();
+  pane?.refresh();
 }
 
-// プリセット読込関数
-function loadPreset() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  
-  input.onchange = (e: Event) => {
-    const target = e.target as HTMLInputElement;
-    if (!target.files || target.files.length === 0) return;
-    
-    const file = target.files[0];
-    const reader = new FileReader();
-    
-    reader.onload = (e) => {
-      try {
-        const content = e.target?.result as string;
-        const data = JSON.parse(content);
-        
-        Object.assign(params, data);
-        
-        pane.refresh();
-        
-        updateColors();
-        regenerate();
-        
-        console.log("プリセットを読み込みました");
-      } catch (error) {
-        console.error("読み込みエラー:", error);
-        alert("ファイルの読み込みに失敗しました。正しいJSONファイルですか？");
-      }
-    };
-    reader.readAsText(file);
-  };
-  
-  input.click();
+function savePresetBrowser() {
+  const name = (uiState.presetName || "").trim();
+  if (!name) {
+    toast("保存名を入力してください。", "error");
+    return;
+  }
+  savePresetToLocal(name);
+  refreshPresetList();
+  toast(`プリセット「${name}」を保存しました。`, "success");
+}
+
+function loadPresetBrowser() {
+  const name = (uiState.presetSelected || "").trim();
+  if (!name) {
+    toast("読み込むプリセットを選択してください。", "error");
+    return;
+  }
+  if (!loadPresetFromLocal(name)) {
+    toast("プリセットが見つかりません。", "error");
+    return;
+  }
+  updateColors();
+  regenerate();
+  pane?.refresh();
+  toast(`プリセット「${name}」を読み込みました。`, "success");
+}
+
+function deletePresetBrowser() {
+  const name = (uiState.presetSelected || "").trim();
+  if (!name) return;
+
+  deletePresetFromLocal(name);
+  if (uiState.presetSelected === name) uiState.presetSelected = "";
+  refreshPresetList();
 }
 
 function resetCamera() {
@@ -604,7 +656,18 @@ function resetCamera() {
 }
 
 // Tweakpaneのセットアップ
-pane = setupUI(params, regenerate, updateColors, downloadGLTF, savePreset, loadPreset, resetCamera);
+pane = setupUI(
+  params, 
+  regenerate, 
+  updateColors, 
+  downloadGLTF, 
+  resetCamera,
+  uiState,
+  refreshPresetList,
+  savePresetBrowser,
+  loadPresetBrowser,
+  deletePresetBrowser,
+);
 
 // 初回実行
 regenerate();

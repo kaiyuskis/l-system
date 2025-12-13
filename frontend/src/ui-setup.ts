@@ -2,25 +2,32 @@ import { Pane } from 'tweakpane';
 import * as THREE from "three";
 import { scene, renderer, directionalLight, windUniforms } from './three-setup.ts';
 
-const generationsMax = 14;
+const generationsMax = 12;
 
 export function setupUI(
   params: any,
   onRegenerate: () => void,
   onUpdateColor: () => void,
   downloadGLTF: () => void,
-  savePreset: () => void,
-  loadPreset: () => void,
   resetCamera: () => void,
+  uiState: any,
+  refreshPresetList: () => void,
+  savePresetBrowser: () => void,
+  loadPresetBrowser: () => void,
+  deletePresetBrowser: () => void,
 
 ) {
     const onFinish = (ev: any) => {
       if (ev.last) onRegenerate();
     };
 
+    // メインパネル
     const pane = new Pane({ title: "L-System" });
+
+    // メイン設定
+    const foler = pane.addFolder({ title: "メイン設定", expanded: true });
     
-    const tab = pane.addTab({
+    const tab = foler.addTab({
       pages: [
         { title: "基本設定" },
         { title: "器官設定" },
@@ -68,29 +75,17 @@ export function setupUI(
     p1.addBinding(params, "scale", { label: '長さ減衰率(")', min: 0.0, max: 2.0, step: 0.01 }).on( "change", onFinish);
     p1.addBinding(params, 'widthDecay', { label: '太さ減衰率(!)', min: 0.5, max: 1.0, step: 0.01 }).on('change', onFinish);
     
-    p1.addBlade({ view: "separator" });
-    p1.addBinding(params, 'resultInfo', { 
-      label: '文字数', 
-      readonly: true
-    });
-    p1.addBinding(params, 'resultText', { 
-      label: '文字列(1000文字まで)',
-      multiline: true,
-      rows: 8,
-      readonly: true
-    });
-    
     // タブ2: 器官設定
     const p2 = tab.pages[1];
-    p2.addBinding(params, 'flowerColor').on('change', onUpdateColor);
+    p2.addBinding(params, 'flowerColor', { label: "花の色" }).on('change', onUpdateColor);
     p2.addBinding(params, 'flowerSize', { label: "花", min: 0, max: 5 }).on('change', onFinish);
     
     p2.addBlade({ view: 'separator' });
-    p2.addBinding(params, 'leafColor').on('change', onUpdateColor);
+    p2.addBinding(params, 'leafColor', { label: "葉の色" }).on('change', onUpdateColor);
     p2.addBinding(params, 'leafSize', { label: "葉", min: 0, max: 5 }).on('change', onFinish);
     
     p2.addBlade({ view: 'separator'});
-    p2.addBinding(params, 'budColor').on('change', onUpdateColor);
+    p2.addBinding(params, 'budColor', { label: "つぼみの色" }).on('change', onUpdateColor);
     p2.addBinding(params, 'budSize', { label: "つぼみ", min: 0, max: 5 }).on('change', onFinish);
     
     // タブ3: ルール
@@ -103,6 +98,66 @@ export function setupUI(
       p3.addBinding(r, "expression", {label: `ルール${i + 1}`});
     });
 
+    // プリセット保存フォルダ
+    const presetFolder = pane.addFolder({ title: 'プリセット', expanded: false });
+
+    presetFolder.addBinding(uiState, 'presetName', { label: '保存名' });
+
+    const selectFolder = presetFolder.addFolder({ title: '選択', expanded: true });
+
+    function makePresetOptions() {
+      const opts: Record<string, string> = {};
+      (uiState.presetList || []).forEach((name: string) => (opts[name] = name));
+      if (Object.keys(opts).length === 0) opts["(なし)"] = "";
+      return opts;
+    }
+
+    let presetSelectBinding: any = null;
+    function rebuildPresetSelect() {
+      if (presetSelectBinding) presetSelectBinding.dispose();
+      presetSelectBinding = selectFolder.addBinding(uiState, 'presetSelected', {
+        label: '選択',
+        options: makePresetOptions(),
+      });
+    }
+
+    // main.ts から呼べるように
+    uiState.__rebuildPresetSelect = rebuildPresetSelect;
+
+    rebuildPresetSelect();
+
+    const actionFolder = presetFolder.addFolder({ title: '操作', expanded: true });
+
+    actionFolder.addButton({ title: '一覧更新' }).on('click', () => {
+      refreshPresetList();
+    });
+
+    actionFolder.addButton({ title: '保存' }).on('click', () => {
+      savePresetBrowser();
+    });
+
+    actionFolder.addButton({ title: '読込' }).on('click', () => {
+      loadPresetBrowser();
+    });
+
+    actionFolder.addButton({ title: '削除' }).on('click', () => {
+      deletePresetBrowser();
+    });
+
+    // 生成結果表示フォルダ
+    const generatedRules = pane.addFolder({ title: '生成されたルールの詳細', expanded: false });
+    generatedRules.addBinding(params, 'resultInfo', { 
+      label: '文字数', 
+      readonly: true
+    });
+    generatedRules.addBinding(params, 'resultText', { 
+      label: '文字列(1000文字まで)',
+      multiline: true,
+      rows: 8,
+      readonly: true
+    });
+
+    // 環境設定フォルダ
     const envFolder = pane.addFolder({ title: '環境設定', expanded: false });
 
     envFolder.addButton({ title: 'カメラリセット' }).on('click', resetCamera);
@@ -127,8 +182,9 @@ export function setupUI(
     lightingTab.addBlade({ view: 'separator'});
     lightingTab.addBinding(scene.fog as THREE.Fog, 'near', { label: 'フォグの開始距離', min: 0, max: 100, step: 1 });
     lightingTab.addBinding(scene.fog as THREE.Fog, 'far', { label: 'フォグの終了距離', min: 50, max: 500, step: 1 });
-    
-    const btnFolder = pane.addFolder({ title: 'アクション' });
+
+    // アクションフォルダ
+    const btnFolder = pane.addFolder({ title: 'アクション', expanded: true });
     btnFolder.addButton({ title: "生成" }).on("click", onRegenerate);
 
     btnFolder.addBlade({ view: 'separator' });
@@ -138,11 +194,9 @@ export function setupUI(
     });
 
     btnFolder.addBlade({ view: 'separator' });
-    btnFolder.addButton({ title: '保存 (.glb)' }).on('click', downloadGLTF);   
+    btnFolder.addButton({ title: 'モデルの保存 (.glb)' }).on('click', downloadGLTF);   
+
     
-    btnFolder.addBlade({ view: 'separator' });
-    btnFolder.addButton({ title: 'プリセット保存' }).on('click', savePreset);
-    btnFolder.addButton({ title: 'プリセット読み込み' }).on('click', loadPreset);
 
     return pane;
 }
