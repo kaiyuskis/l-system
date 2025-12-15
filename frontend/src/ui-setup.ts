@@ -8,6 +8,7 @@ export function setupUI(
   params: any,
   onRegenerate: () => void,
   onUpdateColor: () => void,
+  onUpdateLeafTexture: () => void,
   downloadGLTF: () => void,
   resetCamera: () => void,
   uiState: any,
@@ -83,6 +84,15 @@ export function setupUI(
     
     p2.addBlade({ view: 'separator' });
     p2.addBinding(params, 'leafColor', { label: "葉の色" }).on('change', onUpdateColor);
+    p2.addBinding(params, 'leafTextureKey', {
+      label: "葉のテクスチャ",
+      options: {
+        "Default": "leaf_default",
+        "Maple": "leaf_maple",
+      }
+    }).on('change', () => {
+      onUpdateLeafTexture();
+    });
     p2.addBinding(params, 'leafSize', { label: "葉", min: 0, max: 5 }).on('change', onFinish);
     
     p2.addBlade({ view: 'separator'});

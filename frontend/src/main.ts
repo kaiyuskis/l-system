@@ -1,6 +1,6 @@
 import "./style.css";
 import * as THREE from "three";
-import { scene, camera, controls, windUniforms } from "./three-setup.ts";
+import { scene, camera, controls, windUniforms, renderer } from "./three-setup.ts";
 import { generateLSystemString, createLSystemData, type BranchSegment, type OrganPoint } from "./l-system.ts";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { setupUI } from './ui-setup.ts';
@@ -26,6 +26,113 @@ let budMesh: THREE.InstancedMesh | null = null;
 
 // 型定義
 interface LSystemRule { expression: string; }
+
+// パフォーマンス計測
+type PerfTimings = {
+  rewriteMs: number;
+  interpretMs: number;
+  meshMs: number;
+  totalMs: number;
+};
+
+type StructureMetrics = {
+  generations: number;
+  stringLength: number;
+
+  branchSegments: number;
+  branchCountF: number;
+
+  bracketPushes: number;
+  maxBranchDepth: number;
+
+  leaves: number;
+  flowers: number;
+  buds: number;
+
+  bboxHeight: number; // y方向
+  bboxWidth: number;  // xz平面の直径っぽいもの
+  bboxDepth: number;  // z方向
+};
+
+type RenderMetrics = {
+  drawCalls: number;
+  triangles: number;
+  vertices: number;
+};
+
+function countChar(s: string, ch: string): number {
+  let c = 0;
+  for (let i = 0; i < s.length; i++) if (s[i] === ch) c++;
+  return c;
+}
+
+function calcDepthFromBrackets(s: string): { pushes: number; maxDepth: number } {
+  let depth = 0;
+  let maxDepth = 0;
+  let pushes = 0;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === "[") {
+      pushes++;
+      depth++;
+      if (depth > maxDepth) maxDepth = depth;
+    } else if (ch === "]") {
+      depth = Math.max(0, depth - 1);
+    }
+  }
+  return { pushes, maxDepth };
+}
+
+function calcBBoxForGroup(group: THREE.Object3D): THREE.Box3 {
+  // group配下の全メッシュを含むBBox
+  const box = new THREE.Box3();
+  box.setFromObject(group);
+  return box;
+}
+
+function approxXZWidth(box: THREE.Box3): number {
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  // xz平面での“横幅っぽさ”として、max(x,z)を採用
+  return Math.max(size.x, size.z);
+}
+
+function getRenderMetrics(renderer: THREE.WebGLRenderer): RenderMetrics {
+  const info = renderer.info;
+  return {
+    drawCalls: info.render.calls,
+    triangles: info.render.triangles,
+    vertices: info.render.vertices,
+  };
+}
+
+function formatMetricsLine(struct: StructureMetrics, perf: PerfTimings, render?: RenderMetrics) {
+  const parts = [
+    `gen=${struct.generations}`,
+    `str=${struct.stringLength}`,
+    `F=${struct.branchCountF}`,
+    `branches=${struct.branchSegments}`,
+    `push=[${struct.bracketPushes}]`,
+    `depthMax=${struct.maxBranchDepth}`,
+    `L=${struct.leaves}`,
+    `K=${struct.flowers}`,
+    `M=${struct.buds}`,
+    `H=${struct.bboxHeight.toFixed(2)}`,
+    `W=${struct.bboxWidth.toFixed(2)}`,
+    `rewrite=${perf.rewriteMs.toFixed(1)}ms`,
+    `interpret=${perf.interpretMs.toFixed(1)}ms`,
+    `mesh=${perf.meshMs.toFixed(1)}ms`,
+    `total=${perf.totalMs.toFixed(1)}ms`,
+  ];
+  if (render) {
+    parts.push(
+      `calls=${render.drawCalls}`,
+      `tri=${render.triangles}`,
+      `vtx=${render.vertices}`
+    );
+  }
+  return parts.join(" | ");
+}
 
 // プリセットをローカルに保存する
 const LS_KEY = "lsystem_presets_v1";
@@ -97,11 +204,12 @@ const params = {
   widthDecay: 0.90,
 
   flowerColor: "#fef4f4",
-  flowerSize: 1.0,
-  leafColor: "#fffff0",
-  leafSize: 1.0,
+  flowerSize: 0.7,
+  leafColor: "#ffffff",
+  leafTextureKey: "leaf_default",
+  leafSize: 0.7,
   budColor: "#ADFF2F",
-  budSize: 1.0,
+  budSize: 0.7,
 
   premise: "A",
 
@@ -318,8 +426,23 @@ const barkRoughness = texLoader.load('bark_willow_02_rough_4k.jpg');
 });
 
 const flowerTexture = texLoader.load('cherry_blossom.png');
-const leafTexture = texLoader.load('leaf.png');
+const leafTextures: Record<string, THREE.Texture> = {
+  leaf_default: texLoader.load("leaf_default.png"),
+  leaf_maple: texLoader.load("leaf_maple.png"),
+  // テクスチャを追加する場合はここに追記
+};
 const budTexture = texLoader.load('bud.png');
+
+Object.values(leafTextures).forEach((t) => {
+  t.colorSpace = THREE.SRGBColorSpace;
+});
+
+{
+  const t = leafTextures.leaf_default;
+  t.center.set(0.5, 0.5);
+  t.rotation = Math.PI / 4;
+  t.needsUpdate = true;
+}
 
 // --- ジオメトリとマテリアルの準備 ---
 // 枝
@@ -346,7 +469,7 @@ setupMaterial(matFlower, true);
 
 // 葉
 const matLeaf = new THREE.MeshStandardMaterial({
-  map: leafTexture,
+  map: leafTextures[params.leafTextureKey],
   color: params.leafColor,
   side: THREE.DoubleSide,
   transparent: true,
@@ -421,6 +544,8 @@ function regenerate() {
   if (isRegenerating) return;
   isRegenerating = true;
 
+  const tAll0 = performance.now();
+
   try {
     setSeed(params.seed);
     if (pane) pane.refresh();
@@ -454,11 +579,13 @@ function regenerate() {
     });
 
     // 文字列生成
+    const tRewrite0 = performance.now();
     const str = generateLSystemString(
       params.premise,
       rules,
       Math.floor(params.generations)
     );
+    const tRewrite1 = performance.now();
 
     // 文字数
     params.resultInfo = str.length.toLocaleString();
@@ -473,6 +600,7 @@ function regenerate() {
     if (pane) pane.refresh();
 
     // L-System データ生成
+    const tInterp0 = performance.now();
     const data = createLSystemData(
       str,
       {
@@ -488,10 +616,11 @@ function regenerate() {
         gravity: params.gravity,
       }
     );
+    const tInterp1 = performance.now();
 
-    console.time("ジオメトリー生成時間");
+
+    const tMesh0 = performance.now();
     const mergedGeo = buildOrganicTreeGeometry(data.branches);
-    console.timeEnd("ジオメトリー生成時間");
 
     if (mergedGeo) {
       matBranch.color.set(params.branchColor);
@@ -561,8 +690,56 @@ function regenerate() {
     leafMesh = createInstanced(data.leaves, matLeaf, params.leafColor) || null;
     flowerMesh = createInstanced(data.flowers, matFlower, params.flowerColor) || null;
     budMesh = createInstanced(data.buds, matBud, params.budColor) || null;
+    const tMesh1 = performance.now();
 
-    console.log(`生成完了: 枝の数=${data.branches.length}`);
+    // -------- 4) 構造メトリクス計算（lsysとdataから） --------
+    const depthInfo = calcDepthFromBrackets(str);
+
+    // treeGroup追加後にBBox取れる
+    const box = calcBBoxForGroup(treeGroup);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+
+    const struct: StructureMetrics = {
+      generations: params.generations,
+      stringLength: str.length,
+
+      branchSegments: data.branches.length,
+      branchCountF: countChar(str, "F"),
+
+      bracketPushes: depthInfo.pushes,
+      maxBranchDepth: depthInfo.maxDepth,
+
+      leaves: data.leaves.length,
+      flowers: data.flowers.length,
+      buds: data.buds.length,
+
+      bboxHeight: size.y,
+      bboxWidth: approxXZWidth(box),
+      bboxDepth: size.z,
+    };
+
+    const perf: PerfTimings = {
+      rewriteMs: tRewrite1 - tRewrite0,
+      interpretMs: tInterp1 - tInterp0,
+      meshMs: tMesh1 - tMesh0,
+      totalMs: performance.now() - tAll0,
+    };
+
+    // 描画統計（renderer.infoは“描画後”が正確なので、次フレームで読むのがおすすめ）
+    requestAnimationFrame(() => {
+      const render = getRenderMetrics(renderer);
+      const line = formatMetricsLine(struct, perf, render);
+
+      console.log("[METRICS]", line);
+      console.table({ ...struct, ...perf, ...render });
+
+      // UIに1行で出したい場合（あなたのresultInfoに流し込む）
+      params.resultInfo = line;
+      pane?.refresh?.();
+    });
+
+    isRegenerating = false;
   } catch (e) {
     console.error(e);
   } finally {
@@ -577,6 +754,17 @@ function updateColors() {
   matFlower.color.set(params.flowerColor);
   matLeaf.color.set(params.leafColor);
   matBud.color.set(params.budColor);
+}
+
+// 葉テクスチャ更新関数
+function updateLeafTexture() {
+  const tex = leafTextures[params.leafTextureKey];
+  if (!tex) return;
+
+  matLeaf.map = tex;
+  matLeaf.needsUpdate = true;
+
+  regenerate();
 }
 
 // GLTFエクスポート関数
@@ -709,6 +897,7 @@ pane = setupUI(
   params, 
   regenerate, 
   updateColors, 
+  updateLeafTexture,
   downloadGLTF, 
   resetCamera,
   uiState,
