@@ -48,7 +48,6 @@ function savePresetMap(map: PresetMap) {
   localStorage.setItem(LS_KEY, JSON.stringify(map));
 }
 
-// 保存したくない一時情報を除外
 function getPresetPayload() {
   const { resultInfo, resultText, ...rest } = params;
   return rest;
@@ -252,7 +251,6 @@ function setupDepthMaterial(mat: THREE.Material, isLeaf: boolean) {
     }
 
     // 共通：全体揺れ (Sway) を注入
-    // MeshDepthMaterialでも project_vertex への注入で正しく動作します
     shader.vertexShader = shader.vertexShader.replace(
       '#include <project_vertex>',
       '#include <project_vertex>\n' + applySway
@@ -262,17 +260,16 @@ function setupDepthMaterial(mat: THREE.Material, isLeaf: boolean) {
 
 // 突風を発生させる関数
 function triggerDoubleGust() {
-  // すでに突風中なら上書きして気持ちよくする
   const base = windUniforms.strength.value;
 
-  // 突風の最大上乗せ量（好みで調整）
+  // 突風の最大上乗せ量
   const amp = Math.max(2.0, base * 1.5 + 0.8);
 
   const pulse = (t: number) => Math.sin(Math.PI * t); // 0→1→0 のなめらかな波
   const now = performance.now();
 
   const d1 = 520;   // 1発目の長さ(ms)
-  const gap = 220;  // 間(ms)
+  const gap = 50;  // 間(ms)
   const d2 = 560;   // 2発目の長さ(ms)
 
   const total = d1 + gap + d2;
@@ -292,7 +289,7 @@ function triggerDoubleGust() {
     const t2Start = d1 + gap;
     if (elapsed >= t2Start && elapsed <= t2Start + d2) {
       const t = (elapsed - t2Start) / d2;
-      g += (amp * 0.85) * pulse(t); // 2発目を少し弱く（好みで）
+      g += (amp * 0.85) * pulse(t);
     }
 
     windUniforms.gust.value = g;
