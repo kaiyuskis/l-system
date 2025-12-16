@@ -273,3 +273,79 @@ export function createLSystemData(
 
   return { branches, flowers, leaves, buds };
 }
+
+// 葉用：L-system文字列 → 2Dポリライン（タートル）
+// - F: 前進（線を追加）
+// - + / -: 回転（deg）
+// - [ ]: スタック（分岐。葉輪郭なら基本使わなくてもOK）
+// - " : 長さスケール（"(0.97)" みたいに書ける）
+// - F(0.2) みたいに F 自体に長さパラメータも付けられる
+export function createPolyline2DFromLSystem(
+  str: string,
+  opts: { step: number; turnDeg: number; startHeadingDeg?: number }
+): THREE.Vector2[] {
+  let pos = new THREE.Vector2(0, 0);
+  let heading = THREE.MathUtils.degToRad(opts.startHeadingDeg ?? 90); // 上向きがデフォ
+  let stepScalar = 1.0;
+
+  const pts: THREE.Vector2[] = [pos.clone()];
+  const stack: { pos: THREE.Vector2; heading: number; stepScalar: number }[] = [];
+
+  const forward = (dist: number) => {
+    pos = pos.clone().add(new THREE.Vector2(Math.cos(heading), Math.sin(heading)).multiplyScalar(dist));
+    pts.push(pos.clone());
+  };
+
+  let i = 0;
+  while (i < str.length) {
+    const c = str[i];
+
+    switch (c) {
+      case "F": {
+        const res = parsePara(str, i, opts.step * stepScalar);
+        forward(res.val);
+        i = res.nextIdx;
+        break;
+      }
+      case "+": {
+        const res = parsePara(str, i, opts.turnDeg);
+        heading += THREE.MathUtils.degToRad(res.val);
+        i = res.nextIdx;
+        break;
+      }
+      case "-": {
+        const res = parsePara(str, i, opts.turnDeg);
+        heading -= THREE.MathUtils.degToRad(res.val);
+        i = res.nextIdx;
+        break;
+      }
+      case '"': {
+        const res = parsePara(str, i, 1.0);
+        stepScalar *= res.val;
+        i = res.nextIdx;
+        break;
+      }
+      case "[": {
+        stack.push({ pos: pos.clone(), heading, stepScalar });
+        i++;
+        break;
+      }
+      case "]": {
+        const s = stack.pop();
+        if (s) {
+          pos = s.pos;
+          heading = s.heading;
+          stepScalar = s.stepScalar;
+          pts.push(pos.clone()); // 途切れを見える化したいなら残す。嫌なら消してOK
+        }
+        i++;
+        break;
+      }
+      default:
+        i++;
+        break;
+    }
+  }
+
+  return pts;
+}

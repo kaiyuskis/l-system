@@ -177,6 +177,7 @@ export function setupUI(
       pages: [
         { title: "風" },
         { title: "ライティング/フォグ" },
+        { title: "デバッグ" },
       ]
     });
 
@@ -196,6 +197,10 @@ export function setupUI(
     lightingTab.addBlade({ view: 'separator'});
     lightingTab.addBinding(scene.fog as THREE.Fog, 'near', { label: 'フォグの開始距離', min: 0, max: 100, step: 1 });
     lightingTab.addBinding(scene.fog as THREE.Fog, 'far', { label: 'フォグの終了距離', min: 50, max: 500, step: 1 });
+
+    const debugTab = envTab.pages[2];
+    debugTab.addBinding(params, 'debugBranches', { label: '枝のデバッグ表示' }).on('change', onRegenerate);
+    debugTab.addBinding(params, 'debugLeaves', { label: '葉のデバッグ表示' }).on('change', onRegenerate);
 
     // アクションフォルダ
     const btnFolder = pane.addFolder({ title: 'アクション', expanded: true });

@@ -1,16 +1,19 @@
 import "./style.css";
 import * as THREE from "three";
 import { scene, camera, controls, windUniforms, renderer } from "./three-setup.ts";
-import { generateLSystemString, createLSystemData, type BranchSegment, type OrganPoint } from "./l-system.ts";
+import { generateLSystemString, createLSystemData, createPolyline2DFromLSystem, type BranchSegment, type OrganPoint } from "./l-system.ts";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { setupUI } from './ui-setup.ts';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { setSeed } from "./rng.js";
 import { toast } from "./toast";
+import { makeDebug } from "./debug.ts";
 
 // 木全体をまとめるグループ
 const treeGroup = new THREE.Group();
 scene.add(treeGroup);
+
+const debug = makeDebug(scene);
 
 // Tweakpaneのインスタンス変数
 let pane: any;
@@ -228,6 +231,9 @@ const params = {
 
   resultInfo: '0',
   resultText: '',
+
+  debugBranches: false,
+  debugLeaves: false,
 };
 
 // 風エフェクト用シェーダーコード
@@ -457,6 +463,37 @@ setupMaterial(matBranch, false);
 
 const geoPlane = new THREE.PlaneGeometry(1, 1);
 
+function buildLeafGeometry(): THREE.BufferGeometry {
+  // 片側（右側）の輪郭を作るL-system
+  const premise = "A";
+  const rules = {
+    // “少し曲がって前進”を繰り返して、葉先が細くなるように " で減衰
+    A: 'F"(0.985)+(6)A',
+  };
+  const s = generateLSystemString(premise, rules, 55);
+
+  // 右側の輪郭
+  const right = createPolyline2DFromLSystem(s, { step: 0.06, turnDeg: 6, startHeadingDeg: 90 });
+
+  // 左側をミラーして閉じる（右の逆順を x反転）
+  const left = right
+    .slice(0, -1)
+    .reverse()
+    .map(p => new THREE.Vector2(-p.x, p.y));
+
+  // 根元に戻して閉曲線にする
+  const outline = [...right, ...left];
+  if (outline.length > 2) outline.push(outline[0].clone());
+
+  const shape = new THREE.Shape(outline);
+  const geo = new THREE.ShapeGeometry(shape, 24);
+  geo.center(); // 原点中心にする（インスタンス配置が楽）
+  return geo;
+}
+
+const leafGeo = buildLeafGeometry();
+
+
 // 花
 const matFlower = new THREE.MeshStandardMaterial({
   map: flowerTexture,
@@ -592,7 +629,7 @@ function regenerate() {
 
     // 文字列本体 (1000文字まで)
     if (str.length > 1000) {
-      params.resultText = str.substring(0, 2000) + ' ... (省略)';
+      params.resultText = str.substring(0, 1000) + ' ... (省略)';
     } else {
       params.resultText = str;
     }
@@ -645,12 +682,11 @@ function regenerate() {
       if(pts.length===0) return;
 
       mat.color.set(col);
-      const mesh = new THREE.InstancedMesh(geoPlane, mat, pts.length);
+      const isLeaf = mat === matLeaf;
+      const baseGeo = isLeaf ? leafGeo : geoPlane;
+      const mesh = new THREE.InstancedMesh(baseGeo, mat, pts.length);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-
-      // マテリアルが葉かどうかを判定
-      const isLeaf = mat === matLeaf;
 
       // 透過を考慮してメインマテリアルからmapとalphaTestをコピー
       const depthMat = new THREE.MeshDepthMaterial({
@@ -740,6 +776,13 @@ function regenerate() {
     });
 
     isRegenerating = false;
+
+    debug.clear();
+    if (params.debugBranches) debug.addBranchAxes(data.branches);
+    if (params.debugLeaves) {
+      debug.addLeafPoints(data.leaves, 0.12);
+      debug.addLeafNormals(data.leaves, 0.8);
+    }
   } catch (e) {
     console.error(e);
   } finally {
