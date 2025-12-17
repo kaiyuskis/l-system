@@ -50,7 +50,7 @@ export function makeDebug(scene: THREE.Scene) {
       color: 0x00ff00,
       size,
       sizeAttenuation: true,
-      depthTest: false,   // ★前面
+      depthTest: false,
       depthWrite: false,
     });
     const points = new THREE.Points(geo, mat);

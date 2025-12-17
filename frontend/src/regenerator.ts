@@ -22,7 +22,7 @@ export type RegeneratorOptions = {
 
 function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
-  const radialSegments = 18;
+  const radialSegments = 8;
 
   for (const seg of segments) {
     const length = seg.start.distanceTo(seg.end);
@@ -238,7 +238,6 @@ export function createRegenerator(options: RegeneratorOptions) {
         console.log("[METRICS]", line);
         console.table({ ...struct, ...perf, ...render });
 
-        params.resultInfo = line;
         refreshPane();
       });
 

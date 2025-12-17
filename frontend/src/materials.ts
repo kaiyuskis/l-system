@@ -15,7 +15,7 @@ export function createMaterials(params: AppParams, windUniforms: any, textures: 
   const matBranch = new THREE.MeshStandardMaterial({
     map: textures.barkColor,
     normalMap: textures.barkNormal,
-    normalScale: new THREE.Vector2(16, 16),
+    normalScale: new THREE.Vector2(2, 2),
     roughnessMap: textures.barkRoughness,
     color: params.branchColor,
   });
