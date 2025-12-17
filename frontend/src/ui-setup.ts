@@ -70,6 +70,10 @@ export function setupUI(
     p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", onFinish);
     p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", onFinish);
     p1.addBinding(params, 'seed', { label: 'シード値', min: 0, max: 100000, step: 1 }).on('change', onFinish);
+    p1.addButton({ title: 'ランダムシード' }).on('click', () => {
+      params.seed = Math.floor(Math.random() * 100000);
+      onRegenerate();
+    });
     p1.addBinding(params, "gravity", { label: "重力", min: -10, max: 10, step: 0.1 }).on("change", onFinish);
     p1.addBinding(params, "branchColor", { label: "枝の色" }).on("change", onUpdateColor);
     
@@ -108,6 +112,9 @@ export function setupUI(
     params.rules.forEach((r: any, i: number) => {
       p3.addBinding(r, "expression", {label: `ルール${i + 1}`});
     });
+
+    p3.addBlade({ view: "separator" });
+    p3.addButton({ title: "生成" }).on("click", onRegenerate);
 
     // プリセット保存フォルダ
     const presetFolder = pane.addFolder({ title: 'プリセット', expanded: false });
@@ -176,7 +183,7 @@ export function setupUI(
     const envTab = envFolder.addTab({
       pages: [
         { title: "風" },
-        { title: "ライティング/フォグ" },
+        { title: "光/霧" },
         { title: "デバッグ" },
       ]
     });
@@ -202,20 +209,9 @@ export function setupUI(
     debugTab.addBinding(params, 'debugBranches', { label: '枝のデバッグ表示' }).on('change', onRegenerate);
     debugTab.addBinding(params, 'debugLeaves', { label: '葉のデバッグ表示' }).on('change', onRegenerate);
 
-    // アクションフォルダ
-    const btnFolder = pane.addFolder({ title: 'アクション', expanded: true });
-    btnFolder.addButton({ title: "生成" }).on("click", onRegenerate);
-
-    btnFolder.addBlade({ view: 'separator' });
-    btnFolder.addButton({ title: 'ランダムシード' }).on('click', () => {
-      params.seed = Math.floor(Math.random() * 100000);
-      onRegenerate();
-    });
-
-    btnFolder.addBlade({ view: 'separator' });
+    // モデル保存フォルダ
+    const btnFolder = pane.addFolder({ title: 'モデルの保存', expanded: false });
     btnFolder.addButton({ title: 'モデルの保存 (.glb)' }).on('click', downloadGLTF);   
-
-    
 
     return pane;
 }

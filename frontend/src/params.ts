@@ -20,12 +20,12 @@ export function createDefaultParams(): AppParams {
     widthDecay: 0.90,
 
     flowerColor: "#fef4f4",
-    flowerSize: 0.7,
+    flowerSize: 1.0,
     leafColor: "#ffffff",
     leafTextureKey: "leaf_default",
     leafSize: 0.7,
     budColor: "#ADFF2F",
-    budSize: 0.7,
+    budSize: 1.0,
 
     premise: "A",
 
@@ -33,7 +33,7 @@ export function createDefaultParams(): AppParams {
       { expression: 'A=FFFB' },
       { expression: 'B=FFF"![C]////[C]////[C]////[&D]' },
       { expression: 'C=&F+(15)F-(15)F^(15)F+BL' },
-      { expression: 'D="(0.7)!(0.5)FKFBL' },
+      { expression: 'D="(0.7)!(0.5)FFBL' },
       { expression: '' },
       { expression: '' },
       { expression: '' },
