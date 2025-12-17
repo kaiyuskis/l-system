@@ -13,3 +13,58 @@ body {
   word-break: break-all !important;
   white-space: pre-wrap !important;
 }
+
+/* === Toast Notifications === */
+.toast-container {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: none;
+  min-width: 220px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 14px;
+
+  /* 白背景 */
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  /* 立体感 */
+  box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+  border: 1px solid rgba(0,0,0,0.08);
+
+  font-size: 14px;
+  line-height: 1.35;
+
+  /* 左→右に出る */
+  transform: translateX(-24px);
+  opacity: 0;
+  animation: toast-in 220ms ease-out forwards;
+}
+
+/* 色は文字に当てる（背景は白のまま） */
+.toast.success { color: #147a3a; }
+.toast.error   { color: #b42318; }
+.toast.info    { color: #1d4ed8; }
+
+.toast.hide {
+  animation: toast-out 180ms ease-in forwards;
+}
+
+@keyframes toast-in {
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* 消えるときも左へ戻す（自然） */
+@keyframes toast-out {
+  to { transform: translateX(-24px); opacity: 0; }
+}
