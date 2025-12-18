@@ -80,6 +80,12 @@ export function createRegenerator(options: RegeneratorOptions) {
   let budMesh: THREE.InstancedMesh | null = null;
   let isRegenerating = false;
 
+  const streamingStartGen = 7;
+  const streamingStep = 2;
+
+  const waitNextFrame = () =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
   const disposeInstanced = (mesh: THREE.InstancedMesh | null) => {
     if (!mesh) return;
     mesh.geometry.dispose();
@@ -98,7 +104,131 @@ export function createRegenerator(options: RegeneratorOptions) {
     budMesh = null;
   };
 
-  const regenerate = () => {
+  const renderFromString = async (
+    str: string,
+    opts: { targetGen: number; rewriteMs?: number; logMetrics?: boolean; startTime: number }
+  ) => {
+    resetMeshes();
+
+    const tInterp0 = performance.now();
+    const data = createLSystemData(
+      str,
+      {
+        initLen: params.initLength,
+        initWid: params.initThickness,
+        scale: params.scale,
+        widthDecay: params.widthDecay,
+        angle: params.angle,
+        angleVariance: params.angleVariance,
+        flowerSize: params.flowerSize,
+        leafSize: params.leafSize,
+        budSize: params.budSize,
+        gravity: params.gravity,
+      }
+    );
+    const tInterp1 = performance.now();
+
+    const tMesh0 = performance.now();
+    const mergedGeo = buildOrganicTreeGeometry(data.branches);
+
+    if (mergedGeo) {
+      materials.branch.color.set(params.branchColor);
+      branchMesh = new THREE.Mesh(mergedGeo, materials.branch);
+      branchMesh.castShadow = true;
+      branchMesh.receiveShadow = true;
+      attachDepthMaterials(branchMesh, materials.branch, windUniforms, false);
+      treeGroup.add(branchMesh);
+    }
+
+    const createInstanced = (pts: OrganPoint[], mat: THREE.MeshStandardMaterial, col: string) => {
+      if (pts.length === 0) return;
+
+      mat.color.set(col);
+      const mesh = new THREE.InstancedMesh(materials.plane, mat, pts.length);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      const isLeaf = mat === materials.leaf;
+      attachDepthMaterials(mesh, mat, windUniforms, isLeaf);
+
+      const thicknessArray = new Float32Array(pts.length);
+      const dummy = new THREE.Object3D();
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        dummy.position.copy(pts[i].position);
+        dummy.quaternion.copy(pts[i].rotation);
+        dummy.scale.setScalar(pts[i].scale);
+        dummy.translateY(pts[i].scale * 0.5);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        thicknessArray[i] = p.thickness;
+      }
+      mesh.geometry.setAttribute('aThickness', new THREE.InstancedBufferAttribute(thicknessArray, 1));
+      mesh.instanceMatrix.needsUpdate = true;
+      treeGroup.add(mesh);
+      return mesh;
+    };
+
+    leafMesh = createInstanced(data.leaves, materials.leaf, params.leafColor) || null;
+    flowerMesh = createInstanced(data.flowers, materials.flower, params.flowerColor) || null;
+    budMesh = createInstanced(data.buds, materials.bud, params.budColor) || null;
+    const tMesh1 = performance.now();
+
+    if (opts.logMetrics) {
+      const depthInfo = calcDepthFromBrackets(str);
+      const box = calcBBoxForGroup(treeGroup);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+
+      const struct: StructureMetrics = {
+        generations: opts.targetGen,
+        stringLength: str.length,
+
+        branchSegments: data.branches.length,
+        branchCountF: countChar(str, "F"),
+
+        bracketPushes: depthInfo.pushes,
+        maxBranchDepth: depthInfo.maxDepth,
+
+        leaves: data.leaves.length,
+        flowers: data.flowers.length,
+        buds: data.buds.length,
+
+        bboxHeight: size.y,
+        bboxWidth: approxXZWidth(box),
+        bboxDepth: size.z,
+      };
+
+      const perf: PerfTimings = {
+        rewriteMs: opts.rewriteMs ?? 0,
+        interpretMs: tInterp1 - tInterp0,
+        meshMs: tMesh1 - tMesh0,
+        totalMs: performance.now() - opts.startTime,
+      };
+
+      requestAnimationFrame(() => {
+        const render = getRenderMetrics(renderer);
+        const line = formatMetricsLine(struct, perf, render);
+
+        console.log("[METRICS]", line);
+        console.table({ ...struct, ...perf, ...render });
+
+        refreshPane();
+      });
+    } else {
+      refreshPane();
+    }
+
+    await waitNextFrame();
+
+    return {
+      data,
+      interpretMs: tInterp1 - tInterp0,
+      meshMs: tMesh1 - tMesh0,
+    };
+  };
+
+  const regenerate = async () => {
     if (isRegenerating) return;
     isRegenerating = true;
 
@@ -124,124 +254,41 @@ export function createRegenerator(options: RegeneratorOptions) {
           rules[parts[0].trim()] = parts.slice(1).join('=').trim();
       });
 
+      const targetGenerations = Math.floor(params.generations);
+      const streamingGens = new Set<number>();
+      for (let g = streamingStartGen; g < targetGenerations; g += streamingStep) {
+        streamingGens.add(g);
+      }
+
       const tRewrite0 = performance.now();
-      const str = generateLSystemString(
+      const str = await generateLSystemString(
         params.premise,
         rules,
-        Math.floor(params.generations)
+        targetGenerations,
+        async (gen, currentStr) => {
+          params.resultInfo = `${currentStr.length.toLocaleString()} (gen ${gen}/${targetGenerations})`;
+          params.resultText = currentStr.length > 1000 ? `${currentStr.substring(0, 1000)} ... (省略)` : currentStr;
+          refreshPane();
+
+          if (streamingGens.has(gen)) {
+            await renderFromString(currentStr, { targetGen: targetGenerations, startTime: tAll0 });
+          } else if (currentStr.length > 20000 && gen % 2 === 0) {
+            await waitNextFrame();
+          }
+        }
       );
       const tRewrite1 = performance.now();
 
-      params.resultInfo = str.length.toLocaleString();
+      params.resultInfo = `${str.length.toLocaleString()} (gen ${targetGenerations}/${targetGenerations})`;
       params.resultText = str.length > 1000 ? `${str.substring(0, 1000)} ... (省略)` : str;
       refreshPane();
 
-      const tInterp0 = performance.now();
-      const data = createLSystemData(
-        str,
-        {
-          initLen: params.initLength,
-          initWid: params.initThickness,
-          scale: params.scale,
-          widthDecay: params.widthDecay,
-          angle: params.angle,
-          angleVariance: params.angleVariance,
-          flowerSize: params.flowerSize,
-          leafSize: params.leafSize,
-          budSize: params.budSize,
-          gravity: params.gravity,
-        }
-      );
-      const tInterp1 = performance.now();
-
-      const tMesh0 = performance.now();
-      const mergedGeo = buildOrganicTreeGeometry(data.branches);
-
-      if (mergedGeo) {
-        materials.branch.color.set(params.branchColor);
-        branchMesh = new THREE.Mesh(mergedGeo, materials.branch);
-        branchMesh.castShadow = true;
-        branchMesh.receiveShadow = true;
-        attachDepthMaterials(branchMesh, materials.branch, windUniforms, false);
-        treeGroup.add(branchMesh);
-      }
-
-      const createInstanced = (pts: OrganPoint[], mat: THREE.MeshStandardMaterial, col: string) => {
-        if(pts.length===0) return;
-
-        mat.color.set(col);
-        const mesh = new THREE.InstancedMesh(materials.plane, mat, pts.length);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-
-        const isLeaf = mat === materials.leaf;
-        attachDepthMaterials(mesh, mat, windUniforms, isLeaf);
-
-        const thicknessArray = new Float32Array(pts.length);
-        const dummy = new THREE.Object3D();
-        for(let i=0; i<pts.length; i++){
-          const p = pts[i];
-          dummy.position.copy(pts[i].position);
-          dummy.quaternion.copy(pts[i].rotation);
-          dummy.scale.setScalar(pts[i].scale);
-          dummy.translateY(pts[i].scale*0.5);
-          dummy.updateMatrix();
-          mesh.setMatrixAt(i, dummy.matrix);
-          thicknessArray[i] = p.thickness;
-        }
-        mesh.geometry.setAttribute('aThickness', new THREE.InstancedBufferAttribute(thicknessArray, 1));
-        mesh.instanceMatrix.needsUpdate = true;
-        treeGroup.add(mesh);
-        return mesh;
-      };
-
-      leafMesh = createInstanced(data.leaves, materials.leaf, params.leafColor) || null;
-      flowerMesh = createInstanced(data.flowers, materials.flower, params.flowerColor) || null;
-      budMesh = createInstanced(data.buds, materials.bud, params.budColor) || null;
-      const tMesh1 = performance.now();
-
-      const depthInfo = calcDepthFromBrackets(str);
-      const box = calcBBoxForGroup(treeGroup);
-      const size = new THREE.Vector3();
-      box.getSize(size);
-
-      const struct: StructureMetrics = {
-        generations: params.generations,
-        stringLength: str.length,
-
-        branchSegments: data.branches.length,
-        branchCountF: countChar(str, "F"),
-
-        bracketPushes: depthInfo.pushes,
-        maxBranchDepth: depthInfo.maxDepth,
-
-        leaves: data.leaves.length,
-        flowers: data.flowers.length,
-        buds: data.buds.length,
-
-        bboxHeight: size.y,
-        bboxWidth: approxXZWidth(box),
-        bboxDepth: size.z,
-      };
-
-      const perf: PerfTimings = {
+      const { data } = await renderFromString(str, {
+        targetGen: targetGenerations,
         rewriteMs: tRewrite1 - tRewrite0,
-        interpretMs: tInterp1 - tInterp0,
-        meshMs: tMesh1 - tMesh0,
-        totalMs: performance.now() - tAll0,
-      };
-
-      requestAnimationFrame(() => {
-        const render = getRenderMetrics(renderer);
-        const line = formatMetricsLine(struct, perf, render);
-
-        console.log("[METRICS]", line);
-        console.table({ ...struct, ...perf, ...render });
-
-        refreshPane();
+        logMetrics: true,
+        startTime: tAll0,
       });
-
-      isRegenerating = false;
 
       debug.clear();
       if (params.debugBranches) debug.addBranchAxes(data.branches);
