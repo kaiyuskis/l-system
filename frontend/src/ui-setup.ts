@@ -2,7 +2,7 @@ import { Pane } from 'tweakpane';
 import * as THREE from "three";
 import { scene, renderer, directionalLight, windUniforms } from './three-setup.ts';
 
-const generationsMax = 14;
+const generationsMax = 20;
 
 export function setupUI(
   params: any,
@@ -61,12 +61,14 @@ export function setupUI(
       const currentInt = Math.floor(params.generations);
       
       if (currentInt !== lastGenInt) {
-        console.log(`世代変更: ${lastGenInt} -> ${currentInt}`);
         lastGenInt = currentInt;
         onRegenerate();
       }
     }
-    p1.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", handleGenChange);
+    p1.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", (ev) => {
+      if (!ev.last) return;
+      handleGenChange();
+    });
     p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", onFinish);
     p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", onFinish);
     p1.addBinding(params, 'seed', { label: 'シード値', min: 0, max: 100000, step: 1 }).on('change', onFinish);
@@ -105,7 +107,10 @@ export function setupUI(
     
     // タブ3: ルール
     const p3 = tab.pages[2];
-    p3.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", handleGenChange);
+    p3.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", (ev) => {
+      if (!ev.last) return;
+      handleGenChange();
+    });
 
     p3.addBlade({ view: "separator" });
     p3.addBinding(params, "premise", { label: "初期状態" }).on("change", onFinish);

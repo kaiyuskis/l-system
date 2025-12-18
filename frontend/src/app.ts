@@ -10,6 +10,7 @@ import { loadTextures } from "./textures";
 import { createMaterials } from "./materials";
 import { downloadGLTF } from "./exporter";
 import { deletePresetFromLocal, listPresetNames, loadPresetFromLocal, savePresetToLocal } from "./presets";
+import { hideLoadingIndicator, showLoadingIndicator } from "./loading-indicator";
 
 export function runApp() {
   const treeGroup = new THREE.Group();
@@ -33,6 +34,22 @@ export function runApp() {
     windUniforms,
     debug,
     refreshPane,
+    onRegenerateStart: (info) => {
+      if (info.streaming) showLoadingIndicator("3Dモデルを生成中...");
+    },
+    onRegenerateEnd: (info) => {
+      if (info.streaming) hideLoadingIndicator();
+      if (info.ok) {
+        toast(`${info.targetGenerations}世代で生成が完了しました。`, "success");
+      }
+    },
+    onRegenerateError: (error) => {
+      if (error instanceof RangeError) {
+        toast("世代数が多すぎて生成できませんでした。世代数を下げてください。", "error");
+        return;
+      }
+      toast("生成に失敗しました。世代数やルールを見直してください。", "error");
+    },
   });
 
   const refreshPresetList = () => {

@@ -18,6 +18,9 @@ export type RegeneratorOptions = {
   windUniforms: any;
   debug: ReturnType<typeof makeDebug>;
   refreshPane: () => void;
+  onRegenerateStart?: (info: { targetGenerations: number; streaming: boolean }) => void;
+  onRegenerateEnd?: (info: { targetGenerations: number; streaming: boolean; ok: boolean }) => void;
+  onRegenerateError?: (error: unknown) => void;
 };
 
 function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeometry {
@@ -72,7 +75,19 @@ function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeomet
 }
 
 export function createRegenerator(options: RegeneratorOptions) {
-  const { params, materials, textures, treeGroup, renderer, windUniforms, debug, refreshPane } = options;
+  const {
+    params,
+    materials,
+    textures,
+    treeGroup,
+    renderer,
+    windUniforms,
+    debug,
+    refreshPane,
+    onRegenerateStart,
+    onRegenerateEnd,
+    onRegenerateError,
+  } = options;
 
   let branchMesh: THREE.Mesh | null = null;
   let flowerMesh: THREE.InstancedMesh | null = null;
@@ -80,8 +95,8 @@ export function createRegenerator(options: RegeneratorOptions) {
   let budMesh: THREE.InstancedMesh | null = null;
   let isRegenerating = false;
 
-  const streamingStartGen = 7;
-  const streamingStep = 2;
+  const streamingStartGen = 10;
+  const streamingStep = 1;
 
   const waitNextFrame = () =>
     new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -229,10 +244,15 @@ export function createRegenerator(options: RegeneratorOptions) {
   };
 
   const regenerate = async () => {
-    if (isRegenerating) return;
+    if (isRegenerating) return false;
     isRegenerating = true;
 
+    const targetGenerations = Math.floor(params.generations);
+    const streaming = targetGenerations >= streamingStartGen;
+    onRegenerateStart?.({ targetGenerations, streaming });
+
     const tAll0 = performance.now();
+    let ok = true;
 
     try {
       setSeed(params.seed);
@@ -254,7 +274,6 @@ export function createRegenerator(options: RegeneratorOptions) {
           rules[parts[0].trim()] = parts.slice(1).join('=').trim();
       });
 
-      const targetGenerations = Math.floor(params.generations);
       const streamingGens = new Set<number>();
       for (let g = streamingStartGen; g < targetGenerations; g += streamingStep) {
         streamingGens.add(g);
@@ -297,10 +316,15 @@ export function createRegenerator(options: RegeneratorOptions) {
         debug.addLeafNormals(data.leaves, 0.8);
       }
     } catch (e) {
+      ok = false;
       console.error(e);
+      onRegenerateError?.(e);
     } finally {
       isRegenerating = false;
+      onRegenerateEnd?.({ targetGenerations, streaming, ok });
     }
+
+    return ok;
   };
 
   const updateColors = () => updateMaterialColors(materials, params);

@@ -9,7 +9,6 @@ export function makeDebug(scene: THREE.Scene) {
   };
 
   const addBranchAxes = (segments: { start: THREE.Vector3; end: THREE.Vector3 }[]) => {
-    console.log("[debug] branches:", segments.length);
 
     const positions = new Float32Array(segments.length * 2 * 3);
     for (let i = 0; i < segments.length; i++) {
@@ -31,12 +30,11 @@ export function makeDebug(scene: THREE.Scene) {
 
 
     const lines = new THREE.LineSegments(geo, mat);
-    lines.renderOrder = 999; // ★前面
+    lines.renderOrder = 999;
     group.add(lines);
   };
 
   const addLeafPoints = (pts: { position: THREE.Vector3 }[], size = 0.04) => {
-    console.log("[debug] leaves:", pts.length);
 
     const positions = new Float32Array(pts.length * 3);
     for (let i = 0; i < pts.length; i++) {
@@ -62,7 +60,6 @@ export function makeDebug(scene: THREE.Scene) {
     leaves: { position: THREE.Vector3; rotation: THREE.Quaternion; scale: number }[],
     len = 0.8
   ) => {
-    console.log("[debug] leafNormals:", leaves.length);
 
     const positions = new Float32Array(leaves.length * 2 * 3);
     const up = new THREE.Vector3(0, 1, 0); // ローカルYを“葉の前”扱い

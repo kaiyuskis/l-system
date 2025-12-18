@@ -11,9 +11,9 @@ export function createDefaultParams(): AppParams {
 
     generations: 7,
     angle: 28.0,
-    angleVariance: 5.0,
+    angleVariance: 0.0,
     seed: 0,
-    gravity: 1.0,
+    gravity: 0.0,
     branchColor: "#ffffff",
 
     scale: 0.95,

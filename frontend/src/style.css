@@ -14,6 +14,34 @@ body {
   white-space: pre-wrap !important;
 }
 
+/* Tweakpaneを画面内でスクロール可能にする */
+.tp-dfwv {
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tp-groove-foreground-color, rgba(15, 23, 42, 0.35))
+    var(--tp-base-background-color, transparent);
+}
+
+.tp-dfwv::-webkit-scrollbar {
+  width: 10px;
+}
+
+.tp-dfwv::-webkit-scrollbar-track {
+  background: var(--tp-base-background-color, transparent);
+}
+
+.tp-dfwv::-webkit-scrollbar-thumb {
+  background: var(--tp-groove-foreground-color, rgba(15, 23, 42, 0.25));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.tp-dfwv::-webkit-scrollbar-thumb:hover {
+  background: var(--tp-groove-foreground-color, rgba(15, 23, 42, 0.4));
+}
+
 /* === Toast Notifications === */
 .toast-container {
   position: fixed;
@@ -67,4 +95,78 @@ body {
 /* 消えるときも左へ戻す（自然） */
 @keyframes toast-out {
   to { transform: translateX(-24px); opacity: 0; }
+}
+
+/* === FPS Indicator === */
+.fps-indicator {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  z-index: 99997;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.14);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  pointer-events: none;
+}
+
+.fps-indicator.is-warning {
+  color: #9a3412;
+  border-color: rgba(194, 65, 12, 0.35);
+}
+
+.fps-indicator.is-critical {
+  color: #991b1b;
+  border-color: rgba(185, 28, 28, 0.45);
+}
+
+/* === Loading Indicator === */
+.loading-indicator {
+  position: fixed;
+  left: 50%;
+  top: 16px;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.16);
+  opacity: 0;
+  transform: translate(-50%, -6px);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.loading-indicator.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.loading-indicator .spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.2);
+  border-top-color: #1d4ed8;
+  animation: spin 0.9s linear infinite;
+}
+
+.loading-indicator .label {
+  font-size: 13px;
+  color: #111827;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

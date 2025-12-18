@@ -10,8 +10,9 @@ function ensureContainer() {
   return container;
 }
 
-export function toast(message: string, type: ToastType = "info", durationMs = 2200) {
+export function toast(message: string, type: ToastType = "info", durationMs?: number) {
   const c = ensureContainer();
+  const duration = durationMs ?? (type === "error" ? 4800 : 2400);
 
   const el = document.createElement("div");
   el.className = `toast ${type}`;
@@ -25,5 +26,5 @@ export function toast(message: string, type: ToastType = "info", durationMs = 22
   window.setTimeout(() => {
     el.classList.add("hide");
     window.setTimeout(() => el.remove(), 220);
-  }, durationMs);
+  }, duration);
 }

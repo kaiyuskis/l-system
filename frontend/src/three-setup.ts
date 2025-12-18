@@ -1,11 +1,14 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import Stats from "stats.js";
 
-// Statsの初期化
-const stats = new Stats();
-stats.showPanel(0);
-document.body.appendChild(stats.dom);
+// FPS表示
+const fpsEl = document.createElement("div");
+fpsEl.className = "fps-indicator";
+fpsEl.textContent = "FPS --";
+document.body.appendChild(fpsEl);
+
+let fpsLastTime = performance.now();
+let fpsFrames = 0;
 
 // シーン
 export const scene = new THREE.Scene();
@@ -91,13 +94,23 @@ export const windUniforms = {
 
 // アニメーションループ
 function animate() {
-  stats.begin();
   requestAnimationFrame(animate);
+  fpsFrames++;
+  const now = performance.now();
+  const elapsed = now - fpsLastTime;
+  if (elapsed >= 500) {
+    const fps = (fpsFrames * 1000) / elapsed;
+    const rounded = Math.round(fps);
+    fpsEl.textContent = `FPS ${rounded}`;
+    fpsEl.classList.toggle("is-warning", rounded < 45);
+    fpsEl.classList.toggle("is-critical", rounded < 30);
+    fpsFrames = 0;
+    fpsLastTime = now;
+  }
   const delta = 0.01 * windUniforms.speed.value;
   windUniforms.time.value += delta;
   controls.update();
   renderer.render(scene, camera);
-  stats.end();
 }
 animate();
 
