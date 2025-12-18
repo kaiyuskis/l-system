@@ -43,12 +43,13 @@ function parsePara(
   return { val: defaultVal, nextIdx: idx + 1 };
 }
 
-// L-System 文字列生成
-export function generateLSystemString(
+// L-System 文字列生成（各世代ごとにコールバックを実行できる）
+export async function generateLSystemString(
   premise: string,
   rules: { [key: string]: string },
-  gens: number
-): string {
+  gens: number,
+  onGeneration?: (gen: number, str: string) => void | Promise<void>
+): Promise<string> {
   let str = premise;
   for (let i = 0; i < gens; i++) {
     let next = "";
@@ -56,6 +57,7 @@ export function generateLSystemString(
       next += rules[char] || char;
     }
     str = next;
+    await onGeneration?.(i + 1, str);
   }
   return str;
 }
