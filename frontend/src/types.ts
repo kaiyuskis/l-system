@@ -1,6 +1,7 @@
 import type * as THREE from "three";
 
 export interface LSystemRule { expression: string; }
+export interface LeafGroupRule { expression: string; }
 
 export type PerfTimings = {
   rewriteMs: number;
@@ -56,6 +57,7 @@ export type AppParams = {
   leafColor: string;
   leafTextureKey: string;
   leafSize: number;
+  leafGroupName: string;
   budColor: string;
   budSize: number;
 
@@ -73,7 +75,11 @@ export type UIState = {
   presetName: string;
   presetSelected: string;
   presetList: string[];
+  leafGroupNameInput: string;
+  leafGroupList: string[];
+  leafGroupDraft: LeafGroupParams;
   __rebuildPresetSelect?: () => void;
+  __rebuildLeafGroupSelect?: () => void;
 };
 
 export type PresetEntry = {
@@ -82,6 +88,34 @@ export type PresetEntry = {
 };
 
 export type PresetMap = Record<string, PresetEntry>;
+
+export type LeafGroupParams = {
+  generations: number;
+  angle: number;
+  angleVariance: number;
+  scale: number;
+  widthDecay: number;
+  initLength: number;
+  initThickness: number;
+  leafSize: number;
+  budSize: number;
+  outlineEnabled: boolean;
+  outlineMirror: boolean;
+  outlineGenerations: number;
+  outlineAngle: number;
+  outlineStep: number;
+  outlinePremise: string;
+  outlineRules: LeafGroupRule[];
+  premise: string;
+  rules: LeafGroupRule[];
+};
+
+export type LeafGroupEntry = {
+  savedAt: number;
+  data: LeafGroupParams;
+};
+
+export type LeafGroupMap = Record<string, LeafGroupEntry>;
 
 export type InstancedPoint = {
   position: THREE.Vector3;

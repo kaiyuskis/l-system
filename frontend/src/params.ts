@@ -1,4 +1,5 @@
 import type { AppParams, LSystemRule, UIState } from "./types";
+import { createDefaultLeafGroupDraft } from "./leaf-groups";
 
 export function createDefaultParams(): AppParams {
   return {
@@ -24,6 +25,7 @@ export function createDefaultParams(): AppParams {
     leafColor: "#ffffff",
     leafTextureKey: "leaf_default",
     leafSize: 0.7,
+    leafGroupName: "カエデ",
     budColor: "#ADFF2F",
     budSize: 1.0,
 
@@ -55,5 +57,8 @@ export function createInitialUIState(): UIState {
     presetName: "myPreset",
     presetSelected: "",
     presetList: [],
+    leafGroupNameInput: "新しい葉グループ",
+    leafGroupList: [],
+    leafGroupDraft: createDefaultLeafGroupDraft(),
   };
 }

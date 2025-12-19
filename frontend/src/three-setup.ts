@@ -24,7 +24,7 @@ export const camera = new THREE.PerspectiveCamera(
   1000
 );
 camera.position.set(0, 10, 40);
-camera.lookAt(0, 10, 0);
+camera.lookAt(0, 0, 0);
 
 // レンダラー
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -48,8 +48,9 @@ export const directionalLight = new THREE.DirectionalLight(0xffffff, 3.0);
 directionalLight.position.set(10, 30, 20);
 directionalLight.castShadow = true;
 
-directionalLight.shadow.mapSize.width = 2048;
-directionalLight.shadow.mapSize.height = 2048;
+const shadowMapSize = 1024;
+directionalLight.shadow.mapSize.width = shadowMapSize;
+directionalLight.shadow.mapSize.height = shadowMapSize;
 directionalLight.shadow.camera.near = 0.5;
 directionalLight.shadow.camera.far = 500;
 
@@ -78,7 +79,7 @@ scene.add(groundMesh);
 
 // コントロール
 export const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 7, 0);
+controls.target.set(0, 0, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.update();

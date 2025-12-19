@@ -62,6 +62,22 @@ export async function generateLSystemString(
   return str;
 }
 
+export function generateLSystemStringSync(
+  premise: string,
+  rules: { [key: string]: string },
+  gens: number
+): string {
+  let str = premise;
+  for (let i = 0; i < gens; i++) {
+    let next = "";
+    for (const char of str) {
+      next += rules[char] || char;
+    }
+    str = next;
+  }
+  return str;
+}
+
 // L-System 3Dモデル生成
 export function createLSystemData(
   str: string,
@@ -76,6 +92,11 @@ export function createLSystemData(
     leafSize: number;
     budSize: number;
     gravity: number;
+    leafCluster?: {
+      leaves: OrganPoint[];
+      buds: OrganPoint[];
+      branches: BranchSegment[];
+    };
   }
 ): { 
   branches: BranchSegment[],
@@ -175,12 +196,57 @@ export function createLSystemData(
         res = parsePara(str, i, params.leafSize); 
         i = res.nextIdx;
 
-        leaves.push({
-          position: turtle.position.clone(),
-          rotation: turtle.rotation.clone(),
-          scale: res.val,
-          thickness: turtle.currentWidth,
-        });
+        if (params.leafCluster) {
+          const basePos = turtle.position.clone();
+          const baseRot = turtle.rotation.clone();
+          const clusterScale = res.val;
+          for (const lp of params.leafCluster.leaves) {
+            const pos = lp.position.clone().multiplyScalar(clusterScale);
+            pos.applyQuaternion(baseRot);
+            pos.add(basePos);
+
+            const rot = baseRot.clone().multiply(lp.rotation);
+            leaves.push({
+              position: pos,
+              rotation: rot,
+              scale: lp.scale * clusterScale,
+              thickness: turtle.currentWidth,
+            });
+          }
+
+          for (const bp of params.leafCluster.buds) {
+            const pos = bp.position.clone().multiplyScalar(clusterScale);
+            pos.applyQuaternion(baseRot);
+            pos.add(basePos);
+
+            const rot = baseRot.clone().multiply(bp.rotation);
+            buds.push({
+              position: pos,
+              rotation: rot,
+              scale: bp.scale * clusterScale,
+              thickness: turtle.currentWidth,
+            });
+          }
+
+          for (const seg of params.leafCluster.branches) {
+            const start = seg.start.clone().multiplyScalar(clusterScale).applyQuaternion(baseRot).add(basePos);
+            const end = seg.end.clone().multiplyScalar(clusterScale).applyQuaternion(baseRot).add(basePos);
+            branches.push({
+              start,
+              end,
+              rotation: baseRot.clone().multiply(seg.rotation),
+              radiusBottom: seg.radiusBottom * clusterScale,
+              radiusTop: seg.radiusTop * clusterScale,
+            });
+          }
+        } else {
+          leaves.push({
+            position: turtle.position.clone(),
+            rotation: turtle.rotation.clone(),
+            scale: res.val,
+            thickness: turtle.currentWidth,
+          });
+        }
         break;
 
       // つぼみ

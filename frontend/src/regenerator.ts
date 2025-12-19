@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { generateLSystemString, createLSystemData, type BranchSegment, type OrganPoint } from "./l-system";
+import { buildLeafCluster, type LeafCluster } from "./leaf-cluster";
 import { setSeed } from "./rng.js";
 import { approxXZWidth, calcBBoxForGroup, calcDepthFromBrackets, countChar, formatMetricsLine, getRenderMetrics } from "./metrics";
-import type { AppParams, PerfTimings, StructureMetrics } from "./types";
+import type { AppParams, LeafGroupParams, PerfTimings, StructureMetrics } from "./types";
 import type { MaterialSet } from "./materials";
 import type { TextureSet } from "./textures";
 import type { makeDebug } from "./debug";
@@ -21,6 +22,7 @@ export type RegeneratorOptions = {
   onRegenerateStart?: (info: { targetGenerations: number; streaming: boolean }) => void;
   onRegenerateEnd?: (info: { targetGenerations: number; streaming: boolean; ok: boolean }) => void;
   onRegenerateError?: (error: unknown) => void;
+  getLeafGroup?: () => LeafGroupParams | null;
 };
 
 function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeometry {
@@ -95,7 +97,7 @@ export function createRegenerator(options: RegeneratorOptions) {
   let budMesh: THREE.InstancedMesh | null = null;
   let isRegenerating = false;
 
-  const streamingStartGen = 10;
+  const streamingStartGen = 7;
   const streamingStep = 1;
 
   const waitNextFrame = () =>
@@ -121,7 +123,7 @@ export function createRegenerator(options: RegeneratorOptions) {
 
   const renderFromString = async (
     str: string,
-    opts: { targetGen: number; rewriteMs?: number; logMetrics?: boolean; startTime: number }
+    opts: { targetGen: number; rewriteMs?: number; logMetrics?: boolean; startTime: number; leafCluster?: LeafCluster | null }
   ) => {
     resetMeshes();
 
@@ -139,6 +141,7 @@ export function createRegenerator(options: RegeneratorOptions) {
         leafSize: params.leafSize,
         budSize: params.budSize,
         gravity: params.gravity,
+        leafCluster: opts.leafCluster ?? undefined,
       }
     );
     const tInterp1 = performance.now();
@@ -155,11 +158,17 @@ export function createRegenerator(options: RegeneratorOptions) {
       treeGroup.add(branchMesh);
     }
 
-    const createInstanced = (pts: OrganPoint[], mat: THREE.MeshStandardMaterial, col: string) => {
+    const createInstanced = (
+      pts: OrganPoint[],
+      mat: THREE.MeshStandardMaterial,
+      col: string,
+      geometry?: THREE.BufferGeometry
+    ) => {
       if (pts.length === 0) return;
 
       mat.color.set(col);
-      const mesh = new THREE.InstancedMesh(materials.plane, mat, pts.length);
+      const geo = geometry ?? materials.plane;
+      const mesh = new THREE.InstancedMesh(geo, mat, pts.length);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
@@ -184,7 +193,7 @@ export function createRegenerator(options: RegeneratorOptions) {
       return mesh;
     };
 
-    leafMesh = createInstanced(data.leaves, materials.leaf, params.leafColor) || null;
+    leafMesh = createInstanced(data.leaves, materials.leaf, params.leafColor, opts.leafCluster?.leafGeometry ?? undefined) || null;
     flowerMesh = createInstanced(data.flowers, materials.flower, params.flowerColor) || null;
     budMesh = createInstanced(data.buds, materials.bud, params.budColor) || null;
     const tMesh1 = performance.now();
@@ -280,6 +289,19 @@ export function createRegenerator(options: RegeneratorOptions) {
       }
 
       const tRewrite0 = performance.now();
+      const leafGroup = options.getLeafGroup?.() ?? null;
+      const leafCluster = leafGroup ? buildLeafCluster(leafGroup) : null;
+      if (leafGroup?.outlineEnabled) {
+        materials.leaf.map = null;
+        materials.leaf.needsUpdate = true;
+      } else {
+        const tex = textures.leafTextures[params.leafTextureKey];
+        if (tex && materials.leaf.map !== tex) {
+          materials.leaf.map = tex;
+          materials.leaf.needsUpdate = true;
+        }
+      }
+
       const str = await generateLSystemString(
         params.premise,
         rules,
@@ -290,7 +312,7 @@ export function createRegenerator(options: RegeneratorOptions) {
           refreshPane();
 
           if (streamingGens.has(gen)) {
-            await renderFromString(currentStr, { targetGen: targetGenerations, startTime: tAll0 });
+            await renderFromString(currentStr, { targetGen: targetGenerations, startTime: tAll0, leafCluster });
           } else if (currentStr.length > 20000 && gen % 2 === 0) {
             await waitNextFrame();
           }
@@ -307,6 +329,7 @@ export function createRegenerator(options: RegeneratorOptions) {
         rewriteMs: tRewrite1 - tRewrite0,
         logMetrics: true,
         startTime: tAll0,
+        leafCluster,
       });
 
       debug.clear();

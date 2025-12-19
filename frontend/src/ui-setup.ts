@@ -2,9 +2,9 @@ import { Pane } from 'tweakpane';
 import * as THREE from "three";
 import { scene, renderer, directionalLight, windUniforms } from './three-setup.ts';
 
-const generationsMax = 20;
+const generationsMax = 15;
 
-export function setupUI(
+export function setupTreeUI(
   params: any,
   onRegenerate: () => void,
   onUpdateColor: () => void,
@@ -217,6 +217,103 @@ export function setupUI(
     // モデル保存フォルダ
     const btnFolder = pane.addFolder({ title: 'モデルの保存', expanded: false });
     btnFolder.addButton({ title: 'モデルの保存 (.glb)' }).on('click', downloadGLTF);   
+
+    return pane;
+}
+
+export function setupLeafUI(
+  params: any,
+  uiState: any,
+  refreshLeafGroupList: () => void,
+  saveLeafGroupBrowser: () => void,
+  deleteLeafGroupBrowser: () => void,
+  onLeafGroupSelected: () => void,
+  applyLeafGroupDraft: () => void,
+) {
+    const pane = new Pane({ title: "Leaf Generator" });
+
+    const leafFolder = pane.addFolder({ title: '葉ジェネレータ', expanded: true });
+    const leafTab = leafFolder.addTab({
+      pages: [
+        { title: "基本設定" },
+        { title: "ルール" },
+        { title: "輪郭" },
+        { title: "保存/選択" },
+      ]
+    });
+
+    const leafDraft = uiState.leafGroupDraft;
+    const leafOnFinish = (ev: any) => {
+      if (ev?.last) applyLeafGroupDraft();
+    };
+
+    const lf1 = leafTab.pages[0];
+    lf1.addBinding(leafDraft, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "initLength", { label: "初期の長さ", min: 0.05, max: 2, step: 0.01 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "initThickness", { label: "初期の太さ", min: 0.01, max: 1, step: 0.01 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "scale", { label: '長さ減衰率(")', min: 0.0, max: 2.0, step: 0.01 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, 'widthDecay', { label: '太さ減衰率(!)', min: 0.5, max: 1.0, step: 0.01 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "leafSize", { label: "葉サイズ", min: 0, max: 5 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "budSize", { label: "芽サイズ", min: 0, max: 5 }).on("change", leafOnFinish);
+    lf1.addButton({ title: "葉グループを適用" }).on("click", applyLeafGroupDraft);
+
+    const lf2 = leafTab.pages[1];
+    lf2.addBinding(leafDraft, "premise", { label: "初期状態" });
+    leafDraft.rules.forEach((r: any, i: number) => {
+      lf2.addBinding(r, "expression", { label: `ルール${i + 1}` });
+    });
+    lf2.addBlade({ view: "separator" });
+    lf2.addButton({ title: "葉グループを適用" }).on("click", applyLeafGroupDraft);
+
+    const lf3 = leafTab.pages[2];
+    lf3.addBinding(leafDraft, "outlineEnabled", { label: "輪郭を有効" }).on("change", leafOnFinish);
+    lf3.addBinding(leafDraft, "outlineMirror", { label: "左右ミラー" }).on("change", leafOnFinish);
+    lf3.addBinding(leafDraft, "outlineGenerations", { label: "輪郭世代", min: 0, max: 6, step: 1 }).on("change", leafOnFinish);
+    lf3.addBinding(leafDraft, "outlineAngle", { label: "輪郭角度", min: 0, max: 180, step: 0.1 }).on("change", leafOnFinish);
+    lf3.addBinding(leafDraft, "outlineStep", { label: "輪郭ステップ", min: 0.05, max: 1, step: 0.01 }).on("change", leafOnFinish);
+    lf3.addBinding(leafDraft, "outlinePremise", { label: "輪郭初期" }).on("change", leafOnFinish);
+    leafDraft.outlineRules.forEach((r: any, i: number) => {
+      lf3.addBinding(r, "expression", { label: `輪郭ルール${i + 1}` });
+    });
+    lf3.addBlade({ view: "separator" });
+    lf3.addButton({ title: "輪郭を適用" }).on("click", applyLeafGroupDraft);
+
+    const lf4 = leafTab.pages[3];
+    lf4.addBinding(uiState, "leafGroupNameInput", { label: "保存名" });
+
+    const selectLeafFolder = lf4.addFolder({ title: "選択", expanded: true });
+    function makeLeafGroupOptions() {
+      const opts: Record<string, string> = {};
+      (uiState.leafGroupList || []).forEach((name: string) => (opts[name] = name));
+      if (Object.keys(opts).length === 0) opts["(なし)"] = "";
+      return opts;
+    }
+    let leafGroupSelectBinding: any = null;
+    function rebuildLeafGroupSelect() {
+      if (leafGroupSelectBinding) leafGroupSelectBinding.dispose();
+      leafGroupSelectBinding = selectLeafFolder.addBinding(params, "leafGroupName", {
+        label: "使用グループ",
+        options: makeLeafGroupOptions(),
+      });
+      leafGroupSelectBinding.on("change", () => {
+        onLeafGroupSelected();
+      });
+    }
+    uiState.__rebuildLeafGroupSelect = rebuildLeafGroupSelect;
+    rebuildLeafGroupSelect();
+
+    const leafActionFolder = lf4.addFolder({ title: "操作", expanded: true });
+    leafActionFolder.addButton({ title: "一覧更新" }).on("click", () => {
+      refreshLeafGroupList();
+    });
+    leafActionFolder.addButton({ title: "保存" }).on("click", () => {
+      saveLeafGroupBrowser();
+    });
+    leafActionFolder.addButton({ title: "削除" }).on("click", () => {
+      deleteLeafGroupBrowser();
+    });
 
     return pane;
 }

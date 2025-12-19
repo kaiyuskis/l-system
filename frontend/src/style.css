@@ -170,3 +170,37 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* === Route Navigation === */
+.route-nav {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99996;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.14);
+}
+
+.route-nav button {
+  border: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+}
+
+.route-nav button.is-active {
+  background: #1d4ed8;
+  color: #ffffff;
+}
