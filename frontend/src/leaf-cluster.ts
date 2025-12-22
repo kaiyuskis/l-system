@@ -1,13 +1,16 @@
 import type * as THREE from "three";
 import type { LeafGroupParams } from "./types";
 import { createLSystemData, generateLSystemStringSync } from "./l-system";
-import { buildLeafOutlineGeometry } from "./leaf-outline";
+import { buildBudOutlineGeometry, buildFlowerOutlineGeometry, buildLeafOutlineGeometry } from "./leaf-outline";
 
 export type LeafCluster = {
+  flowers: ReturnType<typeof createLSystemData>["flowers"];
   leaves: ReturnType<typeof createLSystemData>["leaves"];
   buds: ReturnType<typeof createLSystemData>["buds"];
   branches: ReturnType<typeof createLSystemData>["branches"];
   leafGeometry: THREE.BufferGeometry | null;
+  flowerGeometry: THREE.BufferGeometry | null;
+  budGeometry: THREE.BufferGeometry | null;
 };
 
 function buildRulesMap(rules: LeafGroupParams["rules"]) {
@@ -33,12 +36,22 @@ export function buildLeafCluster(params: LeafGroupParams): LeafCluster {
     widthDecay: params.widthDecay,
     angle: params.angle,
     angleVariance: params.angleVariance,
-    flowerSize: 0,
+    flowerSize: params.flowerSize,
     leafSize: params.leafSize,
     budSize: params.budSize ?? 0,
     gravity: 0,
   });
 
   const leafGeometry = buildLeafOutlineGeometry(params);
-  return { leaves: data.leaves, buds: data.buds, branches: data.branches, leafGeometry };
+  const flowerGeometry = buildFlowerOutlineGeometry(params);
+  const budGeometry = buildBudOutlineGeometry(params);
+  return {
+    flowers: data.flowers,
+    leaves: data.leaves,
+    buds: data.buds,
+    branches: data.branches,
+    leafGeometry,
+    flowerGeometry,
+    budGeometry,
+  };
 }

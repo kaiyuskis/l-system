@@ -1,8 +1,19 @@
 import * as THREE from "three";
-import type { LeafGroupParams } from "./types";
+import type { LeafGroupParams, LeafGroupRule } from "./types";
 import { generateLSystemStringSync } from "./l-system";
 
-function buildRulesMap(rules: LeafGroupParams["outlineRules"]) {
+type OutlineParams = {
+  enabled: boolean;
+  mirror: boolean;
+  generations: number;
+  angle: number;
+  step: number;
+  premise: string;
+  rules: LeafGroupRule[];
+  bend?: number;
+};
+
+function buildRulesMap(rules: LeafGroupRule[]) {
   const map: Record<string, string> = {};
   rules.forEach(rule => {
     const parts = rule.expression.split("=");
@@ -13,15 +24,15 @@ function buildRulesMap(rules: LeafGroupParams["outlineRules"]) {
   return map;
 }
 
-export function buildLeafOutlineGeometry(params: LeafGroupParams): THREE.BufferGeometry | null {
-  if (!params.outlineEnabled) return null;
+function buildOutlineGeometry(params: OutlineParams): THREE.BufferGeometry | null {
+  if (!params.enabled) return null;
 
-  const gens = Math.max(0, Math.floor(params.outlineGenerations));
-  const ruleMap = buildRulesMap(params.outlineRules);
-  const str = generateLSystemStringSync(params.outlinePremise, ruleMap, gens);
+  const gens = Math.max(0, Math.floor(params.generations));
+  const ruleMap = buildRulesMap(params.rules);
+  const str = generateLSystemStringSync(params.premise, ruleMap, gens);
 
-  const angleRad = THREE.MathUtils.degToRad(params.outlineAngle);
-  const step = params.outlineStep;
+  const angleRad = THREE.MathUtils.degToRad(params.angle);
+  const step = params.step;
 
   let pos = new THREE.Vector2(0, 0);
   let angle = Math.PI / 2;
@@ -70,7 +81,7 @@ export function buildLeafOutlineGeometry(params: LeafGroupParams): THREE.BufferG
   if (points.length < 3) return null;
 
   let outline = points;
-  if (params.outlineMirror) {
+  if (params.mirror) {
     const mirrored = points
       .slice(1, -1)
       .map(p => new THREE.Vector2(-p.x, p.y))
@@ -91,5 +102,59 @@ export function buildLeafOutlineGeometry(params: LeafGroupParams): THREE.BufferG
 
   const normalized = outline.map(p => p.clone().sub(center).multiplyScalar(1 / maxSize));
   const shape = new THREE.Shape(normalized);
-  return new THREE.ShapeGeometry(shape);
+  const geometry = new THREE.ShapeGeometry(shape);
+
+  const bendAmount = params.bend ?? 0;
+  if (bendAmount !== 0) {
+    const posAttributes = geometry.attributes.position;
+    const vertexCount = posAttributes.count;
+
+    for (let i = 0; i < vertexCount; i++) {
+      const x = posAttributes.getX(i);
+      const y = posAttributes.getY(i);
+
+      const z = bendAmount * (x * x);
+      
+      posAttributes.setZ(i, z);
+    }
+    geometry.computeVertexNormals();
+  }
+  return geometry;
+}
+
+export function buildLeafOutlineGeometry(params: LeafGroupParams): THREE.BufferGeometry | null {
+  return buildOutlineGeometry({
+    enabled: params.outlineEnabled,
+    mirror: params.outlineMirror,
+    generations: params.outlineGenerations,
+    angle: params.outlineAngle,
+    step: params.outlineStep,
+    premise: params.outlinePremise,
+    rules: params.outlineRules,
+    bend: params.leafBend ?? 0,
+  });
+}
+
+export function buildFlowerOutlineGeometry(params: LeafGroupParams): THREE.BufferGeometry | null {
+  return buildOutlineGeometry({
+    enabled: params.flowerOutlineEnabled,
+    mirror: params.flowerOutlineMirror,
+    generations: params.flowerOutlineGenerations,
+    angle: params.flowerOutlineAngle,
+    step: params.flowerOutlineStep,
+    premise: params.flowerOutlinePremise,
+    rules: params.flowerOutlineRules,
+  });
+}
+
+export function buildBudOutlineGeometry(params: LeafGroupParams): THREE.BufferGeometry | null {
+  return buildOutlineGeometry({
+    enabled: params.budOutlineEnabled,
+    mirror: params.budOutlineMirror,
+    generations: params.budOutlineGenerations,
+    angle: params.budOutlineAngle,
+    step: params.budOutlineStep,
+    premise: params.budOutlinePremise,
+    rules: params.budOutlineRules,
+  });
 }

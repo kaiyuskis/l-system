@@ -15,18 +15,17 @@ export function createDefaultParams(): AppParams {
     angleVariance: 0.0,
     seed: 0,
     gravity: 0.0,
-    branchColor: "#ffffff",
+    branchColor: "#8B5A2B",
 
     scale: 0.95,
     widthDecay: 0.90,
 
-    flowerColor: "#fef4f4",
+    flowerColor: "#F7C6D0",
     flowerSize: 1.0,
-    leafColor: "#ffffff",
-    leafTextureKey: "leaf_default",
-    leafSize: 0.7,
+    leafColor: "#2E8B57",
+    leafSize: 1.0,
     leafGroupName: "カエデ",
-    budColor: "#ADFF2F",
+    budColor: "#9ACD32",
     budSize: 1.0,
 
     premise: "A",

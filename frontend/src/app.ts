@@ -6,7 +6,6 @@ import { makeDebug } from "./debug.ts";
 import { triggerDoubleGust } from "./wind";
 import { createDefaultParams, createInitialUIState } from "./params";
 import { createRegenerator } from "./regenerator";
-import { loadTextures } from "./textures";
 import { createMaterials } from "./materials";
 import { downloadGLTF } from "./exporter";
 import { deletePresetFromLocal, listPresetNames, loadPresetFromLocal, savePresetToLocal } from "./presets";
@@ -26,8 +25,7 @@ export function runApp() {
   const debug = makeDebug(scene);
   const params = createDefaultParams();
   const uiState = createInitialUIState();
-  const textures = loadTextures();
-  const materials = createMaterials(params, windUniforms, textures);
+  const materials = createMaterials(params, windUniforms);
 
   let treePane: any;
   let leafPane: any;
@@ -47,8 +45,41 @@ export function runApp() {
     draft.widthDecay = data.widthDecay;
     draft.initLength = data.initLength;
     draft.initThickness = data.initThickness;
+    draft.flowerColor = data.flowerColor ?? draft.flowerColor;
+    draft.flowerSize = data.flowerSize ?? draft.flowerSize;
+    draft.leafColor = data.leafColor ?? draft.leafColor;
     draft.leafSize = data.leafSize;
+    draft.budColor = data.budColor ?? draft.budColor;
     draft.budSize = Number.isFinite(data.budSize) ? data.budSize : draft.budSize;
+    draft.flowerOutlineEnabled = data.flowerOutlineEnabled ?? draft.flowerOutlineEnabled;
+    draft.flowerOutlineMirror = data.flowerOutlineMirror ?? draft.flowerOutlineMirror;
+    draft.flowerOutlineGenerations = data.flowerOutlineGenerations ?? draft.flowerOutlineGenerations;
+    draft.flowerOutlineAngle = data.flowerOutlineAngle ?? draft.flowerOutlineAngle;
+    draft.flowerOutlineStep = data.flowerOutlineStep ?? draft.flowerOutlineStep;
+    draft.flowerOutlinePremise = data.flowerOutlinePremise ?? draft.flowerOutlinePremise;
+    const flowerOutlineSlots = 6;
+    if (!draft.flowerOutlineRules) draft.flowerOutlineRules = [];
+    while (draft.flowerOutlineRules.length < flowerOutlineSlots) {
+      draft.flowerOutlineRules.push({ expression: "" });
+    }
+    for (let i = 0; i < flowerOutlineSlots; i++) {
+      draft.flowerOutlineRules[i].expression = data.flowerOutlineRules?.[i]?.expression ?? "";
+    }
+    draft.budOutlineEnabled = data.budOutlineEnabled ?? draft.budOutlineEnabled;
+    draft.budOutlineMirror = data.budOutlineMirror ?? draft.budOutlineMirror;
+    draft.budOutlineGenerations = data.budOutlineGenerations ?? draft.budOutlineGenerations;
+    draft.budOutlineAngle = data.budOutlineAngle ?? draft.budOutlineAngle;
+    draft.budOutlineStep = data.budOutlineStep ?? draft.budOutlineStep;
+    draft.budOutlinePremise = data.budOutlinePremise ?? draft.budOutlinePremise;
+    if (!draft.budOutlineRules) draft.budOutlineRules = [];
+    const budOutlineSlots = 6;
+    while (draft.budOutlineRules.length < budOutlineSlots) {
+      draft.budOutlineRules.push({ expression: "" });
+    }
+    for (let i = 0; i < budOutlineSlots; i++) {
+      draft.budOutlineRules[i].expression = data.budOutlineRules?.[i]?.expression ?? "";
+    }
+    draft.leafBend = data.leafBend ?? 0;
     draft.outlineEnabled = data.outlineEnabled ?? draft.outlineEnabled;
     draft.outlineMirror = data.outlineMirror ?? draft.outlineMirror;
     draft.outlineGenerations = data.outlineGenerations ?? draft.outlineGenerations;
@@ -73,10 +104,9 @@ export function runApp() {
     }
   };
 
-  const { regenerate, updateColors, updateLeafTexture } = createRegenerator({
+  const { regenerate, updateColors } = createRegenerator({
     params,
     materials,
-    textures,
     treeGroup,
     renderer,
     windUniforms,
@@ -111,17 +141,22 @@ export function runApp() {
     leafPreviewDisposer = null;
     const preview = buildLeafPreviewMeshes(
       cluster.leaves,
+      cluster.flowers,
       cluster.buds,
       cluster.branches,
       cluster.leafGeometry,
+      cluster.flowerGeometry,
+      cluster.budGeometry,
       materials,
       windUniforms,
-      params.leafColor,
-      params.budColor,
+      uiState.leafGroupDraft.leafColor,
+      uiState.leafGroupDraft.flowerColor,
+      uiState.leafGroupDraft.budColor,
       params.branchColor
     );
     if (preview.branchMesh) leafPreviewGroup.add(preview.branchMesh);
     if (preview.leafMesh) leafPreviewGroup.add(preview.leafMesh);
+    if (preview.flowerMesh) leafPreviewGroup.add(preview.flowerMesh);
     if (preview.budMesh) leafPreviewGroup.add(preview.budMesh);
     leafPreviewDisposer = preview.dispose;
   };
@@ -236,7 +271,6 @@ export function runApp() {
     params,
     regenerate,
     updateColors,
-    updateLeafTexture,
     () => downloadGLTF(treeGroup),
     resetCamera,
     uiState,

@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import type { AppParams } from "./types";
-import type { TextureSet } from "./textures";
 import { setupDepthMaterial, setupMaterial } from "./wind";
 
 export type MaterialSet = {
@@ -11,12 +10,8 @@ export type MaterialSet = {
   plane: THREE.PlaneGeometry;
 };
 
-export function createMaterials(params: AppParams, windUniforms: any, textures: TextureSet): MaterialSet {
+export function createMaterials(params: AppParams, windUniforms: any): MaterialSet {
   const matBranch = new THREE.MeshStandardMaterial({
-    map: textures.barkColor,
-    normalMap: textures.barkNormal,
-    normalScale: new THREE.Vector2(2, 2),
-    roughnessMap: textures.barkRoughness,
     color: params.branchColor,
   });
   setupMaterial(matBranch, windUniforms, false);
@@ -24,29 +19,20 @@ export function createMaterials(params: AppParams, windUniforms: any, textures: 
   const plane = new THREE.PlaneGeometry(1, 1);
 
   const matFlower = new THREE.MeshStandardMaterial({
-    map: textures.flowerTexture,
     color: params.flowerColor,
     side: THREE.DoubleSide,
-    transparent: true,
-    alphaTest: 0.5
   });
   setupMaterial(matFlower, windUniforms, true);
 
   const matLeaf = new THREE.MeshStandardMaterial({
-    map: textures.leafTextures[params.leafTextureKey],
     color: params.leafColor,
     side: THREE.DoubleSide,
-    transparent: true,
-    alphaTest: 0.5
   });
   setupMaterial(matLeaf, windUniforms, true);
 
   const matBud = new THREE.MeshStandardMaterial({
-    map: textures.budTexture,
     color: params.budColor,
     side: THREE.DoubleSide,
-    transparent: true,
-    alphaTest: 0.5
   });
   setupMaterial(matBud, windUniforms, true);
 
@@ -80,13 +66,4 @@ export function updateColors(materials: MaterialSet, params: AppParams) {
   materials.flower.color.set(params.flowerColor);
   materials.leaf.color.set(params.leafColor);
   materials.bud.color.set(params.budColor);
-}
-
-export function updateLeafTexture(materials: MaterialSet, params: AppParams, textures: TextureSet): boolean {
-  const tex = textures.leafTextures[params.leafTextureKey];
-  if (!tex) return false;
-
-  materials.leaf.map = tex;
-  materials.leaf.needsUpdate = true;
-  return true;
 }

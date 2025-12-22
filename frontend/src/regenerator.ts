@@ -6,14 +6,12 @@ import { setSeed } from "./rng.js";
 import { approxXZWidth, calcBBoxForGroup, calcDepthFromBrackets, countChar, formatMetricsLine, getRenderMetrics } from "./metrics";
 import type { AppParams, LeafGroupParams, PerfTimings, StructureMetrics } from "./types";
 import type { MaterialSet } from "./materials";
-import type { TextureSet } from "./textures";
 import type { makeDebug } from "./debug";
-import { attachDepthMaterials, updateColors as updateMaterialColors, updateLeafTexture as swapLeafTexture } from "./materials";
+import { attachDepthMaterials, updateColors as updateMaterialColors } from "./materials";
 
 export type RegeneratorOptions = {
   params: AppParams;
   materials: MaterialSet;
-  textures: TextureSet;
   treeGroup: THREE.Group;
   renderer: THREE.WebGLRenderer;
   windUniforms: any;
@@ -80,7 +78,6 @@ export function createRegenerator(options: RegeneratorOptions) {
   const {
     params,
     materials,
-    textures,
     treeGroup,
     renderer,
     windUniforms,
@@ -90,6 +87,8 @@ export function createRegenerator(options: RegeneratorOptions) {
     onRegenerateEnd,
     onRegenerateError,
   } = options;
+
+  const budGeometry = new THREE.SphereGeometry(0.5, 10, 10);
 
   let branchMesh: THREE.Mesh | null = null;
   let flowerMesh: THREE.InstancedMesh | null = null;
@@ -195,7 +194,7 @@ export function createRegenerator(options: RegeneratorOptions) {
 
     leafMesh = createInstanced(data.leaves, materials.leaf, params.leafColor, opts.leafCluster?.leafGeometry ?? undefined) || null;
     flowerMesh = createInstanced(data.flowers, materials.flower, params.flowerColor) || null;
-    budMesh = createInstanced(data.buds, materials.bud, params.budColor) || null;
+    budMesh = createInstanced(data.buds, materials.bud, params.budColor, budGeometry) || null;
     const tMesh1 = performance.now();
 
     if (opts.logMetrics) {
@@ -291,16 +290,6 @@ export function createRegenerator(options: RegeneratorOptions) {
       const tRewrite0 = performance.now();
       const leafGroup = options.getLeafGroup?.() ?? null;
       const leafCluster = leafGroup ? buildLeafCluster(leafGroup) : null;
-      if (leafGroup?.outlineEnabled) {
-        materials.leaf.map = null;
-        materials.leaf.needsUpdate = true;
-      } else {
-        const tex = textures.leafTextures[params.leafTextureKey];
-        if (tex && materials.leaf.map !== tex) {
-          materials.leaf.map = tex;
-          materials.leaf.needsUpdate = true;
-        }
-      }
 
       const str = await generateLSystemString(
         params.premise,
@@ -351,11 +340,6 @@ export function createRegenerator(options: RegeneratorOptions) {
   };
 
   const updateColors = () => updateMaterialColors(materials, params);
-  const updateLeafTexture = () => {
-    if (swapLeafTexture(materials, params, textures)) {
-      regenerate();
-    }
-  };
 
-  return { regenerate, updateColors, updateLeafTexture };
+  return { regenerate, updateColors };
 }

@@ -8,7 +8,6 @@ export function setupTreeUI(
   params: any,
   onRegenerate: () => void,
   onUpdateColor: () => void,
-  onUpdateLeafTexture: () => void,
   downloadGLTF: () => void,
   resetCamera: () => void,
   uiState: any,
@@ -32,7 +31,6 @@ export function setupTreeUI(
     const tab = foler.addTab({
       pages: [
         { title: "基本設定" },
-        { title: "器官設定" },
         { title: "ルール" },
       ]
     });
@@ -83,30 +81,8 @@ export function setupTreeUI(
     p1.addBinding(params, "scale", { label: '長さ減衰率(")', min: 0.0, max: 2.0, step: 0.01 }).on( "change", onFinish);
     p1.addBinding(params, 'widthDecay', { label: '太さ減衰率(!)', min: 0.5, max: 1.0, step: 0.01 }).on('change', onFinish);
     
-    // タブ2: 器官設定
-    const p2 = tab.pages[1];
-    p2.addBinding(params, 'flowerColor', { label: "花の色" }).on('change', onUpdateColor);
-    p2.addBinding(params, 'flowerSize', { label: "花", min: 0, max: 5 }).on('change', onFinish);
-    
-    p2.addBlade({ view: 'separator' });
-    p2.addBinding(params, 'leafColor', { label: "葉の色" }).on('change', onUpdateColor);
-    p2.addBinding(params, 'leafTextureKey', {
-      label: "葉のテクスチャ",
-      options: {
-        "Default": "leaf_default",
-        "Maple": "leaf_maple",
-      }
-    }).on('change', () => {
-      onUpdateLeafTexture();
-    });
-    p2.addBinding(params, 'leafSize', { label: "葉", min: 0, max: 5 }).on('change', onFinish);
-    
-    p2.addBlade({ view: 'separator'});
-    p2.addBinding(params, 'budColor', { label: "つぼみの色" }).on('change', onUpdateColor);
-    p2.addBinding(params, 'budSize', { label: "つぼみ", min: 0, max: 5 }).on('change', onFinish);
-    
-    // タブ3: ルール
-    const p3 = tab.pages[2];
+    // タブ2: ルール
+    const p3 = tab.pages[1];
     p3.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", (ev) => {
       if (!ev.last) return;
       handleGenChange();
@@ -255,14 +231,18 @@ export function setupLeafUI(
     lf1.addBinding(leafDraft, "initThickness", { label: "初期の太さ", min: 0.01, max: 1, step: 0.01 }).on("change", leafOnFinish);
     lf1.addBinding(leafDraft, "scale", { label: '長さ減衰率(")', min: 0.0, max: 2.0, step: 0.01 }).on("change", leafOnFinish);
     lf1.addBinding(leafDraft, 'widthDecay', { label: '太さ減衰率(!)', min: 0.5, max: 1.0, step: 0.01 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "leafColor", { label: "葉色" }).on("change", leafOnFinish);
     lf1.addBinding(leafDraft, "leafSize", { label: "葉サイズ", min: 0, max: 5 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "flowerColor", { label: "花色" }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "flowerSize", { label: "花サイズ", min: 0, max: 5 }).on("change", leafOnFinish);
+    lf1.addBinding(leafDraft, "budColor", { label: "芽色" }).on("change", leafOnFinish);
     lf1.addBinding(leafDraft, "budSize", { label: "芽サイズ", min: 0, max: 5 }).on("change", leafOnFinish);
     lf1.addButton({ title: "葉グループを適用" }).on("click", applyLeafGroupDraft);
 
     const lf2 = leafTab.pages[1];
-    lf2.addBinding(leafDraft, "premise", { label: "初期状態" });
+    lf2.addBinding(leafDraft, "premise", { label: "初期状態" }).on("change", leafOnFinish);
     leafDraft.rules.forEach((r: any, i: number) => {
-      lf2.addBinding(r, "expression", { label: `ルール${i + 1}` });
+      lf2.addBinding(r, "expression", { label: `ルール${i + 1}` }).on("change", leafOnFinish);
     });
     lf2.addBlade({ view: "separator" });
     lf2.addButton({ title: "葉グループを適用" }).on("click", applyLeafGroupDraft);
@@ -270,15 +250,42 @@ export function setupLeafUI(
     const lf3 = leafTab.pages[2];
     lf3.addBinding(leafDraft, "outlineEnabled", { label: "輪郭を有効" }).on("change", leafOnFinish);
     lf3.addBinding(leafDraft, "outlineMirror", { label: "左右ミラー" }).on("change", leafOnFinish);
+    lf3.addBinding(leafDraft, "leafBend", { label: "3D反り(Bend)", min: 0, max: 2, step: 0.01 }).on("change", leafOnFinish);
     lf3.addBinding(leafDraft, "outlineGenerations", { label: "輪郭世代", min: 0, max: 6, step: 1 }).on("change", leafOnFinish);
     lf3.addBinding(leafDraft, "outlineAngle", { label: "輪郭角度", min: 0, max: 180, step: 0.1 }).on("change", leafOnFinish);
     lf3.addBinding(leafDraft, "outlineStep", { label: "輪郭ステップ", min: 0.05, max: 1, step: 0.01 }).on("change", leafOnFinish);
     lf3.addBinding(leafDraft, "outlinePremise", { label: "輪郭初期" }).on("change", leafOnFinish);
     leafDraft.outlineRules.forEach((r: any, i: number) => {
-      lf3.addBinding(r, "expression", { label: `輪郭ルール${i + 1}` });
+      lf3.addBinding(r, "expression", { label: `輪郭ルール${i + 1}` }).on("change", leafOnFinish);
     });
     lf3.addBlade({ view: "separator" });
     lf3.addButton({ title: "輪郭を適用" }).on("click", applyLeafGroupDraft);
+
+    const flowerOutline = lf3.addFolder({ title: "花の輪郭", expanded: false });
+    flowerOutline.addBinding(leafDraft, "flowerOutlineEnabled", { label: "輪郭を有効" }).on("change", leafOnFinish);
+    flowerOutline.addBinding(leafDraft, "flowerOutlineMirror", { label: "左右ミラー" }).on("change", leafOnFinish);
+    flowerOutline.addBinding(leafDraft, "flowerOutlineGenerations", { label: "輪郭世代", min: 0, max: 6, step: 1 }).on("change", leafOnFinish);
+    flowerOutline.addBinding(leafDraft, "flowerOutlineAngle", { label: "輪郭角度", min: 0, max: 180, step: 0.1 }).on("change", leafOnFinish);
+    flowerOutline.addBinding(leafDraft, "flowerOutlineStep", { label: "輪郭ステップ", min: 0.05, max: 1, step: 0.01 }).on("change", leafOnFinish);
+    flowerOutline.addBinding(leafDraft, "flowerOutlinePremise", { label: "輪郭初期" }).on("change", leafOnFinish);
+    (leafDraft.flowerOutlineRules ?? []).forEach((r: any, i: number) => {
+      flowerOutline.addBinding(r, "expression", { label: `輪郭ルール${i + 1}` }).on("change", leafOnFinish);
+    });
+    flowerOutline.addBlade({ view: "separator" });
+    flowerOutline.addButton({ title: "輪郭を適用" }).on("click", applyLeafGroupDraft);
+
+    const budOutline = lf3.addFolder({ title: "芽の輪郭", expanded: false });
+    budOutline.addBinding(leafDraft, "budOutlineEnabled", { label: "輪郭を有効" }).on("change", leafOnFinish);
+    budOutline.addBinding(leafDraft, "budOutlineMirror", { label: "左右ミラー" }).on("change", leafOnFinish);
+    budOutline.addBinding(leafDraft, "budOutlineGenerations", { label: "輪郭世代", min: 0, max: 6, step: 1 }).on("change", leafOnFinish);
+    budOutline.addBinding(leafDraft, "budOutlineAngle", { label: "輪郭角度", min: 0, max: 180, step: 0.1 }).on("change", leafOnFinish);
+    budOutline.addBinding(leafDraft, "budOutlineStep", { label: "輪郭ステップ", min: 0.05, max: 1, step: 0.01 }).on("change", leafOnFinish);
+    budOutline.addBinding(leafDraft, "budOutlinePremise", { label: "輪郭初期" }).on("change", leafOnFinish);
+    (leafDraft.budOutlineRules ?? []).forEach((r: any, i: number) => {
+      budOutline.addBinding(r, "expression", { label: `輪郭ルール${i + 1}` }).on("change", leafOnFinish);
+    });
+    budOutline.addBlade({ view: "separator" });
+    budOutline.addButton({ title: "輪郭を適用" }).on("click", applyLeafGroupDraft);
 
     const lf4 = leafTab.pages[3];
     lf4.addBinding(uiState, "leafGroupNameInput", { label: "保存名" });

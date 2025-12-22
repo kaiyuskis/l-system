@@ -55,7 +55,6 @@ export type AppParams = {
   flowerColor: string;
   flowerSize: number;
   leafColor: string;
-  leafTextureKey: string;
   leafSize: number;
   leafGroupName: string;
   budColor: string;
@@ -97,8 +96,29 @@ export type LeafGroupParams = {
   widthDecay: number;
   initLength: number;
   initThickness: number;
+  flowerColor: string;
+  flowerSize: number;
+  leafColor: string;
   leafSize: number;
-  budSize: number;
+  budColor: string;
+  budSize: number | null;
+
+  flowerOutlineEnabled: boolean;
+  flowerOutlineMirror: boolean;
+  flowerOutlineGenerations: number;
+  flowerOutlineAngle: number;
+  flowerOutlineStep: number;
+  flowerOutlinePremise: string;
+  flowerOutlineRules: LeafGroupRule[];
+
+  budOutlineEnabled: boolean;
+  budOutlineMirror: boolean;
+  budOutlineGenerations: number;
+  budOutlineAngle: number;
+  budOutlineStep: number;
+  budOutlinePremise: string;
+  budOutlineRules: LeafGroupRule[];
+
   outlineEnabled: boolean;
   outlineMirror: boolean;
   outlineGenerations: number;
@@ -106,6 +126,7 @@ export type LeafGroupParams = {
   outlineStep: number;
   outlinePremise: string;
   outlineRules: LeafGroupRule[];
+  leafBend?: number;
   premise: string;
   rules: LeafGroupRule[];
 };

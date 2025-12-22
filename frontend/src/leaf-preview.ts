@@ -56,13 +56,13 @@ function buildBranchGeometry(segments: BranchSegment[]): THREE.BufferGeometry {
 }
 
 function createInstancedPoints(
-  points: OrganPoint[],
+  points: OrganPoint[] | undefined,
   geometry: THREE.BufferGeometry,
   material: THREE.MeshStandardMaterial,
   windUniforms: any,
   isLeaf: boolean
 ): THREE.InstancedMesh | null {
-  if (!points.length) return null;
+  if (!points || !points.length) return null;
   const mesh = new THREE.InstancedMesh(geometry, material, points.length);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -86,23 +86,29 @@ function createInstancedPoints(
 }
 
 export function buildLeafPreviewMeshes(
-  leaves: OrganPoint[],
-  buds: OrganPoint[],
+  leaves: OrganPoint[] | undefined,
+  flowers: OrganPoint[] | undefined,
+  buds: OrganPoint[] | undefined,
   branches: BranchSegment[],
   leafGeometry: THREE.BufferGeometry | null,
+  flowerGeometry: THREE.BufferGeometry | null,
+  budGeometry: THREE.BufferGeometry | null,
   materials: MaterialSet,
   windUniforms: any,
   leafColor: string,
+  flowerColor: string,
   budColor: string,
   branchColor: string
 ): {
   branchMesh: THREE.Mesh | null;
   leafMesh: THREE.InstancedMesh | null;
+  flowerMesh: THREE.InstancedMesh | null;
   budMesh: THREE.InstancedMesh | null;
   dispose: () => void;
 } {
   const planeGeo = leafGeometry ?? new THREE.PlaneGeometry(1, 1);
-  const budGeo = new THREE.SphereGeometry(0.5, 10, 10);
+  const flowerGeo = flowerGeometry ?? new THREE.PlaneGeometry(1, 1);
+  const budGeo = budGeometry ?? new THREE.SphereGeometry(0.5, 10, 10);
 
   const leafMat = new THREE.MeshStandardMaterial({
     color: leafColor,
@@ -112,8 +118,15 @@ export function buildLeafPreviewMeshes(
   });
   setupMaterial(leafMat, windUniforms, true);
 
+  const flowerMat = new THREE.MeshStandardMaterial({
+    color: flowerColor,
+    side: THREE.DoubleSide,
+  });
+  setupMaterial(flowerMat, windUniforms, true);
+
   const budMat = new THREE.MeshStandardMaterial({
     color: budColor,
+    side: THREE.DoubleSide,
   });
   setupMaterial(budMat, windUniforms, false);
 
@@ -133,16 +146,19 @@ export function buildLeafPreviewMeshes(
   }
 
   const leafMesh = createInstancedPoints(leaves, planeGeo, leafMat, windUniforms, true);
+  const flowerMesh = createInstancedPoints(flowers, flowerGeo, flowerMat, windUniforms, true);
   const budMesh = createInstancedPoints(buds, budGeo, budMat, windUniforms, false);
 
   const dispose = () => {
     planeGeo.dispose();
+    flowerGeo.dispose();
     budGeo.dispose();
     branchGeo.dispose();
     leafMat.dispose();
+    flowerMat.dispose();
     budMat.dispose();
     branchMat.dispose();
   };
 
-  return { branchMesh, leafMesh, budMesh, dispose };
+  return { branchMesh, leafMesh, flowerMesh, budMesh, dispose };
 }
