@@ -2,7 +2,7 @@ import { Pane } from 'tweakpane';
 import * as THREE from "three";
 import { scene, renderer, directionalLight, windUniforms } from './three-setup.ts';
 
-const generationsMax = 15;
+const generationsMax = 14;
 
 export function setupTreeUI(
   params: any,

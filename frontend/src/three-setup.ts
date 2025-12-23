@@ -82,6 +82,22 @@ export const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
+const basePanSpeed = 1.0;
+const baseZoomSpeed = 1.0;
+const minControlDistance = 6;
+const maxSpeedScale = 6;
+const updateControlSpeed = () => {
+  const distance = camera.position.distanceTo(controls.target);
+  if (!Number.isFinite(distance)) return;
+  const safeDistance = Math.max(distance, 0.001);
+  const scale =
+    distance < minControlDistance
+      ? Math.min(minControlDistance / safeDistance, maxSpeedScale)
+      : 1;
+  // Keep camera operations responsive when very close to the target.
+  controls.panSpeed = basePanSpeed * scale;
+  controls.zoomSpeed = baseZoomSpeed * scale;
+};
 controls.update();
 
 // 風エフェクト用ユニフォーム
@@ -110,6 +126,7 @@ function animate() {
   }
   const delta = 0.01 * windUniforms.speed.value;
   windUniforms.time.value += delta;
+  updateControlSpeed();
   controls.update();
   renderer.render(scene, camera);
 }

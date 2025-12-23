@@ -295,9 +295,9 @@ export function runApp() {
   const nav = document.createElement("div");
   nav.className = "route-nav";
   const treeBtn = document.createElement("button");
-  treeBtn.textContent = "ツリー";
+  treeBtn.textContent = "木";
   const leafBtn = document.createElement("button");
-  leafBtn.textContent = "葉っぱ";
+  leafBtn.textContent = "器官";
   nav.append(treeBtn, leafBtn);
   document.body.appendChild(nav);
 
