@@ -23,8 +23,7 @@ export const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
-camera.position.set(0, 10, 40);
-camera.lookAt(0, 0, 0);
+camera.position.set(0, 15, 30);
 
 // レンダラー
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -79,7 +78,7 @@ scene.add(groundMesh);
 
 // コントロール
 export const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0, 0);
+controls.target.set(0, 10, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 const basePanSpeed = 1.0;
