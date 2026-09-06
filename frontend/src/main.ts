@@ -1,912 +1,696 @@
 import "./style.css";
 import * as THREE from "three";
-import { scene, camera, controls, windUniforms, renderer } from "./three-setup.ts";
-import { generateLSystemString, createLSystemData, type BranchSegment, type OrganPoint } from "./l-system.ts";
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { setupUI } from './ui-setup.ts';
-import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
-import { setSeed } from "./rng.js";
-import { toast } from "./toast";
+import {
+  scene,
+  renderer,
+  windUniforms,
+  fitCamera,
+  setGridVisible,
+  setAutoRotate,
+  setWindPaused,
+  renderFrame,
+} from "./three-setup.ts";
+import {
+  generateLSystemString,
+  createLSystemData,
+  parseRules,
+  LSYSTEM_LIMITS,
+} from "./l-system.ts";
+import { buildTree, disposeTree, waitForTextures } from "./tree-renderer.ts";
+import { setSeed } from "./rng.ts";
+import {
+  builtinPresets,
+  defaultParams,
+  cloneParams,
+  validateParams,
+  readSavedPresets,
+  writeSavedPreset,
+  deleteSavedPreset,
+  loadDraft,
+  saveDraft,
+  type PlantParams,
+} from "./studio-state.ts";
+import {
+  setupUI,
+  element,
+  escapeHTML,
+  openDialog,
+  closeDialog,
+  setToggle,
+  refreshRange,
+} from "./ui-setup.ts";
+import { icon } from "./icons.ts";
+import { toast } from "./toast.ts";
 
-// 木全体をまとめるグループ
-const treeGroup = new THREE.Group();
-scene.add(treeGroup);
-
-// Tweakpaneのインスタンス変数
-let pane: any;
-
-// 再生成中かどうかのフラグ
-let isRegenerating = false;
-
-// メッシュのインスタンス変数
-let branchMesh: THREE.Mesh | null = null;
-let flowerMesh: THREE.InstancedMesh | null = null;
-let leafMesh: THREE.InstancedMesh | null = null;
-let budMesh: THREE.InstancedMesh | null = null;
-
-// 型定義
-interface LSystemRule { expression: string; }
-
-// パフォーマンス計測
-type PerfTimings = {
-  rewriteMs: number;
-  interpretMs: number;
-  meshMs: number;
-  totalMs: number;
-};
-
-type StructureMetrics = {
-  generations: number;
-  stringLength: number;
-
-  branchSegments: number;
-  branchCountF: number;
-
-  bracketPushes: number;
-  maxBranchDepth: number;
-
-  leaves: number;
-  flowers: number;
-  buds: number;
-
-  bboxHeight: number; // y方向
-  bboxWidth: number;  // xz平面の直径っぽいもの
-  bboxDepth: number;  // z方向
-};
-
-type RenderMetrics = {
-  drawCalls: number;
-  triangles: number;
-  vertices: number;
-};
-
-function countChar(s: string, ch: string): number {
-  let c = 0;
-  for (let i = 0; i < s.length; i++) if (s[i] === ch) c++;
-  return c;
-}
-
-function calcDepthFromBrackets(s: string): { pushes: number; maxDepth: number } {
-  let depth = 0;
-  let maxDepth = 0;
-  let pushes = 0;
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (ch === "[") {
-      pushes++;
-      depth++;
-      if (depth > maxDepth) maxDepth = depth;
-    } else if (ch === "]") {
-      depth = Math.max(0, depth - 1);
-    }
+let params = cloneParams(defaultParams);
+let selectedPreset: string | null = builtinPresets[0].id;
+let projectName = "";
+let draftWarning = "";
+try {
+  const draft = loadDraft();
+  if (draft) {
+    params = draft;
+    selectedPreset =
+      builtinPresets.find(
+        (preset) =>
+          JSON.stringify(preset.params.rules) === JSON.stringify(params.rules),
+      )?.id ?? null;
   }
-  return { pushes, maxDepth };
+} catch (error) {
+  draftWarning = message(error);
 }
 
-function calcBBoxForGroup(group: THREE.Object3D): THREE.Box3 {
-  // group配下の全メッシュを含むBBox
-  const box = new THREE.Box3();
-  box.setFromObject(group);
-  return box;
-}
+type Snapshot = { params: PlantParams; preset: string | null; name: string };
+const past: Snapshot[] = [];
+const future: Snapshot[] = [];
+let editBatch = false;
+let tree: THREE.Group | null = null;
+let generationTimer = 0;
+let playbackTimer = 0;
+let playing = false;
+let busy = false;
+let revision = 0;
+let needsFit = true;
+let view: "perspective" | "front" | "top" = "perspective";
+let grid = true;
+let rotating = false;
+let wind = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let generationLimit = 10;
+let limitKey = "";
+let exportBusy = false;
+let lastSuccessful: PlantParams | null = null;
 
-function approxXZWidth(box: THREE.Box3): number {
-  const size = new THREE.Vector3();
-  box.getSize(size);
-  // xz平面での“横幅っぽさ”として、max(x,z)を採用
-  return Math.max(size.x, size.z);
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
-
-function getRenderMetrics(renderer: THREE.WebGLRenderer): RenderMetrics {
-  const info = renderer.info;
+function snapshot(): Snapshot {
   return {
-    drawCalls: info.render.calls,
-    triangles: info.render.triangles,
-    vertices: info.render.vertices,
+    params: cloneParams(params),
+    preset: selectedPreset,
+    name: projectName,
   };
 }
-
-function formatMetricsLine(struct: StructureMetrics, perf: PerfTimings, render?: RenderMetrics) {
-  const parts = [
-    `gen=${struct.generations}`,
-    `str=${struct.stringLength}`,
-    `F=${struct.branchCountF}`,
-    `branches=${struct.branchSegments}`,
-    `push=[${struct.bracketPushes}]`,
-    `depthMax=${struct.maxBranchDepth}`,
-    `L=${struct.leaves}`,
-    `K=${struct.flowers}`,
-    `M=${struct.buds}`,
-    `H=${struct.bboxHeight.toFixed(2)}`,
-    `W=${struct.bboxWidth.toFixed(2)}`,
-    `rewrite=${perf.rewriteMs.toFixed(1)}ms`,
-    `interpret=${perf.interpretMs.toFixed(1)}ms`,
-    `mesh=${perf.meshMs.toFixed(1)}ms`,
-    `total=${perf.totalMs.toFixed(1)}ms`,
-  ];
-  if (render) {
-    parts.push(
-      `calls=${render.drawCalls}`,
-      `tri=${render.triangles}`,
-      `vtx=${render.vertices}`
-    );
-  }
-  return parts.join(" | ");
+function remember() {
+  past.push(snapshot());
+  if (past.length > 40) past.shift();
+  future.length = 0;
+  ui.history(past.length > 0, false);
 }
-
-// プリセットをローカルに保存する
-const LS_KEY = "lsystem_presets_v1";
-
-type PresetEntry = {
-  savedAt: number;
-  data: any;
-};
-type PresetMap = Record<string, PresetEntry>;
-
-function loadPresetMap(): PresetMap {
+function sync() {
+  ui.sync(params);
+  ui.selection(selectedPreset, projectName || undefined);
+  ui.history(past.length > 0, future.length > 0);
+}
+function restore(state: Snapshot) {
+  stopPlayback();
+  params = cloneParams(state.params);
+  selectedPreset = state.preset;
+  projectName = state.name;
+  editBatch = false;
+  needsFit = true;
+  sync();
+  schedule(0);
+}
+function selectPreset(id: string) {
+  const preset = builtinPresets.find((item) => item.id === id);
+  if (!preset) return;
+  stopPlayback();
+  remember();
+  params = cloneParams(preset.params);
+  selectedPreset = id;
+  projectName = "";
+  editBatch = false;
+  needsFit = true;
+  sync();
+  schedule(0);
+}
+function change(key: keyof PlantParams, value: PlantParams[keyof PlantParams]) {
+  stopPlayback();
+  if (!editBatch) {
+    remember();
+    editBatch = true;
+  }
+  params = { ...params, [key]: value };
+  sync();
+  schedule(key === "rules" || key === "premise" ? 550 : 180);
+}
+function schedule(delay = 180) {
+  clearTimeout(generationTimer);
+  revision++;
+  generationTimer = window.setTimeout(() => {
+    void regenerate();
+  }, delay);
+}
+function updateGenerationLimit() {
+  const key = JSON.stringify([params.premise, params.rules]);
+  if (key !== limitKey) {
+    const rules = parseRules(params.rules);
+    generationLimit = 0;
+    for (let generation = 0; generation <= 10; generation++) {
+      try {
+        const str = generateLSystemString(params.premise, rules, generation);
+        if (
+          (str.match(/F/g)?.length ?? 0) > LSYSTEM_LIMITS.maxBranches ||
+          (str.match(/[LKM]/g)?.length ?? 0) > LSYSTEM_LIMITS.maxOrgans
+        )
+          break;
+        generationLimit = generation;
+      } catch {
+        break;
+      }
+    }
+    limitKey = key;
+  }
+  const timeline = element<HTMLInputElement>("timeline-generation");
+  timeline.max = String(Math.max(generationLimit, params.generations, 1));
+  timeline.value = String(params.generations);
+  refreshRange(timeline);
+  document.querySelector<HTMLElement>(".timeline-label .muted")!.textContent =
+    `/ ${timeline.max}`;
+  document.querySelector<HTMLElement>(".timeline-ticks")!.innerHTML =
+    Array.from(
+      { length: Math.min(6, Number(timeline.max)) + 1 },
+      (_, index) => {
+        const value = Math.round(
+          (index * Number(timeline.max)) / Math.min(6, Number(timeline.max)),
+        );
+        return `<span>${value === 0 ? "種" : value}</span>`;
+      },
+    ).join("");
+}
+async function regenerate(): Promise<boolean> {
+  const thisRevision = revision;
+  busy = true;
+  ui.busy(true);
+  ui.error("");
+  // Give the browser a painted loading state before bounded CPU/GPU work.
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => window.setTimeout(resolve, 0)),
+  );
+  if (thisRevision !== revision) {
+    busy = false;
+    return false;
+  }
+  let nextTree: THREE.Group | null = null;
   try {
-    return JSON.parse(localStorage.getItem(LS_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function savePresetMap(map: PresetMap) {
-  localStorage.setItem(LS_KEY, JSON.stringify(map));
-}
-
-function getPresetPayload() {
-  const { resultInfo, resultText, ...rest } = params;
-  return rest;
-}
-
-function listPresetNames(): string[] {
-  return Object.keys(loadPresetMap()).sort((a, b) => a.localeCompare(b, "ja"));
-}
-
-function savePresetToLocal(name: string) {
-  const map = loadPresetMap();
-  map[name] = { savedAt: Date.now(), data: getPresetPayload() };
-  savePresetMap(map);
-}
-
-function loadPresetFromLocal(name: string): boolean {
-  const map = loadPresetMap();
-  const entry = map[name];
-  if (!entry) return false;
-  Object.assign(params, entry.data);
-  return true;
-}
-
-function deletePresetFromLocal(name: string) {
-  const map = loadPresetMap();
-  delete map[name];
-  savePresetMap(map);
-}
-
-// パラメータ
-const params = {
-  growthMode: true,
-
-  initLength: 1.0,
-  maxLength: 1.0,
-  initThickness: 1.0,
-  maxThickness: 1.0,
-
-  generations: 7,
-  angle: 28.0,
-  angleVariance: 5.0,
-  seed: 0,
-  gravity: 1.0,
-  branchColor: "#ffffff",
-
-  scale: 0.95,
-  widthDecay: 0.90,
-
-  flowerColor: "#fef4f4",
-  flowerSize: 0.7,
-  leafColor: "#ffffff",
-  leafTextureKey: "leaf_default",
-  leafSize: 0.7,
-  budColor: "#ADFF2F",
-  budSize: 0.7,
-
-  premise: "A",
-
-  rules: [
-    { expression: 'A=FFFB' },
-    { expression: 'B=FFF"![C]////[C]////[C]////[&D]' },
-    { expression: 'C=&F+(15)F-(15)F^(15)F+BL' },
-    { expression: 'D="(0.7)!(0.5)FKFBL' },
-    { expression: '' },
-    { expression: '' },
-    { expression: '' },
-    { expression: '' },
-    { expression: '' },
-    { expression: '' },
-  ] as LSystemRule[],
-
-  resultInfo: '0',
-  resultText: '',
-};
-
-// 風エフェクト用シェーダーコード
-const windShaderHeader = `
-  uniform float time;
-  uniform float windStrength;
-  uniform float gustStrength;
-  uniform vec2 windDirection;
-  
-  attribute float aThickness;
-
-  vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
-  float snoise(vec2 v){
-    const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
-    vec2 i  = floor(v + dot(v, C.yy) );
-    vec2 x0 = v -   i + dot(i, C.xx);
-    vec2 i1;
-    i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-    vec4 x12 = x0.xyxy + C.xxzz;
-    x12.xy -= i1;
-    i = mod(i, 289.0);
-    vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
-    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-    m = m*m ;
-    m = m*m ;
-    vec3 x = 2.0 * fract(p * C.www) - 1.0;
-    vec3 h = abs(x) - 0.5;
-    vec3 ox = floor(x + 0.5);
-    vec3 a0 = x - ox;
-    m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
-    vec3 g;
-    g.x  = a0.x  * x0.x  + h.x  * x0.y;
-    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-
-    return 130.0 * dot(m, g);
-  }
-
-  vec3 getWindVector(vec3 worldPos, float height, float thickness) {
-    vec3 windDir3 = normalize(vec3(windDirection.x, 0.0, windDirection.y));
-    
-    float noiseVal = snoise(vec2(worldPos.x * 0.05 + time * 0.3, worldPos.z * 0.05));
-    float gust = 1.0 + noiseVal * 0.5;
-    float resistance = pow(thickness + 0.5, 3.0);
-    float distFromRoot = length(worldPos);
-  
-    float swayFactor = smoothstep(0.0, 5.0, distFromRoot);
-
-    float totalStrength = windStrength + gustStrength;
-    return windDir3 * (totalStrength * gust * swayFactor / resistance) * 0.01;
-  }
-`;
-
-// 葉のパタパタ
-const leafFlutter = `
-  vec3 instancePos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
-  
-  float flutter = sin(time * 8.0 + instancePos.y * 0.5 + instancePos.x) * 0.1 * windStrength; 
-  
-  vec3 pos = transformed;
-  pos.x += flutter * (pos.y + 0.5); 
-  pos.z += flutter * (pos.y + 0.5);
-  transformed = pos;
-`;
-
-// 全体揺れ
-const applySway = `
-  vec4 wPos = modelMatrix * vec4( position, 1.0 );
-  
-  #ifdef USE_INSTANCING
-    wPos = modelMatrix * instanceMatrix * vec4( position, 1.0 );
-  #endif
-
-  vec3 sway = getWindVector(wPos.xyz, wPos.y, aThickness);
-  vec4 viewSway = viewMatrix * vec4(sway, 0.0);
-  mvPosition += viewSway;
-
-  gl_Position = projectionMatrix * mvPosition;
-`;
-
-function setupMaterial(mat: THREE.MeshStandardMaterial, isLeaf: boolean) {
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.time = windUniforms.time;
-    shader.uniforms.windStrength = windUniforms.strength;
-    shader.uniforms.gustStrength = windUniforms.gust;
-    shader.uniforms.windDirection = windUniforms.direction;
-
-    // 共通ヘッダー
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <common>',
-      '#include <common>\n' + windShaderHeader
-    );
-    
-    // 葉の場合のみ
-    if (isLeaf) {
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\n' + leafFlutter
-      );
-    }
-
-    // 枝も
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <project_vertex>',
-      '#include <project_vertex>\n' + applySway
-    );
-  };
-}
-
-function setupDepthMaterial(mat: THREE.Material, isLeaf: boolean) {
-  mat.onBeforeCompile = (shader) => {
-    // メインマテリアルと同じユニフォームを渡す
-    shader.uniforms.time = windUniforms.time;
-    shader.uniforms.windStrength = windUniforms.strength;
-    shader.uniforms.gustStrength = windUniforms.gust;
-    shader.uniforms.windDirection = windUniforms.direction;
-
-    // 共通ヘッダー（ノイズ関数、getWindVectorなど）を注入
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <common>',
-      '#include <common>\n' + windShaderHeader
-    );
-    
-    // 葉の場合のみ：ローカル変形 (パタパタ) を注入
-    if (isLeaf) {
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\n' + leafFlutter
-      );
-    }
-
-    // 共通：全体揺れ (Sway) を注入
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <project_vertex>',
-      '#include <project_vertex>\n' + applySway
-    );
-  };
-}
-
-// 突風を発生させる関数
-function triggerDoubleGust() {
-  const base = windUniforms.strength.value;
-
-  // 突風の最大上乗せ量
-  const amp = Math.max(2.0, base * 1.5 + 0.8);
-
-  const pulse = (t: number) => Math.sin(Math.PI * t); // 0→1→0 のなめらかな波
-  const now = performance.now();
-
-  const d1 = 520;   // 1発目の長さ(ms)
-  const gap = 50;  // 間(ms)
-  const d2 = 560;   // 2発目の長さ(ms)
-
-  const total = d1 + gap + d2;
-
-  function frame() {
-    const elapsed = performance.now() - now;
-
-    let g = 0;
-
-    // 1発目
-    if (elapsed <= d1) {
-      const t = elapsed / d1;
-      g += amp * pulse(t);
-    }
-
-    // 2発目
-    const t2Start = d1 + gap;
-    if (elapsed >= t2Start && elapsed <= t2Start + d2) {
-      const t = (elapsed - t2Start) / d2;
-      g += (amp * 0.85) * pulse(t);
-    }
-
-    windUniforms.gust.value = g;
-
-    if (elapsed < total) {
-      requestAnimationFrame(frame);
-    } else {
-      windUniforms.gust.value = 0;
-    }
-  }
-
-  requestAnimationFrame(frame);
-}
-
-
-// --- テクスチャの準備 ---
-const texLoader = new THREE.TextureLoader();
-const barkColor = texLoader.load('bark_willow_02_diff_4k.jpg');
-barkColor.colorSpace = THREE.SRGBColorSpace;
-const barkNormal = texLoader.load('bark_willow_02_nor_gl_4k.jpg');
-const barkRoughness = texLoader.load('bark_willow_02_rough_4k.jpg');
-[barkColor, barkNormal, barkRoughness].forEach(barkTexture => {
-  barkTexture.wrapS = THREE.RepeatWrapping;
-  barkTexture.wrapT = THREE.RepeatWrapping;
-  barkTexture.repeat.set(4, 4);
-});
-
-const flowerTexture = texLoader.load('cherry_blossom.png');
-const leafTextures: Record<string, THREE.Texture> = {
-  leaf_default: texLoader.load("leaf_default.png"),
-  leaf_maple: texLoader.load("leaf_maple.png"),
-  // テクスチャを追加する場合はここに追記
-};
-const budTexture = texLoader.load('bud.png');
-
-Object.values(leafTextures).forEach((t) => {
-  t.colorSpace = THREE.SRGBColorSpace;
-});
-
-{
-  const t = leafTextures.leaf_default;
-  t.center.set(0.5, 0.5);
-  t.rotation = Math.PI / 4;
-  t.needsUpdate = true;
-}
-
-// --- ジオメトリとマテリアルの準備 ---
-// 枝
-const matBranch = new THREE.MeshStandardMaterial({ 
-  map: barkColor,
-  normalMap: barkNormal,
-  normalScale: new THREE.Vector2(16, 16),
-  roughnessMap: barkRoughness,
-  color: params.branchColor,
-});
-setupMaterial(matBranch, false);
-
-const geoPlane = new THREE.PlaneGeometry(1, 1);
-
-// 花
-const matFlower = new THREE.MeshStandardMaterial({
-  map: flowerTexture,
-  color: params.flowerColor,
-  side: THREE.DoubleSide,
-  transparent: true,
-  alphaTest: 0.5
-});
-setupMaterial(matFlower, true);
-
-// 葉
-const matLeaf = new THREE.MeshStandardMaterial({
-  map: leafTextures[params.leafTextureKey],
-  color: params.leafColor,
-  side: THREE.DoubleSide,
-  transparent: true,
-  alphaTest: 0.5
-});
-setupMaterial(matLeaf, true);
-
-// つぼみ
-const matBud = new THREE.MeshStandardMaterial({
-  map: budTexture,
-  color: params.budColor,
-  side: THREE.DoubleSide,
-  transparent: true,
-  alphaTest: 0.5
-});
-setupMaterial(matBud, true);
-
-function buildOrganicTreeGeometry(segments: BranchSegment[]): THREE.BufferGeometry {
-  const geometries: THREE.BufferGeometry[] = [];
-  const radialSegments = 18;
-
-  for (const seg of segments) {
-    const length = seg.start.distanceTo(seg.end);
-
-    const geo = new THREE.CylinderGeometry(
-      seg.radiusTop,
-      seg.radiusBottom,
-      length,
-      radialSegments,
-      1,
-      false,
-    );
-
-    // 頂点のY座標を見て、太さをradiusBottom(下)〜radiusTop(上)で補間する
-    const posAttribute = geo.getAttribute('position');
-    const vertexCount = posAttribute.count;
-    const thicknessArray = new Float32Array(vertexCount);
-
-    for (let i = 0; i < vertexCount; i++) {
-      const y = posAttribute.getY(i);
-      const t = Math.max(0, Math.min(1, (y + length / 2) / length));
-      thicknessArray[i] = (1 - t) * seg.radiusBottom + t * seg.radiusTop;
-    }
-    
-    geo.setAttribute('aThickness', new THREE.BufferAttribute(thicknessArray, 1));
-
-    geo.translate(0, length / 2, 0);
-    geo.rotateX(Math.PI / 2);
-    geo.lookAt(new THREE.Vector3().subVectors(seg.end, seg.start));
-    geo.translate(seg.start.x, seg.start.y, seg.start.z);
-
-    geometries.push(geo);
-
-    const jointGeo = new THREE.SphereGeometry(seg.radiusBottom, radialSegments, radialSegments);
-    jointGeo.translate(seg.start.x, seg.start.y, seg.start.z);
-    const jointCount = jointGeo.attributes.position.count;
-    const jointThicknessArray = new Float32Array(jointCount).fill(seg.radiusBottom);
-    jointGeo.setAttribute('aThickness', new THREE.BufferAttribute(jointThicknessArray, 1));
-
-    geometries.push(jointGeo);
-  }
-
-  if (geometries.length === 0) return new THREE.BufferGeometry();
-  const mergedGeo = BufferGeometryUtils.mergeGeometries(geometries, false);
-  geometries.forEach(geo => geo.dispose());
-
-  return mergedGeo;
-}
-
-// --- 再生成関数 ---
-function regenerate() {
-  if (isRegenerating) return;
-  isRegenerating = true;
-
-  const tAll0 = performance.now();
-
-  try {
-    setSeed(params.seed);
-    if (pane) pane.refresh();
-
-    if (branchMesh) {
-      branchMesh.geometry.dispose();
-    }
-
-    treeGroup.clear();
-
-    branchMesh = null;
-    flowerMesh = null;
-    leafMesh = null;
-    budMesh = null;
-
-    if (params.growthMode) {
-      const ratio = Math.min(params.generations / 10.0, 1.0);
-      
-      params.initLength = params.maxLength * ratio;
-      params.initThickness = params.maxThickness * (ratio * ratio); 
-      
-      if (pane) pane.refresh(); 
-    }
-
-    // ルール解析
-    const rules: { [key: string]: string } = {};
-    params.rules.forEach(r => {
-      const parts = r.expression.split('=');
-      if (parts.length >= 2) 
-        rules[parts[0].trim()] = parts.slice(1).join('=').trim();
-    });
-
-    // 文字列生成
-    const tRewrite0 = performance.now();
+    const start = performance.now();
+    const validated = validateParams(params);
+    const rules = parseRules(validated.rules);
     const str = generateLSystemString(
-      params.premise,
+      validated.premise,
       rules,
-      Math.floor(params.generations)
+      validated.generations,
     );
-    const tRewrite1 = performance.now();
-
-    // 文字数
-    params.resultInfo = str.length.toLocaleString();
-
-    // 文字列本体 (1000文字まで)
-    if (str.length > 1000) {
-      params.resultText = str.substring(0, 2000) + ' ... (省略)';
-    } else {
-      params.resultText = str;
-    }
-    
-    if (pane) pane.refresh();
-
-    // L-System データ生成
-    const tInterp0 = performance.now();
-    const data = createLSystemData(
-      str,
-      {
-        initLen: params.initLength,
-        initWid: params.initThickness,
-        scale: params.scale,
-        widthDecay: params.widthDecay,
-        angle: params.angle,
-        angleVariance: params.angleVariance,
-        flowerSize: params.flowerSize,
-        leafSize: params.leafSize,
-        budSize: params.budSize,
-        gravity: params.gravity,
-      }
-    );
-    const tInterp1 = performance.now();
-
-
-    const tMesh0 = performance.now();
-    const mergedGeo = buildOrganicTreeGeometry(data.branches);
-
-    if (mergedGeo) {
-      matBranch.color.set(params.branchColor);
-      branchMesh = new THREE.Mesh(mergedGeo, matBranch);
-      branchMesh.castShadow = true;
-      branchMesh.receiveShadow = true;
-
-      const depthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
-      setupDepthMaterial(depthMat, false); // 枝なので isLeaf は false
-      branchMesh.customDepthMaterial = depthMat;
-
-      // ポイントライトの影用（今回はDirectionalLightなので必須ではないが、念のため）
-      const distanceMat = new THREE.MeshDistanceMaterial();
-      setupDepthMaterial(distanceMat, false);
-      branchMesh.customDistanceMaterial = distanceMat;
-      
-      treeGroup.add(branchMesh);
-    }
-
-    // 器官のインスタンス生成関数
-    const createInstanced = (pts: OrganPoint[], mat: THREE.MeshStandardMaterial, col: string) => {
-      if(pts.length===0) return;
-
-      mat.color.set(col);
-      const mesh = new THREE.InstancedMesh(geoPlane, mat, pts.length);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-
-      // マテリアルが葉かどうかを判定
-      const isLeaf = mat === matLeaf;
-
-      // 透過を考慮してメインマテリアルからmapとalphaTestをコピー
-      const depthMat = new THREE.MeshDepthMaterial({
-        depthPacking: THREE.RGBADepthPacking,
-        map: mat.map,       // テクスチャを渡す
-        alphaTest: mat.alphaTest // アルファテストの閾値を渡す
-      });
-      setupDepthMaterial(depthMat, isLeaf);
-      mesh.customDepthMaterial = depthMat;
-
-      const distanceMat = new THREE.MeshDistanceMaterial({
-        map: mat.map,
-        alphaTest: mat.alphaTest
-      });
-      setupDepthMaterial(distanceMat, isLeaf);
-      mesh.customDistanceMaterial = distanceMat;
-
-      const thicknessArray = new Float32Array(pts.length);
-
-      const dummy = new THREE.Object3D();
-      for(let i=0; i<pts.length; i++){
-        const p = pts[i];
-        dummy.position.copy(pts[i].position);
-        dummy.quaternion.copy(pts[i].rotation);
-        dummy.scale.setScalar(pts[i].scale);
-        dummy.translateY(pts[i].scale*0.5);
-        dummy.updateMatrix();
-        mesh.setMatrixAt(i, dummy.matrix);
-        thicknessArray[i] = p.thickness;
-      }
-      mesh.geometry.setAttribute('aThickness', new THREE.InstancedBufferAttribute(thicknessArray, 1));
-      mesh.instanceMatrix.needsUpdate = true;
-      treeGroup.add(mesh);
-      return mesh;
-    };
-
-    leafMesh = createInstanced(data.leaves, matLeaf, params.leafColor) || null;
-    flowerMesh = createInstanced(data.flowers, matFlower, params.flowerColor) || null;
-    budMesh = createInstanced(data.buds, matBud, params.budColor) || null;
-    const tMesh1 = performance.now();
-
-    // -------- 4) 構造メトリクス計算（lsysとdataから） --------
-    const depthInfo = calcDepthFromBrackets(str);
-
-    // treeGroup追加後にBBox取れる
-    const box = calcBBoxForGroup(treeGroup);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-
-    const struct: StructureMetrics = {
-      generations: params.generations,
-      stringLength: str.length,
-
-      branchSegments: data.branches.length,
-      branchCountF: countChar(str, "F"),
-
-      bracketPushes: depthInfo.pushes,
-      maxBranchDepth: depthInfo.maxDepth,
-
-      leaves: data.leaves.length,
-      flowers: data.flowers.length,
-      buds: data.buds.length,
-
-      bboxHeight: size.y,
-      bboxWidth: approxXZWidth(box),
-      bboxDepth: size.z,
-    };
-
-    const perf: PerfTimings = {
-      rewriteMs: tRewrite1 - tRewrite0,
-      interpretMs: tInterp1 - tInterp0,
-      meshMs: tMesh1 - tMesh0,
-      totalMs: performance.now() - tAll0,
-    };
-
-    // 描画統計（renderer.infoは“描画後”が正確なので、次フレームで読むのがおすすめ）
-    requestAnimationFrame(() => {
-      const render = getRenderMetrics(renderer);
-      const line = formatMetricsLine(struct, perf, render);
-
-      console.log("[METRICS]", line);
-      console.table({ ...struct, ...perf, ...render });
-
-      // UIに1行で出したい場合（あなたのresultInfoに流し込む）
-      params.resultInfo = line;
-      pane?.refresh?.();
+    setSeed(validated.seed);
+    const ratio = validated.growthMode
+      ? Math.min(validated.generations / 10, 1)
+      : 1;
+    const data = createLSystemData(str, {
+      initLen: validated.maxLength * ratio,
+      initWid: validated.maxThickness * ratio * ratio,
+      scale: validated.scale,
+      widthDecay: validated.widthDecay,
+      angle: validated.angle,
+      angleVariance: validated.angleVariance,
+      gravity: validated.gravity,
+      leafSize: validated.leafSize,
+      flowerSize: validated.flowerSize,
+      budSize: validated.budSize,
     });
-
-    isRegenerating = false;
-  } catch (e) {
-    console.error(e);
-  } finally {
-    isRegenerating = false;
+    nextTree = buildTree(data, validated);
+    const height = new THREE.Box3()
+      .setFromObject(nextTree)
+      .getSize(new THREE.Vector3()).y;
+    scene.add(nextTree);
+    if (tree) disposeTree(tree);
+    tree = nextTree;
+    nextTree = null;
+    lastSuccessful = cloneParams(validated);
+    if (needsFit) {
+      fitCamera(tree, view);
+      needsFit = false;
+    }
+    ui.metrics(
+      data.branches.length,
+      data.leaves.length + data.flowers.length + data.buds.length,
+      height,
+      performance.now() - start,
+      str,
+    );
+    updateGenerationLimit();
+    try {
+      saveDraft(validated);
+      element("autosave-status").textContent =
+        "このブラウザーに作業内容を自動保存";
+    } catch (error) {
+      element("autosave-status").textContent =
+        "自動保存できません。JSONで書き出せます";
+      if (!draftWarning) {
+        draftWarning = message(error);
+        toast(draftWarning, "error", 5500);
+      }
+    }
+    editBatch = false;
+    busy = false;
+    ui.busy(false);
+    if (playing) {
+      if (params.generations >= generationLimit) stopPlayback();
+      else
+        playbackTimer = window.setTimeout(() => {
+          params.generations++;
+          sync();
+          schedule(0);
+        }, 1100);
+    }
+    return true;
+  } catch (error) {
+    if (nextTree) disposeTree(nextTree);
+    busy = false;
+    ui.busy(false);
+    ui.error(message(error));
+    editBatch = false;
+    stopPlayback();
+    return false;
   }
 }
-
-
-// 色だけ更新関数
-function updateColors() {
-  matBranch.color.set(params.branchColor);
-  matFlower.color.set(params.flowerColor);
-  matLeaf.color.set(params.leafColor);
-  matBud.color.set(params.budColor);
+function stopPlayback() {
+  playing = false;
+  clearTimeout(playbackTimer);
+  ui?.playing(false);
 }
-
-// 葉テクスチャ更新関数
-function updateLeafTexture() {
-  const tex = leafTextures[params.leafTextureKey];
-  if (!tex) return;
-
-  matLeaf.map = tex;
-  matLeaf.needsUpdate = true;
-
-  regenerate();
-}
-
-// GLTFエクスポート関数
-function downloadGLTF() {
-  if (treeGroup.children.length === 0) {
-    alert("エクスポートするモデルがありません");
+function togglePlayback() {
+  if (playing) {
+    stopPlayback();
     return;
   }
-
-  console.log("エクスポート処理開始...");
-
-  const exporter = new GLTFExporter();
-  const exportScene = new THREE.Scene();
-
-  treeGroup.children.forEach((child) => {
-    
-    if (child instanceof THREE.InstancedMesh) {
-      const count = child.count;
-      const originalGeo = child.geometry;
-      const originalMat = child.material;
-      
-      console.log(`InstancedMeshを変換中... 個数: ${count}`);
-
-      for (let i = 0; i < count; i++) {
-        const matrix = new THREE.Matrix4();
-        child.getMatrixAt(i, matrix);
-
-        const mesh = new THREE.Mesh(originalGeo, originalMat);
-        
-        mesh.matrixAutoUpdate = false;
-        mesh.matrix.copy(matrix);
-        
-        mesh.name = `${child.name || 'Instance'}_${i}`;
-        
-        exportScene.add(mesh);
-      }
-    } 
-    else if (child instanceof THREE.Mesh) {
-      console.log("Mesh (枝) をコピー");
-      const mesh = child.clone();
-      exportScene.add(mesh);
-    }
-  });
-
-  exportScene.updateMatrixWorld(true);
-
-  // エクスポート実行
-  exporter.parse(
-    exportScene,
-    (gltf) => {
-      console.log("GLTF生成完了。ダウンロードを開始します。");
-      const blob = new Blob([gltf as ArrayBuffer], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.style.display = 'none';
-      link.href = url;
-      link.download = 'l-system-tree.glb';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    },
-    (error) => {
-      console.error('エクスポートエラー:', error);
-    },
-    { binary: true }
+  if (busy) return;
+  remember();
+  playing = true;
+  ui.playing(true);
+  params.generations = 0;
+  sync();
+  schedule(0);
+}
+function saveBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+function filename() {
+  return (
+    projectName ||
+    builtinPresets.find((preset) => preset.id === selectedPreset)?.name ||
+    "komorebi"
+  ).replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+}
+async function ensureCurrentTree(): Promise<boolean> {
+  clearTimeout(generationTimer);
+  while (busy)
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 20));
+  return (
+    JSON.stringify(lastSuccessful) === JSON.stringify(params) ||
+    (await regenerate())
   );
 }
-
-// ブラウザ内のプリセット保存
-const uiState = {
-  presetName: "myPreset",
-  presetSelected: "",
-  presetList: [] as string[],
-};
-
-function refreshPresetList() {
-  uiState.presetList = listPresetNames();
-  if (!uiState.presetSelected && uiState.presetList.length) {
-    uiState.presetSelected = uiState.presetList[0];
+function showSave() {
+  openDialog(
+    "この樹木に、名前を。",
+    `<p class="dialog-description">いまのルールと設定をマイライブラリに保存します。保存先は、このブラウザーの中です。</p><form id="save-form"><label class="dialog-field-label" for="save-name">作品名</label><input class="text-input" id="save-name" name="name" maxlength="80" required placeholder="例：風にゆれるシラカバ" value="${escapeHTML(projectName || `${builtinPresets.find((p) => p.id === selectedPreset)?.name || "樹木"}のスケッチ`)}"/><p id="save-feedback" class="control-help" role="status"></p><div class="dialog-actions"><button type="button" class="button button-quiet" id="save-cancel">キャンセル</button><button class="button button-dark" type="submit">${icon("save")}ライブラリに保存</button></div></form>`,
+    "SAVE YOUR SPECIMEN",
+  );
+  element("save-cancel").addEventListener("click", closeDialog);
+  element<HTMLInputElement>("save-name").focus();
+  element<HTMLInputElement>("save-name").select();
+  let overwriteName = "";
+  element("save-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = element<HTMLInputElement>("save-name").value.trim();
+    try {
+      validateParams(params);
+      parseRules(params.rules);
+      stopPlayback();
+      if (!(await ensureCurrentTree()))
+        throw new Error("生成ルールのエラーを修正してから保存してください。");
+      if (
+        readSavedPresets().some((item) => item.name === name) &&
+        overwriteName !== name
+      ) {
+        overwriteName = name;
+        element("save-feedback").textContent =
+          "同じ名前の作品があります。もう一度「保存」を押すと置き換えます。";
+        return;
+      }
+      writeSavedPreset(name, params);
+      projectName = name;
+      sync();
+      closeDialog();
+      toast(`「${name}」を保存しました。`, "success");
+    } catch (error) {
+      element("save-feedback").textContent = message(error);
+    }
+  });
+}
+function showLibrary() {
+  try {
+    const saved = readSavedPresets();
+    openDialog(
+      "マイライブラリ",
+      `<p class="dialog-description">また育てたくなる、あなたの樹木たち。ルールと設定から同じかたちを再現できます。</p><div class="library-list">${saved.length ? saved.map((item, index) => `<div class="library-item"><div><strong>${escapeHTML(item.name)}</strong><small>${new Date(item.savedAt).toLocaleDateString("ja-JP")} · ${item.data.generations} 世代 · seed ${item.data.seed}</small></div><button class="button" data-load="${index}">ひらく</button><button class="icon-button" data-delete="${index}" aria-label="${escapeHTML(item.name)}を削除">${icon("trash")}</button></div>`).join("") : `<div class="library-empty">${icon("sprout")}まだ、小さな空の庭です。<br>お気に入りのかたちができたら、保存してみましょう。</div>`}</div><div class="dialog-actions"><button class="button button-quiet" id="library-import">${icon("upload")}JSONを読み込む</button><button class="button button-dark" id="library-save">${icon("save")}いまの樹木を保存</button></div>`,
+      "YOUR COLLECTION",
+    );
+    element("library-import").addEventListener("click", () =>
+      element<HTMLInputElement>("import-file").click(),
+    );
+    element("library-save").addEventListener("click", showSave);
+    document
+      .querySelectorAll<HTMLButtonElement>("[data-load]")
+      .forEach((button) =>
+        button.addEventListener("click", () => {
+          const item = saved[Number(button.dataset.load)];
+          remember();
+          restore({
+            params: item.data,
+            preset:
+              builtinPresets.find(
+                (p) =>
+                  JSON.stringify(p.params.rules) ===
+                  JSON.stringify(item.data.rules),
+              )?.id ?? null,
+            name: item.name,
+          });
+          closeDialog();
+          toast(`「${item.name}」を読み込みました。`, "success");
+        }),
+      );
+    document
+      .querySelectorAll<HTMLButtonElement>("[data-delete]")
+      .forEach((button) =>
+        button.addEventListener("click", () => {
+          const item = saved[Number(button.dataset.delete)];
+          if (button.dataset.confirm !== "true") {
+            button.dataset.confirm = "true";
+            button.innerHTML = icon("check");
+            button.title = "もう一度押すと削除します";
+            toast("もう一度チェックを押すと、この作品を削除します。");
+            return;
+          }
+          try {
+            deleteSavedPreset(item.name);
+            showLibrary();
+            toast(`「${item.name}」を削除しました。`);
+          } catch (error) {
+            toast(message(error), "error");
+          }
+        }),
+      );
+  } catch (error) {
+    toast(message(error), "error", 6000);
   }
-  uiState.__rebuildPresetSelect?.();
-  pane?.refresh();
 }
-
-function savePresetBrowser() {
-  const name = (uiState.presetName || "").trim();
-  if (!name) {
-    toast("保存名を入力してください。", "error");
-    return;
+function showExport() {
+  openDialog(
+    "あなたの樹木を、外へ。",
+    `<p class="dialog-description">作品を画像として残したり、3D制作に使ったり。用途に合わせて書き出せます。</p><button class="export-option" data-export="png">${icon("image")}<span><strong>プレビュー画像</strong><small>いまの視点と背景を、そのまま画像に。</small></span><b>PNG</b></button><button class="export-option" data-export="glb">${icon("cube")}<span><strong>3Dモデル</strong><small>樹木とテクスチャを、ひとつのファイルに。</small></span><b>GLB</b></button><button class="export-option" data-export="json">${icon("code")}<span><strong>ルールと設定</strong><small>バックアップや、別のブラウザーでの再編集に。</small></span><b>JSON</b></button><p class="control-help">3Dモデルには風のアニメーションを含みません。高さはモデル内の相対単位です。</p><div class="dialog-actions"><button class="button button-quiet" id="export-import">${icon("upload")}JSONを読み込む</button></div>`,
+    "TAKE IT WITH YOU",
+  );
+  element("export-import").addEventListener("click", () =>
+    element<HTMLInputElement>("import-file").click(),
+  );
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-export]")
+    .forEach((button) =>
+      button.addEventListener("click", () => {
+        void exportFile(button.dataset.export!, button);
+      }),
+    );
+}
+async function exportFile(format: string, button: HTMLButtonElement) {
+  if (exportBusy) return;
+  stopPlayback();
+  exportBusy = true;
+  button.disabled = true;
+  const cloneGeometries: THREE.BufferGeometry[] = [];
+  try {
+    if (!(await ensureCurrentTree()))
+      throw new Error("生成ルールのエラーを修正してから書き出してください。");
+    if (format === "json") {
+      const payload = {
+        format: "komorebi-lsystem",
+        version: 1,
+        name: filename(),
+        params: validateParams(params),
+      };
+      saveBlob(
+        new Blob([JSON.stringify(payload, null, 2)], {
+          type: "application/json",
+        }),
+        `${filename()}.json`,
+      );
+    } else {
+      if (!tree?.children.length)
+        throw new Error(
+          "まだ樹木がありません。世代を進めてから書き出してください。",
+        );
+      await waitForTextures();
+      if (format === "png") {
+        renderFrame();
+        const blob = await new Promise<Blob>((resolve, reject) =>
+          renderer.domElement.toBlob(
+            (value) =>
+              value
+                ? resolve(value)
+                : reject(new Error("画像の書き出しに失敗しました。")),
+            "image/png",
+          ),
+        );
+        saveBlob(blob, `${filename()}.png`);
+      } else {
+        const { GLTFExporter } =
+          await import("three/examples/jsm/exporters/GLTFExporter.js");
+        const exported = tree.clone(true);
+        exported.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.geometry = object.geometry.clone();
+          object.geometry.deleteAttribute("aThickness");
+          cloneGeometries.push(object.geometry);
+        });
+        const result = await new GLTFExporter().parseAsync(exported, {
+          binary: true,
+          maxTextureSize: 1024,
+        });
+        if (!(result instanceof ArrayBuffer))
+          throw new Error("3Dモデルの書き出しに失敗しました。");
+        saveBlob(
+          new Blob([result], { type: "model/gltf-binary" }),
+          `${filename()}.glb`,
+        );
+      }
+    }
+    closeDialog();
+    toast(`${format.toUpperCase()}を書き出しました。`, "success");
+  } catch (error) {
+    toast(message(error), "error", 5500);
+  } finally {
+    cloneGeometries.forEach((geometry) => geometry.dispose());
+    exportBusy = false;
+    button.disabled = false;
   }
-  savePresetToLocal(name);
-  refreshPresetList();
-  toast(`プリセット「${name}」を保存しました。`, "success");
 }
-
-function loadPresetBrowser() {
-  const name = (uiState.presetSelected || "").trim();
-  if (!name) {
-    toast("読み込むプリセットを選択してください。", "error");
-    return;
+function showHelp() {
+  openDialog(
+    "ルールから、自然を描く。",
+    `<p class="dialog-description">L-system は、文字を繰り返し置き換えることで、植物のような枝分かれをつくる仕組みです。ここでは自由な植物のスケッチを楽しめます。</p><ol class="help-steps"><li>「はじめの一粒」から植物を選びます。</li><li>「かたち」「質感」で表情を整えます。</li><li>下の再生ボタンで、世代ごとの成長を観察。</li><li>気に入った樹木は保存、または書き出し。</li></ol><h3 class="help-heading">ルールの基本</h3><div class="help-grid"><code>F / f</code><span>枝を描いて前進 / 描かずに前進</span><code>L K M</code><span>葉 / 花 / つぼみを配置</span><code>+ -</code><span>左右に回転</span><code>&amp; ^</code><span>前後に傾く</span><code>/ \\</code><span>枝の軸を中心に回転</span><code>[ ]</code><span>現在位置を保存 / その位置に戻る</span><code>! &quot;</code><span>太さ / 長さを減衰</span><code>|</code><span>180度向きを変える</span><code>F(2)</code><span>長さ2の枝。+(30) は30度回転。括弧内では四則演算も使えます。</span></div><p class="control-help">例：公理を A、ルールを A=F[+A][-A] にすると、二股の枝が繰り返し生まれます。文字を消すルール A= も使えます。# で始まる行はコメントです。</p><h3 class="help-heading">便利な操作</h3><p class="control-help">F：樹木全体を表示　Space：成長を再生 / 停止<br>Ctrl / ⌘ + Z：元に戻す　Shift を加えるとやり直し<br>Ctrl / ⌘ + S：保存　Ctrl / ⌘ + Enter：生成<br>スマートフォン：1本指で回転、2本指で移動・拡大</p><p class="control-help">保存データはこのブラウザー内に保管されます。バックアップにはJSON書き出しを使ってください。プリセットは樹木の形を楽しむための表現で、生物学的な成長を正確に再現するものではありません。</p>`,
+    "A LITTLE FIELD GUIDE",
+  );
+}
+function action(name: string) {
+  switch (name) {
+    case "generate":
+      stopPlayback();
+      schedule(0);
+      break;
+    case "reset":
+      selectPreset(selectedPreset ?? builtinPresets[0].id);
+      break;
+    case "randomize":
+      change("seed", crypto.getRandomValues(new Uint32Array(1))[0]);
+      break;
+    case "undo": {
+      const state = past.pop();
+      if (state) {
+        future.push(snapshot());
+        restore(state);
+      }
+      break;
+    }
+    case "redo": {
+      const state = future.pop();
+      if (state) {
+        past.push(snapshot());
+        restore(state);
+      }
+      break;
+    }
+    case "save":
+      showSave();
+      break;
+    case "open-library":
+      showLibrary();
+      break;
+    case "export":
+      showExport();
+      break;
+    case "help":
+      showHelp();
+      break;
+    case "fit-camera":
+      if (tree) fitCamera(tree, view);
+      break;
+    case "view-perspective":
+    case "view-front":
+    case "view-top":
+      view = name.replace("view-", "") as typeof view;
+      ["perspective", "front", "top"].forEach((item) =>
+        setToggle(`view-${item}`, item === view),
+      );
+      if (tree) fitCamera(tree, view);
+      break;
+    case "toggle-grid":
+      grid = !grid;
+      setGridVisible(grid);
+      setToggle(name, grid);
+      break;
+    case "toggle-rotate":
+      rotating = !rotating;
+      setAutoRotate(rotating);
+      setToggle(name, rotating);
+      break;
+    case "toggle-wind":
+      wind = !wind;
+      setWindPaused(!wind);
+      windUniforms.strength.value = wind
+        ? Number(element<HTMLInputElement>("wind-strength").value)
+        : 0;
+      setToggle(name, wind);
+      break;
+    case "play-growth":
+      togglePlayback();
+      break;
   }
-  if (!loadPresetFromLocal(name)) {
-    toast("プリセットが見つかりません。", "error");
-    return;
-  }
-  updateColors();
-  regenerate();
-  pane?.refresh();
-  toast(`プリセット「${name}」を読み込みました。`, "success");
 }
-
-function deletePresetBrowser() {
-  const name = (uiState.presetSelected || "").trim();
-  if (!name) return;
-
-  deletePresetFromLocal(name);
-  if (uiState.presetSelected === name) uiState.presetSelected = "";
-  refreshPresetList();
-}
-
-function resetCamera() {
-  camera.position.set(0, 10, 40);
-  controls.target.set(0, 7, 0);
-  controls.update();
-}
-
-// Tweakpaneのセットアップ
-pane = setupUI(
-  params, 
-  regenerate, 
-  updateColors, 
-  updateLeafTexture,
-  downloadGLTF, 
-  resetCamera,
-  uiState,
-  refreshPresetList,
-  savePresetBrowser,
-  loadPresetBrowser,
-  deletePresetBrowser,
-  triggerDoubleGust,
+const ui = setupUI({ change, preset: selectPreset, action });
+sync();
+setToggle("toggle-wind", wind);
+setWindPaused(!wind);
+windUniforms.strength.value = wind ? 0.8 : 0;
+element<HTMLInputElement>("wind-strength").addEventListener(
+  "input",
+  (event) => {
+    const input = event.target as HTMLInputElement;
+    refreshRange(input);
+    wind = Number(input.value) > 0;
+    setWindPaused(!wind);
+    setToggle("toggle-wind", wind);
+    windUniforms.strength.value = Number(input.value);
+  },
 );
-
-// 初回実行
-regenerate();
+refreshRange(element<HTMLInputElement>("wind-strength"));
+element<HTMLInputElement>("import-file").addEventListener(
+  "change",
+  async (event) => {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 1_000_000)
+        throw new Error("設定ファイルは1MB以下にしてください。");
+      const raw: unknown = JSON.parse(await file.text());
+      let data = raw;
+      let name = file.name.replace(/\.json$/i, "");
+      if (raw && typeof raw === "object" && "params" in raw) {
+        const record = raw as Record<string, unknown>;
+        if (record.format !== "komorebi-lsystem" || record.version !== 1)
+          throw new Error(
+            "この設定ファイルの形式またはバージョンには対応していません。",
+          );
+        data = record.params;
+        if (typeof record.name === "string") name = record.name.slice(0, 80);
+      }
+      const imported = validateParams(data);
+      parseRules(imported.rules);
+      // Validate expansion and geometry before replacing any user settings.
+      const str = generateLSystemString(
+        imported.premise,
+        parseRules(imported.rules),
+        imported.generations,
+      );
+      setSeed(imported.seed);
+      createLSystemData(str, {
+        initLen: imported.maxLength,
+        initWid: imported.maxThickness,
+        scale: imported.scale,
+        widthDecay: imported.widthDecay,
+        angle: imported.angle,
+        angleVariance: imported.angleVariance,
+        gravity: imported.gravity,
+        flowerSize: imported.flowerSize,
+        leafSize: imported.leafSize,
+        budSize: imported.budSize,
+      });
+      remember();
+      restore({ params: imported, preset: null, name });
+      closeDialog();
+      toast("設定ファイルを読み込みました。", "success");
+    } catch (error) {
+      toast(message(error), "error", 5500);
+    } finally {
+      input.value = "";
+    }
+  },
+);
+window.addEventListener("keydown", (event) => {
+  const editing =
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement ||
+    event.target instanceof HTMLSelectElement ||
+    (event.target instanceof HTMLElement && event.target.isContentEditable);
+  const modifier = event.ctrlKey || event.metaKey;
+  if (element<HTMLDialogElement>("studio-dialog").open) return;
+  if (modifier && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    showSave();
+    return;
+  }
+  if (modifier && event.key === "Enter") {
+    event.preventDefault();
+    action("generate");
+    return;
+  }
+  if (editing) return;
+  if (modifier && event.key.toLowerCase() === "z") {
+    event.preventDefault();
+    action(event.shiftKey ? "redo" : "undo");
+  } else if (modifier && event.key.toLowerCase() === "y") {
+    event.preventDefault();
+    action("redo");
+  } else if (
+    event.code === "Space" &&
+    !(event.target instanceof HTMLButtonElement)
+  ) {
+    event.preventDefault();
+    action("play-growth");
+  } else if (event.key.toLowerCase() === "f") action("fit-camera");
+});
+if (draftWarning) toast(draftWarning, "error", 6500);
+schedule(0);
+if (import.meta.hot)
+  import.meta.hot.dispose(() => {
+    clearTimeout(generationTimer);
+    clearTimeout(playbackTimer);
+    if (tree) disposeTree(tree);
+  });

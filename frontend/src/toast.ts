@@ -6,11 +6,17 @@ function ensureContainer() {
   if (container) return container;
   container = document.createElement("div");
   container.className = "toast-container";
+  container.setAttribute("role", "status");
+  container.setAttribute("aria-live", "polite");
   document.body.appendChild(container);
   return container;
 }
 
-export function toast(message: string, type: ToastType = "info", durationMs = 2200) {
+export function toast(
+  message: string,
+  type: ToastType = "info",
+  durationMs = 2200,
+) {
   const c = ensureContainer();
 
   const el = document.createElement("div");

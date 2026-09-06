@@ -1,216 +1,307 @@
-import { Pane } from 'tweakpane';
-import * as THREE from "three";
-import { scene, renderer, directionalLight, windUniforms } from './three-setup.ts';
+import { icon, plantIllustration } from "./icons.ts";
+import { builtinPresets, type PlantParams } from "./studio-state.ts";
 
-const generationsMax = 12;
-
-export function setupUI(
-  params: any,
-  onRegenerate: () => void,
-  onUpdateColor: () => void,
-  onUpdateLeafTexture: () => void,
-  downloadGLTF: () => void,
-  resetCamera: () => void,
-  uiState: any,
-  refreshPresetList: () => void,
-  savePresetBrowser: () => void,
-  loadPresetBrowser: () => void,
-  deletePresetBrowser: () => void,
-  triggerDoubleGust: () => void, 
-
+export function element<T extends HTMLElement = HTMLElement>(id: string): T {
+  const node = document.getElementById(id);
+  if (!node) throw new Error(`Missing UI element: ${id}`);
+  return node as T;
+}
+export function escapeHTML(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (char) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        char
+      ]!,
+  );
+}
+export function refreshIcons(root: ParentNode = document) {
+  root.querySelectorAll<HTMLElement>("[data-icon]").forEach((node) => {
+    node.innerHTML = icon(node.dataset.icon!);
+  });
+}
+export function refreshRange(input: HTMLInputElement) {
+  const amount =
+    (Number(input.value) - Number(input.min)) /
+    (Number(input.max) - Number(input.min));
+  input.style.setProperty(
+    "--range-progress",
+    `${Math.max(0, Math.min(100, amount * 100))}%`,
+  );
+}
+export type UIActions = {
+  change: (
+    key: keyof PlantParams,
+    value: PlantParams[keyof PlantParams],
+  ) => void;
+  preset: (id: string) => void;
+  action: (name: string) => void;
+};
+function slider(
+  key: keyof PlantParams,
+  label: string,
+  min: number,
+  max: number,
+  step: number,
+  unit = "",
+  hints?: [string, string],
 ) {
-    const onFinish = (ev: any) => {
-      if (ev.last) onRegenerate();
-    };
-
-    // メインパネル
-    const pane = new Pane({ title: "L-System" });
-
-    // メイン設定
-    const foler = pane.addFolder({ title: "メイン設定", expanded: true });
-    
-    const tab = foler.addTab({
-      pages: [
-        { title: "基本設定" },
-        { title: "器官設定" },
-        { title: "ルール" },
-      ]
-    });
-
-    // タブ1: 基本設定
-    const p1 = tab.pages[0];
-    p1.addBinding(params, 'growthMode', { label: '成長連動' }).on('change', onFinish);
-    
-    p1.addBlade({ view: "separator" });
-    p1.addBinding(params, "maxLength", { label: "最大の長さ", min: 0.1, max: 2, step: 0.01 })
-    .on("change", (ev) => {
-      if (!params.growthMode) params.initLength = params.maxLength;
-      onFinish(ev);
-    });
-    p1.addBinding(params, "initLength", { label: "現在の長さ", readonly: true })
-    p1.addBinding(params, "maxThickness", { label: "最大の太さ", min: 0.01, max: 2, step: 0.01 })
-    .on("change", (ev) => {
-      if (!params.growthMode) params.initThickness = params.maxThickness;
-      onFinish(ev);
-    });
-    p1.addBinding(params, "initThickness", { label: "現在の太さ", readonly: true })
-    
-    p1.addBlade({ view: "separator" });
-    let lastGenInt = Math.floor(params.generations);
-    function handleGenChange() {
-      const currentInt = Math.floor(params.generations);
-      
-      if (currentInt !== lastGenInt) {
-        console.log(`世代変更: ${lastGenInt} -> ${currentInt}`);
-        lastGenInt = currentInt;
-        onRegenerate();
-      }
-    }
-    p1.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", handleGenChange);
-    p1.addBinding(params, "angle", { label: "角度", min: 0, max: 180, step: 0.1 }).on("change", onFinish);
-    p1.addBinding(params, "angleVariance", { label: "角度の偏差", min: 0, max: 45, step: 0.1 }).on("change", onFinish);
-    p1.addBinding(params, 'seed', { label: 'シード値', min: 0, max: 100000, step: 1 }).on('change', onFinish);
-    p1.addBinding(params, "gravity", { label: "重力", min: -10, max: 10, step: 0.1 }).on("change", onFinish);
-    p1.addBinding(params, "branchColor", { label: "枝の色" }).on("change", onUpdateColor);
-    
-    p1.addBlade({ view: "separator" });
-    p1.addBinding(params, "scale", { label: '長さ減衰率(")', min: 0.0, max: 2.0, step: 0.01 }).on( "change", onFinish);
-    p1.addBinding(params, 'widthDecay', { label: '太さ減衰率(!)', min: 0.5, max: 1.0, step: 0.01 }).on('change', onFinish);
-    
-    // タブ2: 器官設定
-    const p2 = tab.pages[1];
-    p2.addBinding(params, 'flowerColor', { label: "花の色" }).on('change', onUpdateColor);
-    p2.addBinding(params, 'flowerSize', { label: "花", min: 0, max: 5 }).on('change', onFinish);
-    
-    p2.addBlade({ view: 'separator' });
-    p2.addBinding(params, 'leafColor', { label: "葉の色" }).on('change', onUpdateColor);
-    p2.addBinding(params, 'leafTextureKey', {
-      label: "葉のテクスチャ",
-      options: {
-        "Default": "leaf_default",
-        "Maple": "leaf_maple",
-      }
-    }).on('change', () => {
-      onUpdateLeafTexture();
-    });
-    p2.addBinding(params, 'leafSize', { label: "葉", min: 0, max: 5 }).on('change', onFinish);
-    
-    p2.addBlade({ view: 'separator'});
-    p2.addBinding(params, 'budColor', { label: "つぼみの色" }).on('change', onUpdateColor);
-    p2.addBinding(params, 'budSize', { label: "つぼみ", min: 0, max: 5 }).on('change', onFinish);
-    
-    // タブ3: ルール
-    const p3 = tab.pages[2];
-    p3.addBinding(params, "generations", { label: "世代", min: 0, max: generationsMax, step: 1 }).on("change", handleGenChange);
-
-    p3.addBlade({ view: "separator" });
-    p3.addBinding(params, "premise", { label: "初期状態" }).on("change", onFinish);
-    params.rules.forEach((r: any, i: number) => {
-      p3.addBinding(r, "expression", {label: `ルール${i + 1}`});
-    });
-
-    // プリセット保存フォルダ
-    const presetFolder = pane.addFolder({ title: 'プリセット', expanded: false });
-
-    presetFolder.addBinding(uiState, 'presetName', { label: '保存名' });
-
-    const selectFolder = presetFolder.addFolder({ title: '選択', expanded: true });
-
-    function makePresetOptions() {
-      const opts: Record<string, string> = {};
-      (uiState.presetList || []).forEach((name: string) => (opts[name] = name));
-      if (Object.keys(opts).length === 0) opts["(なし)"] = "";
-      return opts;
-    }
-
-    let presetSelectBinding: any = null;
-    function rebuildPresetSelect() {
-      if (presetSelectBinding) presetSelectBinding.dispose();
-      presetSelectBinding = selectFolder.addBinding(uiState, 'presetSelected', {
-        label: '選択',
-        options: makePresetOptions(),
+  return `<div class="control-row"><div class="control-label"><label for="range-${key}">${label}</label><span class="control-value"><input class="number-input" type="number" id="number-${key}" data-param="${key}" min="${min}" max="${max}" step="${step}" aria-label="${label}の数値"/><span class="unit">${unit}</span></span></div><input type="range" id="range-${key}" data-param="${key}" min="${min}" max="${max}" step="${step}" aria-label="${label}"/>${hints ? `<div class="range-extents"><span>${hints[0]}</span><span>${hints[1]}</span></div>` : ""}</div>`;
+}
+function color(key: keyof PlantParams, label: string) {
+  return `<label class="color-row" for="color-${key}">${label}<span class="color-input-wrap"><span data-color-value="${key}"></span><input type="color" id="color-${key}" data-param="${key}"/></span></label>`;
+}
+export function setupUI(actions: UIActions) {
+  element("preset-grid").innerHTML = builtinPresets
+    .map(
+      (preset, index) =>
+        `<button class="preset-card" data-preset="${preset.id}" aria-label="${escapeHTML(preset.name)}のプリセット" aria-pressed="false" title="${escapeHTML(preset.description)}">${plantIllustration(index)}<span class="preset-check">${icon("check")}</span><strong>${escapeHTML(preset.name)}</strong><small>${escapeHTML(preset.tag)}</small></button>`,
+    )
+    .join("");
+  element("panel-shape").innerHTML =
+    `<section class="control-section"><div class="control-heading">枝のシルエット<button class="section-reset" data-action="reset" title="選択中のプリセットに戻す">${icon("refresh")}リセット</button></div>${slider("angle", "枝の広がり", 0, 180, 1, "°", ["まっすぐ", "広がる"])}${slider("maxLength", "枝の長さ", 0.1, 3, 0.01)}${slider("maxThickness", "幹の太さ", 0.005, 1, 0.005)}${slider("angleVariance", "自然なゆらぎ", 0, 45, 0.5, "°")}</section><section class="control-section"><div class="control-heading">かたちの個性 ${icon("dice")}</div><label class="control-label" for="seed">ランダムシード</label><div class="seed-field"><input class="text-input" type="number" id="seed" data-param="seed" min="0" max="4294967295" step="1"/><button class="icon-button" data-action="randomize" title="別のかたちを試す" aria-label="別のかたちを試す">${icon("dice")}</button></div><p class="control-help">同じシードなら、いつでも同じかたちに。</p></section><section class="control-section"><div class="control-heading">成長のふるまい</div>${slider("scale", "枝の長さの減衰", 0, 2, 0.01)}${slider("widthDecay", "枝の太さの減衰", 0, 1, 0.01)}${slider("gravity", "重力", -10, 10, 0.01)}<label class="toggle-row" for="growth-mode">世代に合わせて幹も成長<input type="checkbox" id="growth-mode" data-param="growthMode"/></label><p class="control-help">オフにすると、幹の長さと太さを保ったまま枝分かれします。</p></section>`;
+  element("panel-appearance").innerHTML =
+    `<section class="control-section"><div class="control-heading">葉の表情 ${icon("leaf")}</div><div class="control-row"><label class="control-label" for="leaf-texture">葉のかたち</label><select id="leaf-texture" data-param="leafTextureKey"><option value="leaf_default">楕円の葉</option><option value="leaf_maple">モミジの葉</option></select></div>${color("leafColor", "葉の色")}${slider("leafSize", "葉の大きさ", 0, 5, 0.05)}</section><section class="control-section"><div class="control-heading">花とつぼみ</div>${color("flowerColor", "花の色")}${slider("flowerSize", "花の大きさ", 0, 5, 0.05)}${color("budColor", "つぼみの色")}${slider("budSize", "つぼみの大きさ", 0, 5, 0.05)}<p class="control-help">花は K、つぼみは M を生成ルールに加えると咲きます。大きさを 0 にすると非表示になります。</p></section><section class="control-section"><div class="control-heading">樹皮</div>${color("branchColor", "幹と枝の色")}</section>`;
+  element("panel-rules").innerHTML =
+    `<section class="control-section"><div class="control-heading">L-system エディター ${icon("code")}</div><div class="control-row"><label class="control-label" for="premise">はじめの文字列（公理）</label><input id="premise" class="text-input" data-param="premise" spellcheck="false" maxlength="250000"/></div><label class="control-label" for="rules-editor">枝分かれのルール <span>1行に1つ</span></label><textarea id="rules-editor" class="rule-editor" spellcheck="false" aria-describedby="rule-guidance" maxlength="100000"></textarea><div class="rule-help" id="rule-guidance"><code>A=F[+A][-A]</code><br>世代が進むたび、左の文字を右の文字列に置き換えます。<br><code>F</code> 枝を伸ばす　<code>L</code> 葉　<code>K</code> 花<br><code>[ ]</code> 枝分かれ　<code>+ −</code> 向きを変える<br><button class="text-link" data-action="help">記号と書き方を詳しく見る ${icon("arrow")}</button></div></section><section class="control-section"><div class="control-heading">展開された文字列 <span id="symbol-count">0 文字</span></div><pre class="result-string" id="result-string">—</pre><p class="control-help">先頭 1,000 文字を表示。複雑すぎるルールは、画面の停止を防ぐため生成を制限します。</p></section>`;
+  refreshIcons();
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-preset]")
+    .forEach((button) =>
+      button.addEventListener("click", () =>
+        actions.preset(button.dataset.preset!),
+      ),
+    );
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-action]")
+    .forEach((button) =>
+      button.addEventListener("click", () =>
+        actions.action(button.dataset.action!),
+      ),
+    );
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-tab]")
+    .forEach((button, index, buttons) => {
+      button.addEventListener("click", () =>
+        buttons.forEach((tab) => {
+          const active = tab === button;
+          tab.setAttribute("aria-selected", String(active));
+          tab.tabIndex = active ? 0 : -1;
+          element(`panel-${tab.dataset.tab}`).hidden = !active;
+        }),
+      );
+      button.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+          return;
+        event.preventDefault();
+        const next =
+          event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? buttons.length - 1
+              : (index +
+                  (event.key === "ArrowRight" ? 1 : -1) +
+                  buttons.length) %
+                buttons.length;
+        buttons[next].click();
+        buttons[next].focus();
       });
-    }
-
-    // main.ts から呼べるように
-    uiState.__rebuildPresetSelect = rebuildPresetSelect;
-
-    rebuildPresetSelect();
-
-    const actionFolder = presetFolder.addFolder({ title: '操作', expanded: true });
-
-    actionFolder.addButton({ title: '一覧更新' }).on('click', () => {
-      refreshPresetList();
     });
-
-    actionFolder.addButton({ title: '保存' }).on('click', () => {
-      savePresetBrowser();
+  document
+    .querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-param]")
+    .forEach((input) => {
+      input.addEventListener(
+        input.type === "range" || input.type === "color" ? "input" : "change",
+        () => {
+          if (!input.checkValidity()) {
+            input.reportValidity();
+            return;
+          }
+          const value =
+            input.type === "checkbox"
+              ? (input as HTMLInputElement).checked
+              : ["range", "number"].includes(input.type)
+                ? Number(input.value)
+                : input.value;
+          actions.change(input.dataset.param as keyof PlantParams, value);
+        },
+      );
     });
-
-    actionFolder.addButton({ title: '読込' }).on('click', () => {
-      loadPresetBrowser();
-    });
-
-    actionFolder.addButton({ title: '削除' }).on('click', () => {
-      deletePresetBrowser();
-    });
-
-    // 生成結果表示フォルダ
-    const generatedRules = pane.addFolder({ title: '生成されたルールの詳細', expanded: false });
-    generatedRules.addBinding(params, 'resultInfo', { 
-      label: '文字数', 
-      readonly: true
-    });
-    generatedRules.addBinding(params, 'resultText', { 
-      label: '文字列(1000文字まで)',
-      multiline: true,
-      rows: 8,
-      readonly: true
-    });
-
-    // 環境設定フォルダ
-    const envFolder = pane.addFolder({ title: '環境設定', expanded: false });
-
-    envFolder.addButton({ title: 'カメラリセット' }).on('click', resetCamera);
-
-    const envTab = envFolder.addTab({
-      pages: [
-        { title: "風" },
-        { title: "ライティング/フォグ" },
-      ]
-    });
-
-    const windTab = envTab.pages[0];
-    windTab.addBinding(windUniforms.speed, 'value', { label: '風速', min: 0, max: 10, step: 0.01 });
-    windTab.addBinding(windUniforms.strength, 'value', { label: '風の強さ', min: 0, max: 10, step: 0.01 });
-    windTab.addBinding(windUniforms.direction.value, 'x', { label: '風向きX', min: -1, max: 1, step: 0.01 });
-    windTab.addBinding(windUniforms.direction.value, 'y', { label: '風向きZ', min: -1, max: 1, step: 0.01 });
-    windTab.addButton({ title: '突風を発生させる' }).on('click', () => {
-      triggerDoubleGust();
-    });
-
-    const lightingTab = envTab.pages[1];
-    lightingTab.addBinding(renderer, 'toneMappingExposure', { label: '露出 (Exposure)', min: 0, max: 2, step: 0.01 });
-    lightingTab.addBinding(directionalLight, 'intensity', { label: '太陽光 (Sun)', min: 0, max: 5, step: 0.01 });
-
-    lightingTab.addBlade({ view: 'separator'});
-    lightingTab.addBinding(scene.fog as THREE.Fog, 'near', { label: 'フォグの開始距離', min: 0, max: 100, step: 1 });
-    lightingTab.addBinding(scene.fog as THREE.Fog, 'far', { label: 'フォグの終了距離', min: 50, max: 500, step: 1 });
-
-    // アクションフォルダ
-    const btnFolder = pane.addFolder({ title: 'アクション', expanded: true });
-    btnFolder.addButton({ title: "生成" }).on("click", onRegenerate);
-
-    btnFolder.addBlade({ view: 'separator' });
-    btnFolder.addButton({ title: 'ランダムシード' }).on('click', () => {
-      params.seed = Math.floor(Math.random() * 100000);
-      onRegenerate();
-    });
-
-    btnFolder.addBlade({ view: 'separator' });
-    btnFolder.addButton({ title: 'モデルの保存 (.glb)' }).on('click', downloadGLTF);   
-
-    
-
-    return pane;
+  element<HTMLTextAreaElement>("rules-editor").addEventListener(
+    "input",
+    (event) =>
+      actions.change(
+        "rules",
+        (event.target as HTMLTextAreaElement).value
+          .split("\n")
+          .map((expression) => ({ expression })),
+      ),
+  );
+  element<HTMLInputElement>("timeline-generation").addEventListener(
+    "input",
+    (event) =>
+      actions.change(
+        "generations",
+        Number((event.target as HTMLInputElement).value),
+      ),
+  );
+  [
+    "undo",
+    "redo",
+    "help",
+    "open-library",
+    "save",
+    "export",
+    "generate",
+    "fit-camera",
+    "view-perspective",
+    "view-front",
+    "view-top",
+    "toggle-grid",
+    "toggle-rotate",
+    "toggle-wind",
+    "play-growth",
+  ].forEach((id) =>
+    element(id).addEventListener("click", () => actions.action(id)),
+  );
+  element("close-dialog").addEventListener("click", closeDialog);
+  element<HTMLDialogElement>("studio-dialog").addEventListener(
+    "click",
+    (event) => {
+      if (event.target !== event.currentTarget) return;
+      const bounds = element("studio-dialog").getBoundingClientRect();
+      if (
+        event.clientX < bounds.left ||
+        event.clientX > bounds.right ||
+        event.clientY < bounds.top ||
+        event.clientY > bounds.bottom
+      )
+        closeDialog();
+    },
+  );
+  return {
+    sync(params: PlantParams) {
+      document
+        .querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-param]")
+        .forEach((input) => {
+          const value = params[input.dataset.param as keyof PlantParams];
+          if (input.type === "checkbox")
+            (input as HTMLInputElement).checked = Boolean(value);
+          else if (document.activeElement !== input) {
+            if (
+              input instanceof HTMLInputElement &&
+              (input.type === "range" || input.type === "number")
+            ) {
+              input.min = String(Math.min(Number(input.min), Number(value)));
+              input.max = String(Math.max(Number(input.max), Number(value)));
+            }
+            input.value = String(value);
+          }
+          if (input.type === "range") refreshRange(input as HTMLInputElement);
+        });
+      document
+        .querySelectorAll<HTMLElement>("[data-color-value]")
+        .forEach((node) => {
+          node.textContent = String(
+            params[node.dataset.colorValue as keyof PlantParams],
+          ).toUpperCase();
+        });
+      const rules = element<HTMLTextAreaElement>("rules-editor");
+      if (document.activeElement !== rules)
+        rules.value = params.rules.map((rule) => rule.expression).join("\n");
+      const timeline = element<HTMLInputElement>("timeline-generation");
+      timeline.value = String(params.generations);
+      refreshRange(timeline);
+      element("generation-value").textContent = String(params.generations);
+    },
+    selection(id: string | null, customName?: string) {
+      const index = builtinPresets.findIndex((preset) => preset.id === id);
+      const preset = builtinPresets[index];
+      document
+        .querySelectorAll<HTMLButtonElement>("[data-preset]")
+        .forEach((button) => {
+          const active = button.dataset.preset === id;
+          button.classList.toggle("selected", active);
+          button.setAttribute("aria-pressed", String(active));
+        });
+      element("specimen-name").textContent =
+        customName || preset?.name || "あなただけの樹木";
+      element("specimen-latin").textContent =
+        preset?.latinName || "A study in branching";
+      element("specimen-number").textContent =
+        index >= 0 ? String(index + 1).padStart(2, "0") : "∞";
+      element("project-name").textContent =
+        customName || `${preset?.name || "樹木"}のスケッチ`;
+    },
+    busy(value: boolean) {
+      element("busy-indicator").hidden = !value;
+      element("viewport").setAttribute("aria-busy", String(value));
+      element<HTMLButtonElement>("generate").disabled = value;
+      element("generate-label").textContent = value
+        ? "樹木を育てています…"
+        : "樹木を生成する";
+      element("render-status").textContent = value
+        ? "生成中"
+        : "プレビュー更新済み";
+    },
+    error(message: string) {
+      element("generation-error").textContent = message;
+      element("generation-error").hidden = !message;
+      element("rules-editor").setAttribute(
+        "aria-invalid",
+        String(Boolean(message)),
+      );
+      if (message)
+        element("render-status").textContent = "設定を確認してください";
+    },
+    metrics(
+      branches: number,
+      organs: number,
+      height: number,
+      ms: number,
+      str: string,
+    ) {
+      element("metric-branches").textContent = branches.toLocaleString("ja-JP");
+      element("metric-organs").textContent = organs.toLocaleString("ja-JP");
+      element("metric-height").textContent = height.toFixed(2);
+      element("metric-time").textContent = `${Math.round(ms)} ms`;
+      element("symbol-count").textContent =
+        `${str.length.toLocaleString("ja-JP")} 文字`;
+      element("result-string").textContent =
+        str.slice(0, 1000) + (str.length > 1000 ? "\n…" : "");
+      element("model-empty").hidden = branches + organs > 0;
+    },
+    history(undo: boolean, redo: boolean) {
+      element<HTMLButtonElement>("undo").disabled = !undo;
+      element<HTMLButtonElement>("redo").disabled = !redo;
+    },
+    playing(value: boolean) {
+      element("play-growth").innerHTML = icon(value ? "pause" : "play");
+      element("play-growth").classList.toggle("playing", value);
+      element("play-growth").setAttribute(
+        "aria-label",
+        value ? "成長を一時停止" : "成長を再生",
+      );
+      element("play-growth").title = value ? "成長を一時停止" : "成長を再生";
+    },
+  };
+}
+export function openDialog(
+  title: string,
+  content: string,
+  eyebrow = "BOTANICAL STUDIO",
+) {
+  element("dialog-title").textContent = title;
+  element("dialog-eyebrow").textContent = eyebrow;
+  element("dialog-content").innerHTML = content;
+  const dialog = element<HTMLDialogElement>("studio-dialog");
+  dialog.setAttribute("aria-labelledby", "dialog-title");
+  if (!dialog.open) dialog.showModal();
+}
+export function closeDialog() {
+  element<HTMLDialogElement>("studio-dialog").close();
+}
+export function setToggle(id: string, value: boolean) {
+  element(id).classList.toggle("active", value);
+  element(id).setAttribute("aria-pressed", String(value));
 }
