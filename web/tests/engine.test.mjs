@@ -6,8 +6,8 @@ import {
   LSYSTEM_LIMITS,
   parseRules,
   validateLSystemString,
-} from "../src/l-system.ts";
-import { random, setSeed } from "../src/rng.ts";
+} from "./reference/l-system.ts";
+import { random, setSeed } from "./reference/rng.ts";
 
 const params = {
   initLen: 1,
@@ -224,3 +224,4 @@ test("same seed exactly reproduces geometry; a different seed changes it", () =>
   setSeed(43);
   assert.notDeepEqual(createLSystemData(program, varied), first);
 });
+

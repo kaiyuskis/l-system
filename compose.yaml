@@ -1,0 +1,15 @@
+# Reuse host Ollama without downloading a second model into Docker.
+name: komorebi
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:latest}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-180000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    init: true

@@ -1,3 +1,4 @@
+import presetData from "../../shared/presets.json" with { type: "json" };
 /** Portable plant settings. Camera position and generated geometry stay out of presets. */
 export interface PlantParams {
   growthMode: boolean;
@@ -39,145 +40,10 @@ export interface SavedPreset {
   data: PlantParams;
 }
 
-const baseParams: PlantParams = {
-  growthMode: false,
-  maxLength: 0.9,
-  maxThickness: 0.15,
-  initLength: 0.9,
-  initThickness: 0.15,
-  generations: 5,
-  angle: 31,
-  angleVariance: 7,
-  seed: 42,
-  gravity: 0.15,
-  branchColor: "#766451",
-  scale: 0.76,
-  widthDecay: 0.87,
-  flowerColor: "#f5bfd1",
-  flowerSize: 0.35,
-  leafColor: "#779747",
-  leafTextureKey: "leaf_default",
-  leafSize: 0.62,
-  budColor: "#adc76d",
-  budSize: 0.12,
-  premise: "FFA",
-  rules: [
-    {
-      expression:
-        'A=F[&(55)L][/(120)&(55)L]F[!"+A]/(120)[!"&A]/(120)[!"-A]/(120)[!"^A]',
-    },
-  ],
-};
-
 export function cloneParams(params: PlantParams): PlantParams {
   return { ...params, rules: params.rules.map((rule) => ({ ...rule })) };
 }
-
-/** These are botanical studies, not exact biological growth simulations. */
-export const builtinPresets: BuiltinPreset[] = [
-  {
-    id: "birch",
-    name: "シラカバ",
-    latinName: "Betula platyphylla",
-    description: "光を受けて広がる、軽やかな緑の樹冠。はじめての植物づくりに。",
-    tag: "広葉樹",
-    params: cloneParams(baseParams),
-  },
-  {
-    id: "maple",
-    name: "イロハモミジ",
-    latinName: "Acer palmatum",
-    description:
-      "横へ伸びる枝と深い紅葉。角度を変えると、樹形の表情も変わります。",
-    tag: "紅葉",
-    params: {
-      ...cloneParams(baseParams),
-      angle: 39,
-      angleVariance: 9,
-      seed: 1729,
-      maxLength: 0.82,
-      initLength: 0.82,
-      maxThickness: 0.17,
-      initThickness: 0.17,
-      scale: 0.79,
-      gravity: 0.25,
-      branchColor: "#685248",
-      leafColor: "#bc4c3e",
-      leafTextureKey: "leaf_maple",
-      leafSize: 0.69,
-      premise: "FFA",
-      rules: [
-        {
-          expression:
-            'A=F[+(65)L][-(65)L]F[!"+A]/(110)[!"&A]/(125)[!"-A]/(125)[!"^A]',
-        },
-      ],
-    },
-  },
-  {
-    id: "sakura",
-    name: "サクラ",
-    latinName: "Prunus serrulata",
-    description:
-      "淡い桜色の花が枝先を包む春の木。花の大きさで咲き方を調整できます。",
-    tag: "花木",
-    params: {
-      ...cloneParams(baseParams),
-      angle: 34,
-      angleVariance: 8,
-      seed: 31415,
-      scale: 0.78,
-      maxThickness: 0.17,
-      initThickness: 0.17,
-      branchColor: "#71574e",
-      leafColor: "#a1ad63",
-      leafSize: 0.19,
-      flowerColor: "#f7c2d2",
-      flowerSize: 0.65,
-      budColor: "#de8eae",
-      budSize: 0.16,
-      premise: "FFA",
-      rules: [
-        {
-          expression:
-            'A=F[&(65)K][^(50)K][/(90)+(50)K]F[!"+A]/(120)[!"&A]/(120)[!"-A]/(120)[!"^A]M',
-        },
-      ],
-    },
-  },
-  {
-    id: "fern",
-    name: "シダ",
-    latinName: "Dryopteris erythrosora",
-    description:
-      "繰り返す枝分かれが描く繊細な葉。規則から生まれる自然の形を観察します。",
-    tag: "草本",
-    params: {
-      ...cloneParams(baseParams),
-      generations: 6,
-      maxLength: 0.5,
-      initLength: 0.5,
-      maxThickness: 0.045,
-      initThickness: 0.045,
-      angle: 54,
-      angleVariance: 3,
-      seed: 2718,
-      scale: 0.73,
-      widthDecay: 0.9,
-      gravity: 0.1,
-      branchColor: "#678343",
-      leafColor: "#507b43",
-      leafSize: 0.32,
-      budSize: 0.06,
-      premise: "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
-      rules: [
-        { expression: 'A=F[!"+B][!"-B]"^(4)A' },
-        { expression: 'B=F[+(35)L][-(35)L]"B' },
-      ],
-    },
-  },
-];
-
+export const builtinPresets: BuiltinPreset[] = presetData as BuiltinPreset[];
 export const defaultParams = cloneParams(builtinPresets[0].params);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

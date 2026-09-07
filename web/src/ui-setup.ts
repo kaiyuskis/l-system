@@ -260,15 +260,16 @@ export function setupUI(actions: UIActions) {
       height: number,
       ms: number,
       str: string,
+      symbolCount: number,
     ) {
       element("metric-branches").textContent = branches.toLocaleString("ja-JP");
       element("metric-organs").textContent = organs.toLocaleString("ja-JP");
       element("metric-height").textContent = height.toFixed(2);
       element("metric-time").textContent = `${Math.round(ms)} ms`;
       element("symbol-count").textContent =
-        `${str.length.toLocaleString("ja-JP")} 文字`;
+        `${symbolCount.toLocaleString("ja-JP")} 文字`;
       element("result-string").textContent =
-        str.slice(0, 1000) + (str.length > 1000 ? "\n…" : "");
+        str.slice(0, 1000) + (symbolCount > 1000 ? "\n…" : "");
       element("model-empty").hidden = branches + organs > 0;
     },
     history(undo: boolean, redo: boolean) {

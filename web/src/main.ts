@@ -1,4 +1,5 @@
 import "./style.css";
+import { setupAI } from "./ai-panel.ts";
 import * as THREE from "three";
 import {
   scene,
@@ -10,14 +11,9 @@ import {
   setWindPaused,
   renderFrame,
 } from "./three-setup.ts";
-import {
-  generateLSystemString,
-  createLSystemData,
-  parseRules,
-  LSYSTEM_LIMITS,
-} from "./l-system.ts";
+import { requestGeometry } from "./geometry-client.ts";
 import { buildTree, disposeTree, waitForTextures } from "./tree-renderer.ts";
-import { setSeed } from "./rng.ts";
+
 import {
   builtinPresets,
   defaultParams,
@@ -69,6 +65,7 @@ let generationTimer = 0;
 let playbackTimer = 0;
 let playing = false;
 let busy = false;
+let activeRun = 0;
 let revision = 0;
 let needsFit = true;
 let view: "perspective" | "front" | "top" = "perspective";
@@ -76,7 +73,7 @@ let grid = true;
 let rotating = false;
 let wind = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let generationLimit = 10;
-let limitKey = "";
+let geometryController: AbortController | null = null;
 let exportBusy = false;
 let lastSuccessful: PlantParams | null = null;
 
@@ -137,30 +134,12 @@ function change(key: keyof PlantParams, value: PlantParams[keyof PlantParams]) {
 function schedule(delay = 180) {
   clearTimeout(generationTimer);
   revision++;
+  geometryController?.abort();
   generationTimer = window.setTimeout(() => {
     void regenerate();
   }, delay);
 }
 function updateGenerationLimit() {
-  const key = JSON.stringify([params.premise, params.rules]);
-  if (key !== limitKey) {
-    const rules = parseRules(params.rules);
-    generationLimit = 0;
-    for (let generation = 0; generation <= 10; generation++) {
-      try {
-        const str = generateLSystemString(params.premise, rules, generation);
-        if (
-          (str.match(/F/g)?.length ?? 0) > LSYSTEM_LIMITS.maxBranches ||
-          (str.match(/[LKM]/g)?.length ?? 0) > LSYSTEM_LIMITS.maxOrgans
-        )
-          break;
-        generationLimit = generation;
-      } catch {
-        break;
-      }
-    }
-    limitKey = key;
-  }
   const timeline = element<HTMLInputElement>("timeline-generation");
   timeline.max = String(Math.max(generationLimit, params.generations, 1));
   timeline.value = String(params.generations);
@@ -179,6 +158,7 @@ function updateGenerationLimit() {
     ).join("");
 }
 async function regenerate(): Promise<boolean> {
+  const run = ++activeRun;
   const thisRevision = revision;
   busy = true;
   ui.busy(true);
@@ -187,36 +167,23 @@ async function regenerate(): Promise<boolean> {
   await new Promise<void>((resolve) =>
     requestAnimationFrame(() => window.setTimeout(resolve, 0)),
   );
-  if (thisRevision !== revision) {
-    busy = false;
+  if (thisRevision !== revision || run !== activeRun) {
+    if (run === activeRun) {
+      busy = false;
+      ui.busy(false);
+    }
     return false;
   }
   let nextTree: THREE.Group | null = null;
   try {
     const start = performance.now();
     const validated = validateParams(params);
-    const rules = parseRules(validated.rules);
-    const str = generateLSystemString(
-      validated.premise,
-      rules,
-      validated.generations,
-    );
-    setSeed(validated.seed);
-    const ratio = validated.growthMode
-      ? Math.min(validated.generations / 10, 1)
-      : 1;
-    const data = createLSystemData(str, {
-      initLen: validated.maxLength * ratio,
-      initWid: validated.maxThickness * ratio * ratio,
-      scale: validated.scale,
-      widthDecay: validated.widthDecay,
-      angle: validated.angle,
-      angleVariance: validated.angleVariance,
-      gravity: validated.gravity,
-      leafSize: validated.leafSize,
-      flowerSize: validated.flowerSize,
-      budSize: validated.budSize,
-    });
+    geometryController?.abort();
+    const controller = new AbortController();
+    geometryController = controller;
+    const data = await requestGeometry(validated, controller.signal);
+    if (thisRevision !== revision || run !== activeRun) return false;
+    generationLimit = data.meta.generationLimit;
     nextTree = buildTree(data, validated);
     const height = new THREE.Box3()
       .setFromObject(nextTree)
@@ -231,11 +198,12 @@ async function regenerate(): Promise<boolean> {
       needsFit = false;
     }
     ui.metrics(
-      data.branches.length,
-      data.leaves.length + data.flowers.length + data.buds.length,
+      data.meta.branches,
+      data.leaves.count + data.flowers.count + data.buds.count,
       height,
       performance.now() - start,
-      str,
+      data.meta.preview,
+      data.meta.symbolCount,
     );
     updateGenerationLimit();
     try {
@@ -265,12 +233,16 @@ async function regenerate(): Promise<boolean> {
     return true;
   } catch (error) {
     if (nextTree) disposeTree(nextTree);
-    busy = false;
-    ui.busy(false);
+    if (run !== activeRun || thisRevision !== revision) return false;
     ui.error(message(error));
     editBatch = false;
     stopPlayback();
     return false;
+  } finally {
+    if (run === activeRun) {
+      busy = false;
+      ui.busy(false);
+    }
   }
 }
 function stopPlayback() {
@@ -332,7 +304,6 @@ function showSave() {
     const name = element<HTMLInputElement>("save-name").value.trim();
     try {
       validateParams(params);
-      parseRules(params.rules);
       stopPlayback();
       if (!(await ensureCurrentTree()))
         throw new Error("生成ルールのエラーを修正してから保存してください。");
@@ -434,7 +405,6 @@ async function exportFile(format: string, button: HTMLButtonElement) {
   stopPlayback();
   exportBusy = true;
   button.disabled = true;
-  const cloneGeometries: THREE.BufferGeometry[] = [];
   try {
     if (!(await ensureCurrentTree()))
       throw new Error("生成ルールのエラーを修正してから書き出してください。");
@@ -472,17 +442,25 @@ async function exportFile(format: string, button: HTMLButtonElement) {
       } else {
         const { GLTFExporter } =
           await import("three/examples/jsm/exporters/GLTFExporter.js");
-        const exported = tree.clone(true);
-        exported.traverse((object) => {
-          if (!(object instanceof THREE.Mesh)) return;
-          object.geometry = object.geometry.clone();
-          object.geometry.deleteAttribute("aThickness");
-          cloneGeometries.push(object.geometry);
-        });
-        const result = await new GLTFExporter().parseAsync(exported, {
-          binary: true,
-          maxTextureSize: 1024,
-        });
+        // Bake taper into ordinary geometry only for export. The display stays instanced.
+        const exportParams = cloneParams(lastSuccessful!);
+        const exported = buildTree(
+          await requestGeometry(exportParams, undefined, true),
+          exportParams,
+        );
+        let result: ArrayBuffer | { [key: string]: unknown };
+        try {
+          exported.traverse((object) => {
+            if (object instanceof THREE.Mesh)
+              object.geometry.deleteAttribute("aThickness");
+          });
+          result = await new GLTFExporter().parseAsync(exported, {
+            binary: true,
+            maxTextureSize: 1024,
+          });
+        } finally {
+          disposeTree(exported);
+        }
         if (!(result instanceof ArrayBuffer))
           throw new Error("3Dモデルの書き出しに失敗しました。");
         saveBlob(
@@ -496,7 +474,6 @@ async function exportFile(format: string, button: HTMLButtonElement) {
   } catch (error) {
     toast(message(error), "error", 5500);
   } finally {
-    cloneGeometries.forEach((geometry) => geometry.dispose());
     exportBusy = false;
     button.disabled = false;
   }
@@ -584,6 +561,14 @@ function action(name: string) {
   }
 }
 const ui = setupUI({ change, preset: selectPreset, action });
+const disposeAI = setupAI({
+  getCurrent: () => cloneParams(params),
+  apply: (proposal) => {
+    remember();
+    restore({ params: proposal.params, preset: null, name: proposal.name });
+    toast("AIが考えた樹木を反映しました。", "success");
+  },
+});
 sync();
 setToggle("toggle-wind", wind);
 setWindPaused(!wind);
@@ -622,26 +607,7 @@ element<HTMLInputElement>("import-file").addEventListener(
         if (typeof record.name === "string") name = record.name.slice(0, 80);
       }
       const imported = validateParams(data);
-      parseRules(imported.rules);
-      // Validate expansion and geometry before replacing any user settings.
-      const str = generateLSystemString(
-        imported.premise,
-        parseRules(imported.rules),
-        imported.generations,
-      );
-      setSeed(imported.seed);
-      createLSystemData(str, {
-        initLen: imported.maxLength,
-        initWid: imported.maxThickness,
-        scale: imported.scale,
-        widthDecay: imported.widthDecay,
-        angle: imported.angle,
-        angleVariance: imported.angleVariance,
-        gravity: imported.gravity,
-        flowerSize: imported.flowerSize,
-        leafSize: imported.leafSize,
-        budSize: imported.budSize,
-      });
+      await requestGeometry(imported);
       remember();
       restore({ params: imported, preset: null, name });
       closeDialog();
@@ -690,6 +656,8 @@ if (draftWarning) toast(draftWarning, "error", 6500);
 schedule(0);
 if (import.meta.hot)
   import.meta.hot.dispose(() => {
+    disposeAI();
+    geometryController?.abort();
     clearTimeout(generationTimer);
     clearTimeout(playbackTimer);
     if (tree) disposeTree(tree);

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { BranchSegment, OrganPoint, createLSystemData } from "./l-system";
+import type { NativeGeometry, Population } from "./geometry-client.ts";
 import { windUniforms } from "./three-setup";
 
 export interface TreeAppearance {
@@ -94,7 +94,11 @@ const windWorldPosition = `
 #endif
 `;
 
-function addWind(material: THREE.Material, flutter: boolean): void {
+function addWind(
+  material: THREE.Material,
+  flutter: boolean,
+  tapered = false,
+): void {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.studioTime = windUniforms.time;
     shader.uniforms.studioWindStrength = windUniforms.strength;
@@ -104,6 +108,40 @@ function addWind(material: THREE.Material, flutter: boolean): void {
       .replace("#include <common>", `#include <common>\n${windHeader}`)
       .replace("#include <project_vertex>", windProject)
       .replace("#include <worldpos_vertex>", windWorldPosition);
+    if (tapered) {
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          "#include <common>",
+          "#include <common>\nattribute vec2 aBranchShape;",
+        )
+        .replace(
+          "#include <begin_vertex>",
+          `#include <begin_vertex>
+          transformed.xz *= mix(1.0, aBranchShape.x, position.y + 0.5);`,
+        )
+        .replace(
+          "#include <beginnormal_vertex>",
+          `#include <beginnormal_vertex>
+          if (abs(objectNormal.y) < 0.5) objectNormal.y = 1.0 - aBranchShape.x;`,
+        )
+        .replace(
+          "#include <uv_vertex>",
+          `#include <uv_vertex>
+          #ifdef USE_MAP
+            vMapUv.y *= max(aBranchShape.y, 0.2);
+          #endif
+          #ifdef USE_NORMALMAP
+            vNormalMapUv.y *= max(aBranchShape.y, 0.2);
+          #endif
+          #ifdef USE_ROUGHNESSMAP
+            vRoughnessMapUv.y *= max(aBranchShape.y, 0.2);
+          #endif`,
+        )
+        .replace(
+          "max(aThickness, 0.0)",
+          "max(aThickness * mix(1.0, aBranchShape.x, position.y + 0.5), 0.0)",
+        );
+    }
     if (flutter) {
       shader.vertexShader = shader.vertexShader.replace(
         "#include <begin_vertex>",
@@ -120,13 +158,14 @@ function addWind(material: THREE.Material, flutter: boolean): void {
     }
   };
   material.customProgramCacheKey = () =>
-    `lsystem-studio-wind-v1-${flutter ? "leaf" : "branch"}`;
+    `lsystem-studio-wind-v2-${flutter ? "leaf" : "branch"}-${tapered}`;
 }
 
 function addShadows(
   mesh: THREE.Mesh,
   material: THREE.MeshStandardMaterial,
   flutter: boolean,
+  tapered = false,
 ): void {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -141,114 +180,48 @@ function addShadows(
     alphaTest: material.alphaTest,
     side: material.side,
   });
-  addWind(material, flutter);
-  addWind(depth, flutter);
-  addWind(distance, flutter);
+  addWind(material, flutter, tapered);
+  addWind(depth, flutter, tapered);
+  addWind(distance, flutter, tapered);
   mesh.customDepthMaterial = depth;
   mesh.customDistanceMaterial = distance;
   mesh.frustumCulled = false;
 }
 
-/** Eight-sided tapered cylinders in one draw call, without a sphere per joint. */
-function branchGeometry(segments: BranchSegment[]): THREE.BufferGeometry {
-  const valid = segments.filter(
-    (segment) => segment.start.distanceToSquared(segment.end) > 1e-12,
-  );
-  const template = new THREE.CylinderGeometry(1, 1, 1, 8, 1, false);
-  const sourcePosition = template.getAttribute("position");
-  const sourceNormal = template.getAttribute("normal");
-  const sourceUv = template.getAttribute("uv");
-  const sourceIndex = template.getIndex()!;
-  const verticesPerBranch = sourcePosition.count;
-  const count = valid.length * verticesPerBranch;
-  const positions = new Float32Array(count * 3);
-  const normals = new Float32Array(count * 3);
-  const uvs = new Float32Array(count * 2);
-  const thicknesses = new Float32Array(count);
-  const indices =
-    count > 65535
-      ? new Uint32Array(valid.length * sourceIndex.count)
-      : new Uint16Array(valid.length * sourceIndex.count);
-  const up = new THREE.Vector3(0, 1, 0);
-  const direction = new THREE.Vector3();
-  const position = new THREE.Vector3();
-  const normal = new THREE.Vector3();
-  const rotation = new THREE.Quaternion();
-  for (let branch = 0; branch < valid.length; branch++) {
-    const segment = valid[branch];
-    direction.subVectors(segment.end, segment.start);
-    const length = direction.length();
-    rotation.setFromUnitVectors(up, direction.divideScalar(length));
-    const bottomRadius = Math.max(segment.radiusBottom, 0.00001);
-    const topRadius = Math.max(segment.radiusTop, 0.00001);
-    const slope = (bottomRadius - topRadius) / length;
-    for (let vertex = 0; vertex < verticesPerBranch; vertex++) {
-      const offset = branch * verticesPerBranch + vertex;
-      const progress = sourcePosition.getY(vertex) + 0.5;
-      const radius = THREE.MathUtils.lerp(bottomRadius, topRadius, progress);
-      position
-        .set(
-          sourcePosition.getX(vertex) * radius,
-          progress * length,
-          sourcePosition.getZ(vertex) * radius,
-        )
-        .applyQuaternion(rotation)
-        .add(segment.start);
-      positions.set([position.x, position.y, position.z], offset * 3);
-      normal.fromBufferAttribute(sourceNormal, vertex);
-      if (Math.abs(normal.y) < 0.5) normal.y = slope;
-      normal.normalize().applyQuaternion(rotation);
-      normals.set([normal.x, normal.y, normal.z], offset * 3);
-      uvs.set(
-        [sourceUv.getX(vertex), sourceUv.getY(vertex) * Math.max(length, 0.2)],
-        offset * 2,
-      );
-      thicknesses[offset] = radius;
-    }
-    for (let index = 0; index < sourceIndex.count; index++) {
-      indices[branch * sourceIndex.count + index] =
-        sourceIndex.getX(index) + branch * verticesPerBranch;
-    }
-  }
-  template.dispose();
+/** Native buffers are uploaded directly: no per-vertex work on the UI thread. */
+function branchGeometry(
+  data: NativeGeometry["branchMesh"],
+): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
-  geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(data.position, 3),
+  );
+  geometry.setAttribute("normal", new THREE.BufferAttribute(data.normal, 3));
+  geometry.setAttribute("uv", new THREE.BufferAttribute(data.uv, 2));
   geometry.setAttribute(
     "aThickness",
-    new THREE.BufferAttribute(thicknesses, 1),
+    new THREE.BufferAttribute(data.thickness, 1),
   );
-  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+  geometry.setIndex(new THREE.BufferAttribute(data.index, 1));
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
 }
-
 function organs(
-  points: OrganPoint[],
+  points: Population,
   name: string,
   geometry: THREE.BufferGeometry,
   material: THREE.MeshStandardMaterial,
   flutter: boolean,
 ): THREE.InstancedMesh {
-  const mesh = new THREE.InstancedMesh(geometry, material, points.length);
+  const mesh = new THREE.InstancedMesh(geometry, material, points.count);
   mesh.name = name;
-  const thicknesses = new Float32Array(points.length);
-  const transform = new THREE.Object3D();
-  for (let index = 0; index < points.length; index++) {
-    const point = points[index];
-    transform.position.copy(point.position);
-    transform.quaternion.copy(point.rotation);
-    transform.scale.setScalar(point.scale);
-    transform.updateMatrix();
-    mesh.setMatrixAt(index, transform.matrix);
-    thicknesses[index] = point.thickness;
-  }
+  mesh.instanceMatrix = new THREE.InstancedBufferAttribute(points.matrices, 16);
   // Each population owns its geometry so its instance attributes cannot collide.
   geometry.setAttribute(
     "aThickness",
-    new THREE.InstancedBufferAttribute(thicknesses, 1),
+    new THREE.InstancedBufferAttribute(points.thickness, 1),
   );
   mesh.instanceMatrix.needsUpdate = true;
   mesh.computeBoundingBox();
@@ -258,13 +231,13 @@ function organs(
 }
 
 export function buildTree(
-  data: ReturnType<typeof createLSystemData>,
+  data: NativeGeometry,
   appearance: TreeAppearance,
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = "L-System Plant";
   try {
-    if (data.branches.length) {
+    if (data.meta.branches) {
       const material = new THREE.MeshStandardMaterial({
         color: appearance.branchColor,
         map: texture("bark-color.jpg", true, true),
@@ -273,12 +246,39 @@ export function buildTree(
         roughnessMap: texture("bark-roughness.jpg", false, true),
         roughness: 1,
       });
-      const mesh = new THREE.Mesh(branchGeometry(data.branches), material);
+      let mesh: THREE.Mesh;
+      if (data.branchInstances.count) {
+        const points = data.branchInstances;
+        const geometry = new THREE.CylinderGeometry(1, 1, 1, 8, 1, false);
+        geometry.setAttribute(
+          "aThickness",
+          new THREE.InstancedBufferAttribute(points.thickness, 1),
+        );
+        geometry.setAttribute(
+          "aBranchShape",
+          new THREE.InstancedBufferAttribute(points.shape, 2),
+        );
+        const instances = new THREE.InstancedMesh(
+          geometry,
+          material,
+          points.count,
+        );
+        instances.instanceMatrix = new THREE.InstancedBufferAttribute(
+          points.matrices,
+          16,
+        );
+        instances.instanceMatrix.needsUpdate = true;
+        instances.computeBoundingBox();
+        instances.computeBoundingSphere();
+        mesh = instances;
+      } else {
+        mesh = new THREE.Mesh(branchGeometry(data.branchMesh), material);
+      }
       mesh.name = "Branches";
-      addShadows(mesh, material, false);
+      addShadows(mesh, material, false, data.branchInstances.count > 0);
       group.add(mesh);
     }
-    if (data.leaves.length) {
+    if (data.leaves.count) {
       const maple = appearance.leafTextureKey === "leaf_maple";
       const geometry = new THREE.PlaneGeometry(1, 1);
       if (!maple) geometry.rotateZ(Math.PI / 4).translate(0, 0.66, 0);
@@ -296,7 +296,7 @@ export function buildTree(
       });
       group.add(organs(data.leaves, "Leaves", geometry, material, true));
     }
-    if (data.flowers.length) {
+    if (data.flowers.count) {
       const geometry = new THREE.PlaneGeometry(1, 1).translate(0, 0.42, 0);
       const material = new THREE.MeshStandardMaterial({
         color: appearance.flowerColor,
@@ -308,7 +308,7 @@ export function buildTree(
       });
       group.add(organs(data.flowers, "Flowers", geometry, material, true));
     }
-    if (data.buds.length) {
+    if (data.buds.count) {
       const geometry = new THREE.IcosahedronGeometry(0.5, 1)
         .scale(0.55, 1, 0.55)
         .translate(0, 0.42, 0);

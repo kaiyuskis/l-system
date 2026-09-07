@@ -15,8 +15,8 @@ import {
   createLSystemData,
   generateLSystemString,
   parseRules,
-} from "../src/l-system.ts";
-import { setSeed } from "../src/rng.ts";
+} from "./reference/l-system.ts";
+import { setSeed } from "./reference/rng.ts";
 
 const PRESETS_KEY = "lsystem_presets_v1";
 const DRAFT_KEY = "lsystem_studio_draft_v1";
@@ -282,3 +282,4 @@ test("storage permission and quota failures produce actionable errors without de
   assert.throws(readSavedPresets, /保存領域/);
   assert.throws(loadDraft, /保存領域/);
 });
+

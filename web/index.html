@@ -77,6 +77,71 @@
             </div>
             <span class="heading-icon" data-icon="sliders"></span>
           </div>
+          <details id="ai-panel" class="ai-panel">
+            <summary>
+              <span data-icon="sprout"></span><strong>AIと言葉からつくる</strong
+              ><span>＋</span>
+            </summary>
+            <form id="ai-form">
+              <label for="ai-prompt">どんな樹木を育てましょう？</label>
+              <textarea
+                id="ai-prompt"
+                rows="3"
+                maxlength="1500"
+                required
+                placeholder="例：枝が大きく広がる、淡いピンクの桜"
+              ></textarea>
+              <div class="ai-examples">
+                <button
+                  type="button"
+                  data-ai-example="枝が横に広がる、淡いピンクの花が満開の桜"
+                >
+                  満開の桜</button
+                ><button
+                  type="button"
+                  data-ai-example="風に傾いた、細い幹と小さな緑の葉を持つ木"
+                >
+                  風に傾く木
+                </button>
+              </div>
+              <label class="toggle-row" for="ai-use-current"
+                >いまの樹木をもとにする<input
+                  id="ai-use-current"
+                  type="checkbox"
+              /></label>
+              <div class="ai-actions">
+                <button id="ai-submit" class="button button-dark" type="submit">
+                  AIで樹木を考える</button
+                ><button
+                  id="ai-cancel"
+                  class="button button-quiet"
+                  type="button"
+                  hidden
+                >
+                  キャンセル
+                </button>
+              </div>
+            </form>
+            <p
+              id="ai-feedback"
+              class="control-help"
+              role="status"
+              aria-live="polite"
+            ></p>
+            <div id="ai-result" class="ai-result" hidden>
+              <strong id="ai-result-name"></strong>
+              <p id="ai-result-description"></p>
+              <button id="ai-apply" class="button button-dark" type="button">
+                この樹木を表示する
+              </button>
+            </div>
+            <div class="ai-connection">
+              <small id="ai-status">接続を確認しています…</small
+              ><button id="ai-check" type="button" class="text-link">
+                再確認
+              </button>
+            </div>
+          </details>
           <section class="preset-section" aria-label="樹木のプリセット">
             <div class="section-label">
               <h2>はじめの一粒</h2>
