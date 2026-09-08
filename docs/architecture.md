@@ -35,13 +35,15 @@ C++とPythonの実装は測定していません。以下は、このリポジ�
 再測定：
 
 ```sh
-docker compose up -d --build
 npm install
+npm run build
+npm start
+# 別のターミナルで実行
 node scripts/benchmark.mjs
-docker build --target benchmark --progress plain -t komorebi-benchmark .
+cargo run --manifest-path backend/Cargo.toml --locked --release --example benchmark
 ```
 
-Dockerのベンチマーク層がキャッシュ済みの場合は `--no-cache-filter benchmark` を付けて再実行します。
+上記の表は旧環境での記録です。現在はネイティブ実行のみを使用します。
 
 ## 処理の流れ
 
@@ -77,4 +79,4 @@ Rustのf64計算は旧TSの座標・回転と誤差1e-9以内で比較済み。�
 
 AI生成は先行する空白を含むJSONストリームとして返します。接続切断時にOllamaへのリクエストを破棄するためです。開始前の入力エラー・競合はHTTP 4xx、開始後の推論エラーはHTTP 200のJSON内に `{error, code}` を返します。API利用者はHTTPステータスとJSONのerrorの両方を確認してください。
 
-接続先・モデル名はサーバーの環境変数で設定し、ブラウザーから変更できません。既存Ollamaを標準として使い、Docker同梱GPU構成は明示的な選択肢です。公開サービス用の認証は実装していません。
+接続先・モデル名はサーバーの環境変数で設定し、ブラウザーから変更できません。既存Ollamaに接続し、アプリ・計算・AIの起動にDockerは使用しません。公開サービス用の認証は実装していません。

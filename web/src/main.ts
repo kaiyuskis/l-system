@@ -1,4 +1,5 @@
 import "./style.css";
+import { generationEstimate } from "./generation-estimate.ts";
 import { setupAI } from "./ai-panel.ts";
 import * as THREE from "three";
 import {
@@ -6,11 +7,13 @@ import {
   renderer,
   windUniforms,
   fitCamera,
+  zoomCamera,
   setGridVisible,
   setAutoRotate,
   setWindPaused,
   renderFrame,
 } from "./three-setup.ts";
+import { NEEDLES_PER_SHOOT } from "./pine-needles.ts";
 import { requestGeometry } from "./geometry-client.ts";
 import { buildTree, disposeTree, waitForTextures } from "./tree-renderer.ts";
 
@@ -94,7 +97,9 @@ function remember() {
   ui.history(past.length > 0, false);
 }
 function sync() {
+  generationLimit = params.growthModel !== "lsystem" ? 16 : Math.min(generationLimit, 10);
   ui.sync(params);
+  updateGenerationLimit();
   ui.selection(selectedPreset, projectName || undefined);
   ui.history(past.length > 0, future.length > 0);
 }
@@ -128,6 +133,21 @@ function change(key: keyof PlantParams, value: PlantParams[keyof PlantParams]) {
     editBatch = true;
   }
   params = { ...params, [key]: value };
+  if (key === "growthModel") {
+    const species = builtinPresets.find(item => item.id === value);
+    params.generations = Math.min(params.generations, value === "lsystem" ? 10 : 16);
+    if (species) {
+      params.leafTextureKey = species.params.leafTextureKey;
+      selectedPreset = species.id;
+    } else {
+      selectedPreset = null;
+      if (params.rules.every(rule => !rule.expression.trim() || rule.expression.trim().startsWith("#"))) {
+        params.premise = "FFA";
+        params.rules = [{expression:'A=F[+(50)L][-(50)L][!"+A][!"-A]'}];
+      }
+    }
+    needsFit = true;
+  }
   sync();
   schedule(key === "rules" || key === "premise" ? 550 : 180);
 }
@@ -141,6 +161,14 @@ function schedule(delay = 180) {
 }
 function updateGenerationLimit() {
   const timeline = element<HTMLInputElement>("timeline-generation");
+  let estimate = document.getElementById("generation-estimate");
+  if (!estimate) {
+    estimate = document.createElement("small");
+    estimate.id = "generation-estimate";
+    estimate.className = "generation-estimate";
+    timeline.parentElement!.append(estimate);
+  }
+  estimate.textContent = generationEstimate(params);
   timeline.max = String(Math.max(generationLimit, params.generations, 1));
   timeline.value = String(params.generations);
   refreshRange(timeline);
@@ -199,12 +227,13 @@ async function regenerate(): Promise<boolean> {
     }
     ui.metrics(
       data.meta.branches,
-      data.leaves.count + data.flowers.count + data.buds.count,
+      validated.leafTextureKey === "pine_needles" ? data.leaves.count * NEEDLES_PER_SHOOT : data.leaves.count + data.flowers.count + data.buds.count,
       height,
       performance.now() - start,
       data.meta.preview,
       data.meta.symbolCount,
     );
+    element("metric-organ-label").textContent = validated.leafTextureKey === "pine_needles" ? "針葉" : "葉・花";
     updateGenerationLimit();
     try {
       saveDraft(validated);
@@ -331,7 +360,7 @@ function showLibrary() {
     const saved = readSavedPresets();
     openDialog(
       "マイライブラリ",
-      `<p class="dialog-description">また育てたくなる、あなたの樹木たち。ルールと設定から同じかたちを再現できます。</p><div class="library-list">${saved.length ? saved.map((item, index) => `<div class="library-item"><div><strong>${escapeHTML(item.name)}</strong><small>${new Date(item.savedAt).toLocaleDateString("ja-JP")} · ${item.data.generations} 世代 · seed ${item.data.seed}</small></div><button class="button" data-load="${index}">ひらく</button><button class="icon-button" data-delete="${index}" aria-label="${escapeHTML(item.name)}を削除">${icon("trash")}</button></div>`).join("") : `<div class="library-empty">${icon("sprout")}まだ、小さな空の庭です。<br>お気に入りのかたちができたら、保存してみましょう。</div>`}</div><div class="dialog-actions"><button class="button button-quiet" id="library-import">${icon("upload")}JSONを読み込む</button><button class="button button-dark" id="library-save">${icon("save")}いまの樹木を保存</button></div>`,
+      `<p class="dialog-description">保存したモデルを開いて編集できます。ルールと設定から形状を再現します。</p><div class="library-list">${saved.length ? saved.map((item, index) => `<div class="library-item"><div><strong>${escapeHTML(item.name)}</strong><small>${new Date(item.savedAt).toLocaleDateString("ja-JP")} · ${item.data.generations} 世代 · seed ${item.data.seed}</small></div><button class="button" data-load="${index}">ひらく</button><button class="icon-button" data-delete="${index}" aria-label="${escapeHTML(item.name)}を削除">${icon("trash")}</button></div>`).join("") : `<div class="library-empty">${icon("sprout")}保存したモデルはありません。<br>モデルを保存すると、ここに表示されます。</div>`}</div><div class="dialog-actions"><button class="button button-quiet" id="library-import">${icon("upload")}JSONを読み込む</button><button class="button button-dark" id="library-save">${icon("save")}いまの樹木を保存</button></div>`,
       "YOUR COLLECTION",
     );
     element("library-import").addEventListener("click", () =>
@@ -385,9 +414,9 @@ function showLibrary() {
 }
 function showExport() {
   openDialog(
-    "あなたの樹木を、外へ。",
-    `<p class="dialog-description">作品を画像として残したり、3D制作に使ったり。用途に合わせて書き出せます。</p><button class="export-option" data-export="png">${icon("image")}<span><strong>プレビュー画像</strong><small>いまの視点と背景を、そのまま画像に。</small></span><b>PNG</b></button><button class="export-option" data-export="glb">${icon("cube")}<span><strong>3Dモデル</strong><small>樹木とテクスチャを、ひとつのファイルに。</small></span><b>GLB</b></button><button class="export-option" data-export="json">${icon("code")}<span><strong>ルールと設定</strong><small>バックアップや、別のブラウザーでの再編集に。</small></span><b>JSON</b></button><p class="control-help">3Dモデルには風のアニメーションを含みません。高さはモデル内の相対単位です。</p><div class="dialog-actions"><button class="button button-quiet" id="export-import">${icon("upload")}JSONを読み込む</button></div>`,
-    "TAKE IT WITH YOU",
+    "モデルを書き出す",
+    `<p class="dialog-description">用途に合わせてファイル形式を選択してください。</p><button class="export-option" data-export="png">${icon("image")}<span><strong>プレビュー画像</strong><small>いまの視点と背景を、そのまま画像に。</small></span><b>PNG</b></button><button class="export-option" data-export="glb">${icon("cube")}<span><strong>3Dモデル</strong><small>樹木とテクスチャを、ひとつのファイルに。</small></span><b>GLB</b></button><button class="export-option" data-export="json">${icon("code")}<span><strong>ルールと設定</strong><small>バックアップや、別のブラウザーでの再編集に。</small></span><b>JSON</b></button><p class="control-help">3Dモデルには風のアニメーションを含みません。高さはモデル内の相対単位です。</p><div class="dialog-actions"><button class="button button-quiet" id="export-import">${icon("upload")}JSONを読み込む</button></div>`,
+    "EXPORT",
   );
   element("export-import").addEventListener("click", () =>
     element<HTMLInputElement>("import-file").click(),
@@ -527,6 +556,12 @@ function action(name: string) {
       break;
     case "fit-camera":
       if (tree) fitCamera(tree, view);
+      break;
+    case "zoom-in":
+      zoomCamera(0.75);
+      break;
+    case "zoom-out":
+      zoomCamera(1 / 0.75);
       break;
     case "view-perspective":
     case "view-front":

@@ -38,6 +38,7 @@ fn floats(out: &mut Vec<u8>, values: impl IntoIterator<Item = f64>) {
     }
 }
 pub fn encode(s: &[u8], data: &Geometry, limit: u32, started: std::time::Instant) -> Vec<u8> {
+    if let Some(surface) = &data.surface { return encode_surface(s,data,surface,limit,started); }
     let t = template();
     let per = t.position.len() / 3;
     let valid: Vec<_> = data
@@ -134,6 +135,7 @@ pub fn encode_preview(
     limit: u32,
     started: std::time::Instant,
 ) -> Vec<u8> {
+    if data.surface.is_some() { return encode(s,data,limit,started); }
     let valid: Vec<_> = data
         .branches
         .iter()
@@ -203,5 +205,30 @@ pub fn encode_preview(
     out.extend_from_slice(&json);
     out.resize(out.len() + padding, b' ');
     out.extend_from_slice(&packed);
+    out
+}
+
+/// Detailed continuous surfaces use the same portable layout as baked exports.
+/// Preview and GLB consequently share the exact same woody vertices and normals.
+fn encode_surface(s: &[u8], data: &Geometry, surface: &crate::sweep::Surface, limit: u32, started: std::time::Instant) -> Vec<u8> {
+    let meta = Meta {version:2,instances:0,vertices:surface.position.len()/3,indices:surface.index.len(),
+        branches:data.branches.len(),leaves:data.leaves.len(),flowers:data.flowers.len(),buds:data.buds.len(),
+        symbol_count:s.len(),preview:String::from_utf8_lossy(&s[..s.len().min(1000)]).into_owned(),
+        generation_limit:limit,engine_ms:started.elapsed().as_secs_f64()*1000.};
+    let json=serde_json::to_vec(&meta).unwrap();
+    let padding=(4-json.len()%4)%4;
+    let mut out=Vec::with_capacity(8+json.len()+padding+(meta.vertices*9+meta.indices+(meta.leaves+meta.flowers+meta.buds)*17)*4);
+    out.extend_from_slice(b"KMR2");
+    out.extend_from_slice(&((json.len()+padding) as u32).to_le_bytes());
+    out.extend_from_slice(&json);out.resize(out.len()+padding,b' ');
+    floats(&mut out,surface.position.iter().copied());
+    floats(&mut out,surface.normal.iter().copied());
+    floats(&mut out,surface.uv.iter().copied());
+    floats(&mut out,surface.thickness.iter().copied());
+    for index in &surface.index {out.extend_from_slice(&index.to_le_bytes());}
+    for organs in [&data.leaves,&data.flowers,&data.buds] {
+        for p in organs {floats(&mut out,DMat4::from_scale_rotation_translation(DVec3::splat(p.scale),DQuat::from_array(p.rotation),DVec3::from_array(p.position)).to_cols_array());}
+        floats(&mut out,organs.iter().map(|p|p.thickness));
+    }
     out
 }

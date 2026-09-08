@@ -5,8 +5,8 @@ const viewport = document.querySelector<HTMLElement>("#viewport");
 if (!viewport) throw new Error("3D ビューポートが見つかりません。");
 
 export const scene = new THREE.Scene();
-scene.background = new THREE.Color("#eef1eb");
-scene.fog = new THREE.Fog("#eef1eb", 75, 240);
+scene.background = new THREE.Color("#e5eaee");
+scene.fog = new THREE.Fog("#e5eaee", 75, 240);
 
 export const camera = new THREE.PerspectiveCamera(38, 1, 0.02, 1000);
 camera.position.set(18, 13, 25);
@@ -41,7 +41,7 @@ const fillLight = new THREE.DirectionalLight(0xe2eee7, 0.8);
 fillLight.position.set(-15, 12, -10);
 scene.add(fillLight);
 
-const grid = new THREE.GridHelper(100, 50, 0x9aa997, 0xb9c4b3);
+const grid = new THREE.GridHelper(100, 50, 0x8c9eac, 0xaebdc8);
 grid.position.y = -0.008;
 const gridMaterial = grid.material as THREE.LineBasicMaterial;
 gridMaterial.transparent = true;
@@ -50,7 +50,7 @@ gridMaterial.depthWrite = false;
 scene.add(grid);
 
 const groundMaterial = new THREE.ShadowMaterial({
-  color: 0x516344,
+  color: 0x465c6c,
   opacity: 0.18,
 });
 const ground = new THREE.Mesh(
@@ -93,13 +93,20 @@ export function setWindPaused(paused: boolean): void {
   windPaused = paused;
 }
 
+export function zoomCamera(factor: number): void {
+  const offset = camera.position.clone().sub(controls.target);
+  const distance = THREE.MathUtils.clamp(offset.length() * factor, controls.minDistance, controls.maxDistance);
+  camera.position.copy(controls.target).add(offset.setLength(distance));
+  controls.update();
+}
+
 export function setSceneTheme(theme: "light" | "dark"): void {
   const dark = theme === "dark";
-  const background = dark ? "#1c2925" : "#eef1eb";
+  const background = dark ? "#202a34" : "#e5eaee";
   (scene.background as THREE.Color).set(background);
   (scene.fog as THREE.Fog).color.set(background);
   gridMaterial.opacity = dark ? 0.17 : 0.24;
-  groundMaterial.color.set(dark ? 0x040b07 : 0x516344);
+  groundMaterial.color.set(dark ? 0x040b07 : 0x465c6c);
   groundMaterial.opacity = dark ? 0.35 : 0.18;
 }
 

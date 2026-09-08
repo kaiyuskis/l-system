@@ -61,7 +61,7 @@ export function decodeGeometry(buffer: ArrayBuffer): NativeGeometry {
     meta.vertices > 2_000_000 ||
     meta.indices > 5_000_000 ||
     meta.symbolCount > 250000 ||
-    meta.generationLimit > 10 ||
+    meta.generationLimit > 16 ||
     typeof meta.preview !== "string" ||
     meta.preview.length > 1000 ||
     !Number.isFinite(meta.engineMs)
@@ -118,6 +118,7 @@ export function geometryKey(params: PlantParams): string {
     flowerColor,
     budColor,
     leafTextureKey,
+    needleLength,
     initLength,
     initThickness,
     ...geometry

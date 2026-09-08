@@ -1,6 +1,11 @@
 import presetData from "../../shared/presets.json" with { type: "json" };
 /** Portable plant settings. Camera position and generated geometry stay out of presets. */
 export interface PlantParams {
+  growthModel: "lsystem" | "pine" | "birch" | "maple" | "sakura" | "fern";
+  crownSpread: number;
+  branchTwist: number;
+  foliageDensity: number;
+  needleLength: number;
   growthMode: boolean;
   maxLength: number;
   maxThickness: number;
@@ -17,7 +22,7 @@ export interface PlantParams {
   flowerColor: string;
   flowerSize: number;
   leafColor: string;
-  leafTextureKey: "leaf_default" | "leaf_maple";
+  leafTextureKey: "leaf_default" | "leaf_maple" | "pine_needles" | "leaf_birch" | "leaf_cherry" | "fern_pinnule";
   leafSize: number;
   budColor: string;
   budSize: number;
@@ -90,12 +95,15 @@ export function validateParams(value: unknown): PlantParams {
     throw new Error("植物の設定が正しい JSON オブジェクトではありません。");
   if (typeof value.growthMode !== "boolean")
     throw new Error("成長連動の設定は true または false にしてください。");
+  if (value.growthModel !== undefined && !["lsystem", "pine", "birch", "maple", "sakura", "fern"].includes(value.growthModel as string))
+    throw new Error("生成方式が不正です。");
   if (
     value.leafTextureKey !== "leaf_default" &&
-    value.leafTextureKey !== "leaf_maple"
+    value.leafTextureKey !== "leaf_maple" &&
+    value.leafTextureKey !== "pine_needles" && value.leafTextureKey !== "leaf_birch" && value.leafTextureKey !== "leaf_cherry" && value.leafTextureKey !== "fern_pinnule"
   ) {
     throw new Error(
-      "葉の形は leaf_default または leaf_maple を指定してください。",
+      "葉の形は leaf_default、leaf_maple、pine_needles を指定してください。",
     );
   }
   if (
@@ -134,12 +142,17 @@ export function validateParams(value: unknown): PlantParams {
   });
 
   return {
+    growthModel: (value.growthModel ?? "lsystem") as PlantParams["growthModel"],
+    crownSpread: numberField(value.crownSpread ?? 1, "樹冠の広がり", 0.3, 2),
+    branchTwist: numberField(value.branchTwist ?? 1, "枝の曲がり", 0, 2),
+    foliageDensity: numberField(value.foliageDensity ?? 1, "針葉の密度", 0, 2),
+    needleLength: numberField(value.needleLength ?? 1, "針葉の長さ", 0.3, 2),
     growthMode: value.growthMode,
     maxLength: numberField(value.maxLength, "枝の長さ", 0.01, 5),
     initLength: numberField(value.initLength, "現在の枝の長さ", 0, 5),
     maxThickness: numberField(value.maxThickness, "幹の太さ", 0.005, 2),
     initThickness: numberField(value.initThickness, "現在の幹の太さ", 0, 2),
-    generations: numberField(value.generations, "世代", 0, 12, true),
+    generations: numberField(value.generations, "世代", 0, value.growthModel && value.growthModel !== "lsystem" ? 16 : 12, true),
     angle: numberField(value.angle, "枝分かれの角度", 0, 180),
     angleVariance: numberField(value.angleVariance, "角度のゆらぎ", 0, 45),
     seed: numberField(value.seed, "シード", 0, 4294967295, true),

@@ -6,7 +6,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         reqwest::Client::new()
             .get(format!(
                 "http://127.0.0.1:{}/api/health",
-                env::var("PORT").unwrap_or("3000".into())
+                env::var("PORT").unwrap_or("5173".into())
             ))
             .timeout(Duration::from_secs(3))
             .send()
@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let host = env::var("HOST").unwrap_or("127.0.0.1".into());
-    let port = env::var("PORT").unwrap_or("3000".into()).parse::<u16>()?;
+    let port = env::var("PORT").unwrap_or("5173".into()).parse::<u16>()?;
     if port == 0 {
         return Err("PORT must be between 1 and 65535".into());
     }
@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let ai = Ai::new(
         &env::var("OLLAMA_BASE_URL").unwrap_or("http://127.0.0.1:11434".into()),
-        env::var("OLLAMA_MODEL").unwrap_or("gemma4:latest".into()),
+        env::var("OLLAMA_MODEL").unwrap_or("gemma4:e4b".into()),
         Duration::from_millis(timeout),
     )?;
     let listener = tokio::net::TcpListener::bind(format!("{host}:{port}")).await?;

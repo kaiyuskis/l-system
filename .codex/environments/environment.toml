@@ -3,10 +3,16 @@ version = 1
 name = "l-system"
 
 [setup]
-script = "npm install"
+script = '''
+npm install
+npm run build'''
 
 [[actions]]
 name = "実行"
 icon = "run"
-command = "npm run dev"
-platform = "win32"
+command = "npm start"
+
+[[actions]]
+name = "テスト"
+icon = "test"
+command = "npm test"

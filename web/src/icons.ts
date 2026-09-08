@@ -39,6 +39,7 @@ export function icon(name: string, className = ""): string {
   return `<svg class="icon ${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] ?? paths.leaf}</svg>`;
 }
 export function plantIllustration(index: number): string {
+  if (index === 4) return `<svg viewBox="0 0 120 80" aria-hidden="true"><g fill="none" stroke="#70685b" stroke-linecap="round"><path d="M61 75Q55 54 65 42T62 15M60 58 31 44M62 47 91 36M63 31 40 22" stroke-width="4"/></g><g fill="#61754d"><ellipse cx="29" cy="41" rx="21" ry="8"/><ellipse cx="90" cy="32" rx="23" ry="8"/><ellipse cx="41" cy="20" rx="19" ry="7"/><ellipse cx="67" cy="12" rx="18" ry="7"/></g></svg>`;
   const color = ["#779277", "#b77654", "#d09aa7", "#6d8b78"][index % 4];
   if (index === 3)
     return `<svg viewBox="0 0 120 80" aria-hidden="true"><g stroke="${color}" stroke-linecap="round" fill="none"><path d="M59 74C48 53 52 32 61 12M58 68C38 58 29 40 28 25M59 68C75 52 87 36 85 19" stroke-width="2"/><path d="m54 54-12-7m11 0-11-9m12 0-9-9m12 1-9-9m11 0-4-8m-2 45 13-7m-13-1 15-9m-14 0 14-10m-12 2 12-11m-29 33-14-3m9-4-15-6m11-1-13-8m25 26-5-16m0 6-3-17m33 23 14-1m-9-6 15-3m-10-5 14-5m-21 19 1-16m7 5-1-18" stroke-width="3"/></g></svg>`;

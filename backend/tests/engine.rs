@@ -4,7 +4,11 @@ use komorebi::{
 };
 use serde_json::{Value, json};
 fn plant() -> Plant {
-    serde_json::from_value(presets()[0]["params"].clone()).unwrap()
+    let mut p: Plant = serde_json::from_value(presets()[0]["params"].clone()).unwrap();
+    p.growth_model = "lsystem".into(); // These tests exercise the editable string grammar.
+    p.generations = 4;
+    p.growth_mode = false;
+    p
 }
 fn near(actual: &Value, expected: &Value) {
     match (actual, expected) {

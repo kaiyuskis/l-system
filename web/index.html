@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f7f8f3" />
+    <meta name="theme-color" content="#202a34" />
     <meta
       name="description"
       content="ひとつのルールから、あなただけの樹木を。L-systemで植物を育てる、ブラウザーの3D制作スタジオ。"
@@ -18,7 +18,7 @@
           ><span class="brand-mark" data-icon="sprout"></span
           ><span
             ><strong>こもれび<span class="brand-period">.</span></strong
-            ><small>L-SYSTEM BOTANICAL STUDIO</small></span
+            ><small>TREE MODELING STUDIO</small></span
           ></a
         >
         <div class="header-project">
@@ -72,8 +72,8 @@
         <div class="editor-scroll">
           <div class="editor-heading">
             <div>
-              <span class="eyebrow">YOUR BOTANICAL LAB</span>
-              <h1>樹木をつくる</h1>
+              <span class="eyebrow">MODEL SETTINGS</span>
+              <h1>モデルを編集</h1>
             </div>
             <span class="heading-icon" data-icon="sliders"></span>
           </div>
@@ -83,7 +83,7 @@
               ><span>＋</span>
             </summary>
             <form id="ai-form">
-              <label for="ai-prompt">どんな樹木を育てましょう？</label>
+              <label for="ai-prompt">生成する樹木の特徴</label>
               <textarea
                 id="ai-prompt"
                 rows="3"
@@ -111,7 +111,7 @@
               /></label>
               <div class="ai-actions">
                 <button id="ai-submit" class="button button-dark" type="submit">
-                  AIで樹木を考える</button
+                  樹木を生成</button
                 ><button
                   id="ai-cancel"
                   class="button button-quiet"
@@ -144,7 +144,7 @@
           </details>
           <section class="preset-section" aria-label="樹木のプリセット">
             <div class="section-label">
-              <h2>はじめの一粒</h2>
+              <h2>樹種を選択</h2>
               <span>プリセット</span>
             </div>
             <div id="preset-grid" class="preset-grid"></div>
@@ -220,7 +220,7 @@
           ></div>
           <div class="specimen-heading">
             <div class="eyebrow">
-              <span class="live-dot"></span>LIVE SPECIMEN
+              <span class="live-dot"></span>3D VIEWPORT
               <span class="specimen-divider">/</span>
               <span id="specimen-number">01</span>
             </div>
@@ -232,6 +232,8 @@
             ><span id="render-status">プレビューを準備中</span>
           </div>
           <div class="viewport-tools" aria-label="表示の操作">
+            <button class="icon-button" id="zoom-in" title="拡大" aria-label="拡大">＋</button>
+            <button class="icon-button" id="zoom-out" title="縮小" aria-label="縮小">−</button>
             <button
               class="icon-button"
               id="fit-camera"
@@ -285,7 +287,7 @@
           </div>
           <div class="canvas-caption">
             <span class="caption-line"></span
-            ><span>ひとつのルールから、<br />生まれるかたち。</span>
+            ><span>ドラッグで回転 · スクロールでズーム</span>
           </div>
           <div class="orientation" aria-hidden="true">
             <svg viewBox="0 0 70 65">
@@ -295,22 +297,22 @@
               <text x="29" y="8">Y</text>
               <text x="60" y="56">X</text>
               <text x="1" y="58">Z</text>
-              <circle cx="32" cy="38" r="3" fill="#f7f8f3" stroke="#aab4a5" />
+              <circle cx="32" cy="38" r="3" fill="#202a34" stroke="#aab4a5" />
             </svg>
           </div>
           <div class="model-empty" id="model-empty" hidden>
             <span data-icon="sprout"></span
-            ><strong>ここから、成長がはじまります。</strong>
+            ><strong>表示できる形状がありません。</strong>
             <p>世代を進めるか、F を含むルールを設定しましょう。</p>
           </div>
           <div class="busy-indicator" id="busy-indicator" hidden>
-            <span class="spinner"></span>樹木を育てています…
+            <span class="spinner"></span>モデルを生成しています…
           </div>
         </div>
         <section class="growth-panel" aria-label="成長のタイムライン">
           <div class="growth-title">
             <span class="eyebrow">GROWTH</span>
-            <h2>成長を観察する</h2>
+            <h2>成長タイムライン</h2>
           </div>
           <button
             class="play-button"
@@ -351,7 +353,7 @@
               data-icon="wind"
             ></button>
             <div>
-              <label for="wind-strength">そよ風</label
+              <label for="wind-strength">風の強さ</label
               ><input
                 id="wind-strength"
                 type="range"
@@ -369,7 +371,7 @@
             <span
               ><i class="metric-dot"></i
               ><strong id="metric-branches">—</strong> 枝</span
-            ><span><strong id="metric-organs">—</strong> 葉・花</span
+            ><span><strong id="metric-organs">—</strong> <span id="metric-organ-label">葉・花</span></span
             ><span class="metric-height"
               >高さ <strong id="metric-height">—</strong></span
             ><span class="metric-time" id="metric-time">—</span>

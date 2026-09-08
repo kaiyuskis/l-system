@@ -1,14 +1,21 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join, delimiter } from "node:path";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const web = fileURLToPath(new URL("../web/", import.meta.url));
 const envFile = fileURLToPath(new URL("../.env", import.meta.url));
 if (existsSync(envFile)) process.loadEnvFile(envFile);
-process.env.PORT ||= process.env.APP_PORT || "3000";
-process.env.API_PORT = process.env.PORT;
-process.env.OLLAMA_MODEL ||= "gemma4:latest";
+process.env.PORT ||= process.env.APP_PORT || "5173";
+process.env.OLLAMA_MODEL ||= "gemma4:e4b";
 const command = process.argv[2];
+const cargoBin = join(
+  process.env.CARGO_HOME || join(homedir(), ".cargo"),
+  "bin",
+);
+if (existsSync(cargoBin))
+  process.env.PATH = `${cargoBin}${delimiter}${process.env.PATH || ""}`;
 const children = new Set();
 let stopping = false;
 function stop(code = 0) {
@@ -72,15 +79,17 @@ if (
   spawnSync("cargo", ["--version"], { windowsHide: true }).status !== 0
 ) {
   console.error(
-    "Rustが見つかりません。Dockerなら docker compose up --build だけで起動できます。ネイティブ開発はREADMEのRustセットアップを行ってください。",
+    "Rustが見つかりません。READMEのセットアップに従ってRustをインストールしてください。WindowsではC++ Build ToolsとWindows SDKも必要です。",
   );
   process.exitCode = 1;
 } else if (command === "dev") {
-  await Promise.race([
+  const code = await npm("build");
+  if (code) stop(code);
+  else await Promise.race([
     cargo("run"),
     run(
       process.execPath,
-      ["node_modules/vite/bin/vite.js", "--strictPort"],
+      ["node_modules/vite/bin/vite.js", "build", "--watch"],
       web,
     ),
   ]).then(stop);
@@ -98,15 +107,4 @@ if (
   stop(await npm("build"));
 } else if (command === "test:web") {
   stop(await npm("test"));
-} else if (command === "docker:test") {
-  stop(
-    await run("docker", [
-      "build",
-      "--target",
-      "test",
-      "-t",
-      "komorebi-tests",
-      ".",
-    ]),
-  );
 } else throw new Error(`Unknown command: ${command}`);

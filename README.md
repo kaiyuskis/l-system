@@ -2,57 +2,38 @@
 
 リアルな樹木の形を、気軽に試してモデリングするローカルWebアプリです。日本語UI、3Dプレビュー、成長タイムライン、AI制作、保存、PNG / GLB / JSON書き出しを備えています。
 
-計算はRustバックエンド、表示はTypeScript + Three.jsです。L-systemの展開・枝の座標計算はブラウザーのメインスレッドでは実行しません。通常表示は軽量なインスタンシング、GLB書き出し時は先細りを焼き込んだメッシュを使用します。
+計算はRustバックエンド、表示はTypeScript + Three.jsです。L-systemの展開・枝の座標計算はブラウザーのメインスレッドでは実行しません。クロマツはパラメトリックL-systemから連続した曲面の枝と立体的な針葉を生成し、針葉の房をインスタンシングします。既存樹種は通常表示に円柱のインスタンシングを使用します。
 
-## 最初からセットアップする
+クロマツを選択すると、樹冠の広がり・枝の曲がり・針葉密度・針葉長を調整できます。シラカバ・モミジ・サクラ・シダにも樹種別の形状と立体的な葉・花を用意しています。全5種は0〜16世代で成長し、標準の成木は12世代です。タイムラインに処理時間の概算を表示します。[生成方式と操作](docs/pine-model.md)、[参考写真とテクスチャの出典](docs/tree-references.md)も参照してください。
 
-必要なのは **Docker Desktop（Linuxコンテナー）** です。Node.jsやRustをPCにインストールする必要はありません。AI制作を使う場合のみ、PCでOllamaを起動し、使用するモデルを準備してください。手動モデリングはOllamaが停止していても使えます。
+## セットアップと起動
 
-リポジトリー直下で実行します。
+Dockerは使用しません。Node.js 24以上と[公式Rustツールチェーン](https://rust-lang.org/tools/install/)をインストールしてください。WindowsではRustの案内に従い、Visual Studio Build Toolsの「C++によるデスクトップ開発」（MSVCとWindows SDK）も導入します。
 
-```sh
-docker compose up -d --build
-```
-
-[http://127.0.0.1:3000](http://127.0.0.1:3000) を開いてください。初回はRustのコンパイルと依存パッケージの取得で数分かかります。
+すべてリポジトリ直下で実行します。初回は依存関係の取得とRustのコンパイルに数分かかります。
 
 ```sh
-docker compose logs -f app
-docker compose down
+npm install
+npm run build
+npm start
 ```
 
-標準構成は**既存Ollamaを使用**します。CPU用Ollamaやモデルダウンロードを自動起動しません。ポートは127.0.0.1限定です。
+[http://127.0.0.1:5173](http://127.0.0.1:5173) を開いてください。終了はCtrl+C。次回からは `npm start` だけで起動できます。Ollamaはアプリから自動起動せず、既存のものへ接続します。手動モデリングはOllamaなしで利用できます。
 
-### モデル・接続先・ポート
+開発中も `npm run dev` で同じ5173番を使用します。画面とAPIをRustがまとめて配信し、Viteはファイル監視とビルドのみ行います。画面の変更は自動ビルド後にブラウザーを再読み込みすると反映されます。Rustコードの変更時はコマンドを再起動してください。通常起動との同時実行はポートが重複するため避けてください。
 
-`.env.example` を `.env` にコピーして必要な項目だけ変更してください。既定モデルは、このPCにある `gemma4:latest` です。`ollama list` に表示されるモデル名を指定します。
+### AIの設定
 
-| 設定              | 既定値                                                                            | 用途                                |
-| ----------------- | --------------------------------------------------------------------------------- | ----------------------------------- |
-| `APP_PORT`        | `3000`                                                                            | Docker公開ポート／ローカルAPIポート |
-| `OLLAMA_MODEL`    | `gemma4:latest`                                                                   | Ollamaモデル名                      |
-| `AI_TIMEOUT_MS`   | `180000`                                                                          | 生成の待ち時間。1000〜600000ミリ秒  |
-| `OLLAMA_BASE_URL` | Docker: `http://host.docker.internal:11434`、ネイティブ: `http://127.0.0.1:11434` | バックエンドから接続するOllama      |
+Ollamaを起動し、使用するモデルを用意してください。`.env.example` を `.env` にコピーすれば設定を変更できます。設定変更後はアプリを再起動します。
 
-設定変更後は `docker compose up -d --build` を実行してください。AIパネルの「再確認」で接続を確認できます。生成中・直後のGPU配置は `ollama ps` で確認できます。GPUを使っていても、モデルやコンテキストがVRAMに収まらなければCPUとの混在になる場合があります。[Ollama公式FAQ](https://docs.ollama.com/faq#how-can-i-tell-if-my-model-was-loaded-onto-the-gpu)
+| 設定            | 既定値                 | 用途                               |
+| --------------- | ---------------------- | ---------------------------------- |
+| APP_PORT        | 5173                   | アプリ・APIのポート                |
+| OLLAMA_BASE_URL | http://127.0.0.1:11434 | 既存Ollamaへの接続先               |
+| OLLAMA_MODEL    | gemma4:e4b          | Ollamaにインストール済みのモデル名 |
+| AI_TIMEOUT_MS   | 180000                 | 生成待ち時間（1000〜600000ミリ秒） |
 
-### OllamaもDocker内でGPU起動する場合
-
-明示的な別構成です。NVIDIA GPUをDockerから利用できる環境が必要です。
-
-```sh
-docker compose down
-docker compose -f compose.gpu.yaml up -d --build
-```
-
-GPU割り当ては必須で、利用できない場合は起動エラーになります。モデルは名前付きボリュームに保存し、通常の `down` では消しません。既存Ollamaと同梱Ollamaは別のモデル保存先です。同梱モデルの既定値は `gemma4:e4b` で、`.env` があればその `OLLAMA_MODEL` を優先します。初回の取得には十分な空き容量が必要です。
-
-```sh
-docker compose -f compose.gpu.yaml logs -f model-pull
-docker compose -f compose.gpu.yaml down
-```
-
-[OllamaのDocker / GPUセットアップ](https://docs.ollama.com/docker)
+AIパネルの「再確認」で接続状態を確認できます。GPUへの配置はOllamaが管理します。生成中の `ollama ps` のPROCESSOR欄で確認してください。[Ollama公式FAQ](https://docs.ollama.com/faq#how-can-i-tell-if-my-model-was-loaded-onto-the-gpu)
 
 ## 使い方
 
@@ -108,40 +89,20 @@ backend/                 Rust API・L-system・GPU配置・書き出しメッシ
 web/                     TypeScript UI、Three.js描画、保存と書き出し
   tests/reference/       比較検証専用の旧TS計算実装（配信されません）
 shared/                  両側で使うプリセットと枝テンプレート
-assets/source-textures/  元画像の保管（配信・Dockerイメージには含みません）
+assets/source-textures/  元画像の保管（配信には含みません）
 scripts/                 直下からの開発・検証・ベンチマーク
- docs/                   設計・性能の記録
+docs/                   設計・性能の記録
 ```
 
-旧 `frontend/server` のNodeバックエンドは廃止し、Rustへ統合しました。配信用画像は `web/public/textures/` の約4.9MBです。実行用DockerイメージにNode.js、Rustコンパイラー、開発依存パッケージは含めません。
+旧 `frontend/server` のNodeバックエンドは廃止し、Rustへ統合しました。配信用画像は `web/public/textures/` の約4.9MBです。
 
-## ネイティブ開発（Dockerを使わない場合）
-
-Node.js 24以上と[公式Rustツールチェーン](https://rust-lang.org/tools/install/)をセットアップしてください。WindowsではRustの案内に従いMSVC C++ Build Toolsが必要です。検証環境はRust 1.98 / Linuxコンテナーです。
-
-```sh
-npm install
-npm run dev
-```
-
-すべてリポジトリー直下で実行します。画面は通常5173番、Rust APIは3000番です。`.env` を読み込み、Ctrl+Cで起動したプロセス群を停止します。Rustコード変更時は開発コマンドを再起動してください。Dockerの3000番と同時には起動しないでください。
-
-```sh
-npm run build
-npm start
-```
-
-テストと型チェック：
+## 検証
 
 ```sh
 npm test
 npm run typecheck
 ```
 
-RustをPCへ入れず、Dockerだけで両側を検証するには：
+Nodeのみでフロントを検証する場合は `npm run test:web` / `npm run build:web` を使います。性能測定と設計は [docs/architecture.md](docs/architecture.md) を参照してください。
 
-```sh
-docker build --target test -t komorebi-tests .
-```
-
-Nodeのみでのフロント検証は `npm run test:web` / `npm run build:web`。詳しい性能測定と設計は [docs/architecture.md](docs/architecture.md) を参照してください。
+PowerShellの実行ポリシーでnpmが拒否された場合は `npm.cmd` を使用してください。

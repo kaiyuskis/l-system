@@ -1,8 +1,12 @@
 import * as THREE from "three";
 import type { NativeGeometry, Population } from "./geometry-client.ts";
 import { windUniforms } from "./three-setup";
+import { needleShoot } from "./pine-needles.ts";
+import { broadleaf, cherryBlossom } from "./botanical-organs.ts";
 
 export interface TreeAppearance {
+  growthModel?: string;
+  needleLength?: number;
   branchColor: string;
   leafColor: string;
   flowerColor: string;
@@ -41,7 +45,7 @@ function texture(file: string, color = false, repeat = false): THREE.Texture {
   if (color) result.colorSpace = THREE.SRGBColorSpace;
   if (repeat) {
     result.wrapS = result.wrapT = THREE.RepeatWrapping;
-    result.repeat.set(2, 1);
+    result.repeat.set(file.endsWith("-bark.png") ? 1 : 2, 1);
   }
   result.anisotropy = 4;
   textures.set(file, result);
@@ -238,12 +242,17 @@ export function buildTree(
   group.name = "L-System Plant";
   try {
     if (data.meta.branches) {
+      const pine = appearance.growthModel === "pine";
+      const barkFile = ({pine:"pine-bark.png",birch:"birch-bark.png",maple:"maple-bark.png",sakura:"cherry-bark.png"} as Record<string,string>)[appearance.growthModel ?? ""];
+      const fern = appearance.growthModel === "fern";
       const material = new THREE.MeshStandardMaterial({
         color: appearance.branchColor,
-        map: texture("bark-color.jpg", true, true),
-        normalMap: texture("bark-normal.png", false, true),
+        map: fern ? null : texture(barkFile ?? "bark-color.jpg", true, true),
+        normalMap: barkFile || fern ? null : texture("bark-normal.png", false, true),
+        bumpMap: barkFile ? texture(barkFile, true, true) : null,
+        bumpScale: pine ? 0.055 : 0.016,
         normalScale: new THREE.Vector2(0.6, 0.6),
-        roughnessMap: texture("bark-roughness.jpg", false, true),
+        roughnessMap: barkFile || fern ? null : texture("bark-roughness.jpg", false, true),
         roughness: 1,
       });
       let mesh: THREE.Mesh;
@@ -273,36 +282,62 @@ export function buildTree(
         mesh = instances;
       } else {
         mesh = new THREE.Mesh(branchGeometry(data.branchMesh), material);
+        if (appearance.growthModel === "birch") {
+          const colors=new Float32Array(data.branchMesh.thickness.length*3);
+          const twig=new THREE.Color(.18,.12,.075),white=new THREE.Color(1,1,1),color=new THREE.Color();
+          for(let i=0;i<data.branchMesh.thickness.length;i++) {
+            color.copy(twig).lerp(white,THREE.MathUtils.smoothstep(data.branchMesh.thickness[i],.014,.055));
+            colors.set([color.r,color.g,color.b],i*3);
+          }
+          mesh.geometry.setAttribute("color",new THREE.BufferAttribute(colors,3));
+          material.vertexColors=true;
+        }
       }
       mesh.name = "Branches";
       addShadows(mesh, material, false, data.branchInstances.count > 0);
       group.add(mesh);
     }
     if (data.leaves.count) {
+      const pine = appearance.leafTextureKey === "pine_needles";
       const maple = appearance.leafTextureKey === "leaf_maple";
-      const geometry = new THREE.PlaneGeometry(1, 1);
-      if (!maple) geometry.rotateZ(Math.PI / 4).translate(0, 0.66, 0);
-      else geometry.translate(0, 0.48, 0);
+      const leafKind = appearance.leafTextureKey === "leaf_birch" ? "birch" : appearance.leafTextureKey === "leaf_cherry" ? "cherry" : appearance.leafTextureKey === "fern_pinnule" ? "fern" : maple && appearance.growthModel === "maple" ? "maple" : null;
+      const geometry = pine ? needleShoot(appearance.needleLength) : leafKind ? broadleaf(leafKind) : new THREE.PlaneGeometry(1, 1);
+      if (!pine && !leafKind) {
+        if (!maple) geometry.rotateZ(Math.PI / 4).translate(0, 0.66, 0);
+        else geometry.translate(0, 0.48, 0);
+      }
       const material = new THREE.MeshStandardMaterial({
         color: appearance.leafColor,
         emissive: appearance.leafColor,
-        emissiveIntensity: 0.16,
-        map: texture(maple ? "leaf-maple.png" : "leaf-default.png", true),
+        emissiveIntensity: pine ? 0.08 : 0.16,
+        map: pine || leafKind ? null : texture(maple ? "leaf-maple.png" : "leaf-default.png", true),
+        vertexColors: !!(pine || leafKind),
         side: THREE.DoubleSide,
-        alphaTest: 0.4,
-        roughness: 0.92,
+        alphaTest: pine || leafKind ? 0 : 0.4,
+        roughness: pine ? 0.65 : 0.92,
         metalness: 0,
         alphaToCoverage: true,
       });
-      group.add(organs(data.leaves, "Leaves", geometry, material, true));
+      const foliage = organs(data.leaves, pine ? "Pine paired needles" : "Leaves", geometry, material, true);
+      if (pine || leafKind) {
+        const color = new THREE.Color();
+        for (let i = 0; i < data.leaves.count; i++) {
+          const variation = .82 + ((Math.imul(i + 7, 16807) >>> 0) % 101) / 300;
+          color.setRGB(variation, variation, variation * .94);
+          foliage.setColorAt(i, color);
+        }
+      }
+      group.add(foliage);
     }
     if (data.flowers.count) {
-      const geometry = new THREE.PlaneGeometry(1, 1).translate(0, 0.42, 0);
+      const blossom = appearance.growthModel === "sakura";
+      const geometry = blossom ? cherryBlossom() : new THREE.PlaneGeometry(1, 1).translate(0, 0.42, 0);
       const material = new THREE.MeshStandardMaterial({
         color: appearance.flowerColor,
-        map: texture("cherry-blossom.png", true),
+        map: blossom ? null : texture("cherry-blossom.png", true),
+        vertexColors: blossom,
         side: THREE.DoubleSide,
-        alphaTest: 0.4,
+        alphaTest: blossom ? 0 : 0.4,
         roughness: 0.9,
         alphaToCoverage: true,
       });

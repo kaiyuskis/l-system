@@ -13,7 +13,6 @@
     "build": "node scripts/run.mjs build",
     "build:web": "node scripts/run.mjs build:web",
     "test:web": "node scripts/run.mjs test:web",
-    "test:docker": "node scripts/run.mjs docker:test",
     "test": "node scripts/run.mjs test",
     "typecheck": "node scripts/run.mjs typecheck"
   }

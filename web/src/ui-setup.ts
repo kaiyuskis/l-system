@@ -59,11 +59,11 @@ export function setupUI(actions: UIActions) {
     )
     .join("");
   element("panel-shape").innerHTML =
-    `<section class="control-section"><div class="control-heading">枝のシルエット<button class="section-reset" data-action="reset" title="選択中のプリセットに戻す">${icon("refresh")}リセット</button></div>${slider("angle", "枝の広がり", 0, 180, 1, "°", ["まっすぐ", "広がる"])}${slider("maxLength", "枝の長さ", 0.1, 3, 0.01)}${slider("maxThickness", "幹の太さ", 0.005, 1, 0.005)}${slider("angleVariance", "自然なゆらぎ", 0, 45, 0.5, "°")}</section><section class="control-section"><div class="control-heading">かたちの個性 ${icon("dice")}</div><label class="control-label" for="seed">ランダムシード</label><div class="seed-field"><input class="text-input" type="number" id="seed" data-param="seed" min="0" max="4294967295" step="1"/><button class="icon-button" data-action="randomize" title="別のかたちを試す" aria-label="別のかたちを試す">${icon("dice")}</button></div><p class="control-help">同じシードなら、いつでも同じかたちに。</p></section><section class="control-section"><div class="control-heading">成長のふるまい</div>${slider("scale", "枝の長さの減衰", 0, 2, 0.01)}${slider("widthDecay", "枝の太さの減衰", 0, 1, 0.01)}${slider("gravity", "重力", -10, 10, 0.01)}<label class="toggle-row" for="growth-mode">世代に合わせて幹も成長<input type="checkbox" id="growth-mode" data-param="growthMode"/></label><p class="control-help">オフにすると、幹の長さと太さを保ったまま枝分かれします。</p></section>`;
+    `<section id="pine-settings" class="control-section" hidden><div class="control-heading">樹種のかたち</div><p class="control-help" id="species-help"></p>${slider("crownSpread", "樹冠の広がり", 0.3, 2, 0.05)}${slider("branchTwist", "枝の曲がり", 0, 2, 0.05)}${slider("foliageDensity", "葉・花の密度", 0, 2, 0.1)}<div id="needle-settings">${slider("needleLength", "針葉の長さ", 0.3, 2, 0.05)}</div></section><section class="control-section"><div class="control-heading">枝のシルエット<button class="section-reset" data-action="reset" title="選択中のプリセットに戻す">${icon("refresh")}リセット</button></div>${slider("angle", "枝の広がり", 0, 180, 1, "°", ["まっすぐ", "広がる"])}${slider("maxLength", "枝の長さ", 0.1, 3, 0.01)}${slider("maxThickness", "幹の太さ", 0.005, 1, 0.005)}${slider("angleVariance", "自然なゆらぎ", 0, 45, 0.5, "°")}</section><section class="control-section"><div class="control-heading">かたちの個性 ${icon("dice")}</div><label class="control-label" for="seed">ランダムシード</label><div class="seed-field"><input class="text-input" type="number" id="seed" data-param="seed" min="0" max="4294967295" step="1"/><button class="icon-button" data-action="randomize" title="別のかたちを試す" aria-label="別のかたちを試す">${icon("dice")}</button></div><p class="control-help">同じシードなら、いつでも同じかたちに。</p></section><section class="control-section"><div class="control-heading">成長のふるまい</div>${slider("scale", "枝の長さの減衰", 0, 2, 0.01)}${slider("widthDecay", "枝の太さの減衰", 0, 1, 0.01)}${slider("gravity", "重力", -10, 10, 0.01)}<label class="toggle-row" for="growth-mode">世代に合わせて幹も成長<input type="checkbox" id="growth-mode" data-param="growthMode"/></label><p class="control-help">オフにすると、幹の長さと太さを保ったまま枝分かれします。</p></section>`;
   element("panel-appearance").innerHTML =
-    `<section class="control-section"><div class="control-heading">葉の表情 ${icon("leaf")}</div><div class="control-row"><label class="control-label" for="leaf-texture">葉のかたち</label><select id="leaf-texture" data-param="leafTextureKey"><option value="leaf_default">楕円の葉</option><option value="leaf_maple">モミジの葉</option></select></div>${color("leafColor", "葉の色")}${slider("leafSize", "葉の大きさ", 0, 5, 0.05)}</section><section class="control-section"><div class="control-heading">花とつぼみ</div>${color("flowerColor", "花の色")}${slider("flowerSize", "花の大きさ", 0, 5, 0.05)}${color("budColor", "つぼみの色")}${slider("budSize", "つぼみの大きさ", 0, 5, 0.05)}<p class="control-help">花は K、つぼみは M を生成ルールに加えると咲きます。大きさを 0 にすると非表示になります。</p></section><section class="control-section"><div class="control-heading">樹皮</div>${color("branchColor", "幹と枝の色")}</section>`;
+    `<section class="control-section"><div class="control-heading">葉の表情 ${icon("leaf")}</div><div class="control-row"><label class="control-label" for="leaf-texture">葉のかたち</label><select id="leaf-texture" data-param="leafTextureKey"><option value="leaf_default">楕円の葉</option><option value="leaf_maple">モミジの葉</option><option value="pine_needles">松の針葉（立体）</option><option value="leaf_birch">シラカバの鋸歯葉（立体）</option><option value="leaf_cherry">サクラの葉（立体）</option><option value="fern_pinnule">シダの小羽片（立体）</option></select></div>${color("leafColor", "葉の色")}${slider("leafSize", "葉の大きさ", 0, 5, 0.05)}</section><section id="flower-settings" class="control-section"><div class="control-heading">花とつぼみ</div>${color("flowerColor", "花の色")}${slider("flowerSize", "花の大きさ", 0, 5, 0.05)}${color("budColor", "つぼみの色")}${slider("budSize", "つぼみの大きさ", 0, 5, 0.05)}<p class="control-help" id="flower-help">大きさを0にすると非表示になります。</p></section><section class="control-section"><div class="control-heading">樹皮</div>${color("branchColor", "幹と枝の色")}</section>`;
   element("panel-rules").innerHTML =
-    `<section class="control-section"><div class="control-heading">L-system エディター ${icon("code")}</div><div class="control-row"><label class="control-label" for="premise">はじめの文字列（公理）</label><input id="premise" class="text-input" data-param="premise" spellcheck="false" maxlength="250000"/></div><label class="control-label" for="rules-editor">枝分かれのルール <span>1行に1つ</span></label><textarea id="rules-editor" class="rule-editor" spellcheck="false" aria-describedby="rule-guidance" maxlength="100000"></textarea><div class="rule-help" id="rule-guidance"><code>A=F[+A][-A]</code><br>世代が進むたび、左の文字を右の文字列に置き換えます。<br><code>F</code> 枝を伸ばす　<code>L</code> 葉　<code>K</code> 花<br><code>[ ]</code> 枝分かれ　<code>+ −</code> 向きを変える<br><button class="text-link" data-action="help">記号と書き方を詳しく見る ${icon("arrow")}</button></div></section><section class="control-section"><div class="control-heading">展開された文字列 <span id="symbol-count">0 文字</span></div><pre class="result-string" id="result-string">—</pre><p class="control-help">先頭 1,000 文字を表示。複雑すぎるルールは、画面の停止を防ぐため生成を制限します。</p></section>`;
+    `<section class="control-section"><label class="control-label" for="growth-model">成長モデル</label><select id="growth-model" data-param="growthModel"><option value="pine">クロマツの成長</option><option value="birch">シラカバの成長</option><option value="maple">モミジの成長</option><option value="sakura">サクラの成長</option><option value="fern">シダの成長</option><option value="lsystem">自由なL-system（文字列ルール）</option></select></section><p id="pine-rule-notice" class="rule-help" hidden>樹種別のモデルは、次数・長さ・太さ・方向を持つ芽を置換するパラメトリックL-systemです。「かたち」と世代で調整します。独自の文字列ルールを使う場合は「自由なL-system」へ切り替えてください。</p><section class="control-section"><div class="control-heading">L-system エディター ${icon("code")}</div><div class="control-row"><label class="control-label" for="premise">はじめの文字列（公理）</label><input id="premise" class="text-input" data-param="premise" spellcheck="false" maxlength="250000"/></div><label class="control-label" for="rules-editor">枝分かれのルール <span>1行に1つ</span></label><textarea id="rules-editor" class="rule-editor" spellcheck="false" aria-describedby="rule-guidance" maxlength="100000"></textarea><div class="rule-help" id="rule-guidance"><code>A=F[+A][-A]</code><br>世代が進むたび、左の文字を右の文字列に置き換えます。<br><code>F</code> 枝を伸ばす　<code>L</code> 葉　<code>K</code> 花<br><code>[ ]</code> 枝分かれ　<code>+ −</code> 向きを変える<br><button class="text-link" data-action="help">記号と書き方を詳しく見る ${icon("arrow")}</button></div></section><section class="control-section"><div class="control-heading">展開された文字列 <span id="symbol-count">0 文字</span></div><pre class="result-string" id="result-string">—</pre><p class="control-help">先頭 1,000 文字を表示。複雑すぎるルールは、画面の停止を防ぐため生成を制限します。</p></section>`;
   refreshIcons();
   document
     .querySelectorAll<HTMLButtonElement>("[data-preset]")
@@ -154,6 +154,8 @@ export function setupUI(actions: UIActions) {
     "export",
     "generate",
     "fit-camera",
+    "zoom-in",
+    "zoom-out",
     "view-perspective",
     "view-front",
     "view-top",
@@ -181,6 +183,20 @@ export function setupUI(actions: UIActions) {
   );
   return {
     sync(params: PlantParams) {
+      const pine = params.growthModel === "pine";
+      const native = params.growthModel !== "lsystem";
+      element("pine-settings").hidden = !native;
+      element("needle-settings").hidden = !pine;
+      element("flower-settings").hidden = params.growthModel === "fern";
+      element("flower-help").textContent = !native ? "花はK、つぼみはMをルールに加えると現れます。大きさを0にすると非表示になります。" : params.growthModel === "sakura" ? "短い花柄に五枚の花弁が付くサクラの花です。大きさを0にすると花を非表示にできます。" : "この樹種では枝先の芽を調整できます。花はサクラの成長モデルで生成します。";
+      for (const key of ["color-flowerColor", "number-flowerSize", "range-flowerSize"]) {
+        element<HTMLInputElement>(key).disabled = native && params.growthModel !== "sakura";
+      }
+      element("species-help").textContent = params.growthModel === "fern" ? "弓状の葉軸に羽片と小羽片を付けるシダの成長モデルです。" : pine ? "曲面の古枝と二葉の針葉を生成します。世代を上げると細枝が増えます。" : "樹種ごとの主枝・細枝・葉柄を生成します。世代を上げると細部が増えます。";
+      element<HTMLInputElement>("premise").disabled = native;
+      element<HTMLTextAreaElement>("rules-editor").disabled = native;
+      element("rule-guidance").hidden = native;
+      element("pine-rule-notice").hidden = !native;
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-param]")
         .forEach((input) => {
@@ -238,7 +254,7 @@ export function setupUI(actions: UIActions) {
       element("viewport").setAttribute("aria-busy", String(value));
       element<HTMLButtonElement>("generate").disabled = value;
       element("generate-label").textContent = value
-        ? "樹木を育てています…"
+        ? "モデルを生成しています…"
         : "樹木を生成する";
       element("render-status").textContent = value
         ? "生成中"

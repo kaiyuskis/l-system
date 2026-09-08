@@ -45,9 +45,10 @@ afterEach(() => {
 });
 
 test("each built-in is independently editable and produces a complete finite specimen", () => {
-  assert.equal(new Set(builtinPresets.map((preset) => preset.id)).size, 4);
+  assert.equal(new Set(builtinPresets.map((preset) => preset.id)).size, 5);
   for (const preset of builtinPresets) {
     const params = validateParams(preset.params);
+    if (params.growthModel !== "lsystem") continue; // Species geometry is exercised in Rust integration tests.
     const program = generateLSystemString(
       params.premise,
       parseRules(params.rules),

@@ -14,7 +14,7 @@ pub struct Input {
 }
 pub fn schema() -> Value {
     let mut settings =
-        json!({"leafTextureKey":{"type":"string","enum":["leaf_default","leaf_maple"]}});
+        json!({"leafTextureKey":{"type":"string","enum":["leaf_default","leaf_maple","pine_needles","leaf_birch","leaf_cherry","fern_pinnule"]},"growthModel":{"type":"string","enum":["lsystem","pine","birch","maple","sakura","fern"]}});
     for (key, min, max, integer) in ranges() {
         settings[key] =
             json!({"type":if integer {"integer"} else {"number"},"minimum":min,"maximum":max});
@@ -24,13 +24,17 @@ pub fn schema() -> Value {
     }
     json!({"type":"object","additionalProperties":false,"required":["name","description","preset","settings"],"properties":{
         "name":{"type":"string","minLength":1,"maxLength":60},"description":{"type":"string","minLength":1,"maxLength":300},
-        "preset":{"type":"string","enum":["birch","maple","sakura","fern"]},"settings":{"type":"object","additionalProperties":false,"properties":settings},
+        "preset":{"type":"string","enum":["birch","maple","sakura","fern","pine"]},"settings":{"type":"object","additionalProperties":false,"properties":settings},
         "premise":{"type":"string","minLength":1,"maxLength":256},"rules":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"string","maxLength":1024}}
     }})
 }
 fn ranges() -> Vec<(&'static str, f64, f64, bool)> {
     vec![
         ("generations", 1., 6., true),
+        ("crownSpread", 0.3, 2., false),
+        ("branchTwist", 0., 2., false),
+        ("foliageDensity", 0., 2., false),
+        ("needleLength", 0.3, 2., false),
         ("angle", 0., 180., false),
         ("angleVariance", 0., 45., false),
         ("maxLength", 0.1, 3., false),
@@ -108,9 +112,13 @@ pub fn validate_proposal(
         } else if key == "leafTextureKey" {
             if !value
                 .as_str()
-                .is_some_and(|s| ["leaf_default", "leaf_maple"].contains(&s))
+                .is_some_and(|s| ["leaf_default", "leaf_maple", "pine_needles", "leaf_birch", "leaf_cherry", "fern_pinnule"].contains(&s))
             {
                 return Err("葉のテクスチャが不正です。".into());
+            }
+        } else if key == "growthModel" {
+            if !value.as_str().is_some_and(|s| ["lsystem","pine","birch","maple","sakura","fern"].contains(&s)) {
+                return Err("成長モデルが不正です。".into());
             }
         } else {
             return Err(format!("設定 {key} は使用できません。"));
@@ -118,6 +126,7 @@ pub fn validate_proposal(
         params[key] = value.clone();
     }
     if let Some(rules) = v.get("rules") {
+        params["growthModel"] = json!("lsystem");
         let rows = rules.as_array().ok_or("rules は配列にしてください。")?;
         if rows.is_empty()
             || rows.len() > 8
@@ -228,7 +237,7 @@ impl Ai {
     pub async fn generate(&self, input: Input) -> Result<Value, ApiError> {
         validate_input(&input)?;
         let system = format!(
-            "Design botanical L-systems. Return ONLY schema-compliant JSON. Name and description in Japanese. Choose a preset, change only needed settings. When current is provided, settings PATCH current, preset does not replace it. Set generations 1-6. Prefer known rules; omit premise/rules unless structural changes are needed. Commands: F branch, L leaf, K flower, M bud; + - turn, & ^ pitch, / rotation; [ save ] restore, ! width multiply by scale, double quote length multiply by scale. F(1), +(30), !(0.7) supported; arithmetic only. Balance brackets, at most 4 recursive branches per rule, use 3-5 generations for custom rules. Never rewrite organ symbols. Adding flowers requires K in rules. No code. Presets: {}",
+            "Design botanical L-systems. Return ONLY schema-compliant JSON. Name and description in Japanese. Choose a preset, change only needed settings. When current is provided, settings PATCH current, preset does not replace it. All five presets use species-specific parametric growth. Use generations 3-4 for trees, 4-6 for fern; the tree limit is 5. Adjust crownSpread, branchTwist, foliageDensity, angle, scale and gravity for structural changes. Omit premise/rules for native species. When the user explicitly wants custom string rules, set growthModel lsystem. If changing species while current is supplied, set growthModel and leafTextureKey explicitly because preset alone does not replace current. Commands: F branch, L leaf, K flower, M bud; + - turn, & ^ pitch, / rotation; [ save ] restore, ! width multiply by scale, double quote length multiply by scale. F(1), +(30), !(0.7) supported; arithmetic only. Balance brackets, at most 4 recursive branches per rule, use 3-5 generations for custom rules. Never rewrite organ symbols. The sakura growth model produces flowers directly. Only custom lsystem requires K in rules for flowers. No code. For realistic pines use preset pine with pine_needles and generations 3-4. The pine preset uses a built-in parametric grammar: do not supply premise/rules for it; adjust crownSpread, branchTwist, foliageDensity and needleLength instead. Presets: {}",
             presets()
         );
         let mut messages = vec![

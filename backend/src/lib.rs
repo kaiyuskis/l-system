@@ -1,7 +1,11 @@
 pub mod ai;
+pub mod botanical;
 pub mod engine;
+pub mod growth;
 pub mod mesh;
 pub mod model;
+pub mod pine;
+pub mod sweep;
 use axum::{
     Json, Router,
     body::{Body, Bytes},
@@ -161,6 +165,7 @@ async fn calculate(
         "flowerColor",
         "budColor",
         "leafTextureKey",
+        "needleLength",
         "initLength",
         "initThickness",
     ] {

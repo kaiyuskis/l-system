@@ -6,32 +6,37 @@
     "description": "光を受けて広がる、軽やかな緑の樹冠。はじめての植物づくりに。",
     "tag": "広葉樹",
     "params": {
-      "growthMode": false,
+      "growthMode": true,
       "maxLength": 0.9,
-      "maxThickness": 0.15,
+      "maxThickness": 0.22,
       "initLength": 0.9,
-      "initThickness": 0.15,
-      "generations": 5,
-      "angle": 31,
+      "initThickness": 0.22,
+      "generations": 12,
+      "angle": 44,
       "angleVariance": 7,
       "seed": 42,
       "gravity": 0.15,
-      "branchColor": "#766451",
+      "branchColor": "#f1f0e8",
       "scale": 0.76,
       "widthDecay": 0.87,
       "flowerColor": "#f5bfd1",
       "flowerSize": 0.35,
-      "leafColor": "#779747",
-      "leafTextureKey": "leaf_default",
-      "leafSize": 0.62,
+      "leafColor": "#759441",
+      "leafTextureKey": "leaf_birch",
+      "leafSize": 1.1,
       "budColor": "#adc76d",
-      "budSize": 0.12,
+      "budSize": 0.08,
       "premise": "FFA",
       "rules": [
         {
           "expression": "A=F[&(55)L][/(120)&(55)L]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]"
         }
-      ]
+      ],
+      "growthModel": "birch",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
     }
   },
   {
@@ -41,32 +46,37 @@
     "description": "横へ伸びる枝と深い紅葉。角度を変えると、樹形の表情も変わります。",
     "tag": "紅葉",
     "params": {
-      "growthMode": false,
+      "growthMode": true,
       "maxLength": 0.82,
-      "maxThickness": 0.17,
+      "maxThickness": 0.3,
       "initLength": 0.82,
-      "initThickness": 0.17,
-      "generations": 5,
-      "angle": 39,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 48,
       "angleVariance": 9,
       "seed": 1729,
       "gravity": 0.25,
-      "branchColor": "#685248",
+      "branchColor": "#d8d4cc",
       "scale": 0.79,
       "widthDecay": 0.87,
       "flowerColor": "#f5bfd1",
       "flowerSize": 0.35,
       "leafColor": "#bc4c3e",
       "leafTextureKey": "leaf_maple",
-      "leafSize": 0.69,
+      "leafSize": 1.1,
       "budColor": "#adc76d",
-      "budSize": 0.12,
+      "budSize": 0.08,
       "premise": "FFA",
       "rules": [
         {
           "expression": "A=F[+(65)L][-(65)L]F[!\"+A]/(110)[!\"&A]/(125)[!\"-A]/(125)[!\"^A]"
         }
-      ]
+      ],
+      "growthModel": "maple",
+      "crownSpread": 1.1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
     }
   },
   {
@@ -76,32 +86,37 @@
     "description": "淡い桜色の花が枝先を包む春の木。花の大きさで咲き方を調整できます。",
     "tag": "花木",
     "params": {
-      "growthMode": false,
+      "growthMode": true,
       "maxLength": 0.9,
-      "maxThickness": 0.17,
+      "maxThickness": 0.3,
       "initLength": 0.9,
-      "initThickness": 0.17,
-      "generations": 5,
-      "angle": 34,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 42,
       "angleVariance": 8,
       "seed": 31415,
       "gravity": 0.15,
-      "branchColor": "#71574e",
+      "branchColor": "#d8d2cb",
       "scale": 0.78,
       "widthDecay": 0.87,
-      "flowerColor": "#f7c2d2",
-      "flowerSize": 0.65,
+      "flowerColor": "#ffe8ee",
+      "flowerSize": 1.6,
       "leafColor": "#a1ad63",
-      "leafTextureKey": "leaf_default",
-      "leafSize": 0.19,
+      "leafTextureKey": "leaf_cherry",
+      "leafSize": 0.7,
       "budColor": "#de8eae",
-      "budSize": 0.16,
+      "budSize": 0.08,
       "premise": "FFA",
       "rules": [
         {
           "expression": "A=F[&(65)K][^(50)K][/(90)+(50)K]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]M"
         }
-      ]
+      ],
+      "growthModel": "sakura",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
     }
   },
   {
@@ -111,12 +126,12 @@
     "description": "繰り返す枝分かれが描く繊細な葉。規則から生まれる自然の形を観察します。",
     "tag": "草本",
     "params": {
-      "growthMode": false,
+      "growthMode": true,
       "maxLength": 0.5,
-      "maxThickness": 0.045,
+      "maxThickness": 0.04,
       "initLength": 0.5,
-      "initThickness": 0.045,
-      "generations": 6,
+      "initThickness": 0.04,
+      "generations": 12,
       "angle": 54,
       "angleVariance": 3,
       "seed": 2718,
@@ -127,10 +142,10 @@
       "flowerColor": "#f5bfd1",
       "flowerSize": 0.35,
       "leafColor": "#507b43",
-      "leafTextureKey": "leaf_default",
-      "leafSize": 0.32,
+      "leafTextureKey": "fern_pinnule",
+      "leafSize": 1,
       "budColor": "#adc76d",
-      "budSize": 0.06,
+      "budSize": 0.08,
       "premise": "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
       "rules": [
         {
@@ -139,7 +154,52 @@
         {
           "expression": "B=F[+(35)L][-(35)L]\"B"
         }
-      ]
+      ],
+      "growthModel": "fern",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "pine",
+    "name": "クロマツ",
+    "latinName": "Pinus thunbergii",
+    "description": "曲がりながら広がる古枝と、枝先に集まる立体的な二葉の針葉。松専用の成長規則で細部まで生成します。",
+    "tag": "精密・針葉樹",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1,
+      "maxThickness": 0.34,
+      "initLength": 1,
+      "initThickness": 0.34,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 14,
+      "seed": 7182,
+      "gravity": 0.2,
+      "branchColor": "#eeede8",
+      "scale": 0.84,
+      "widthDecay": 0.8,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#658040",
+      "leafTextureKey": "pine_needles",
+      "leafSize": 1.3,
+      "budColor": "#c5b799",
+      "budSize": 0.16,
+      "premise": "B",
+      "rules": [
+        {
+          "expression": "# 松のパラメトリック生成。樹形は専用コントロールで調整します。"
+        }
+      ],
+      "growthModel": "pine",
+      "crownSpread": 1.1,
+      "branchTwist": 1.1,
+      "foliageDensity": 1,
+      "needleLength": 1
     }
   }
 ]

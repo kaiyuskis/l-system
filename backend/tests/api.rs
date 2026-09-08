@@ -72,7 +72,7 @@ async fn invalid_requests_are_rejected_before_computation() {
     req.headers_mut()
         .insert("origin", "https://other.example".parse().unwrap());
     req.headers_mut()
-        .insert("host", "127.0.0.1:3000".parse().unwrap());
+        .insert("host", "127.0.0.1:5173".parse().unwrap());
     assert_eq!(app.clone().oneshot(req).await.unwrap().status(), 403);
     let r = app
         .clone()

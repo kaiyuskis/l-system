@@ -283,6 +283,8 @@ pub struct Geometry {
     pub leaves: Vec<Organ>,
     pub flowers: Vec<Organ>,
     pub buds: Vec<Organ>,
+    #[serde(skip)]
+    pub surface: Option<crate::sweep::Surface>,
 }
 #[derive(Clone, Copy)]
 struct Turtle {
@@ -434,6 +436,8 @@ pub fn geometry(s: &[u8], p: &Plant) -> Result<Geometry> {
 }
 pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32)> {
     p.validate()?;
+    if p.growth_model == "pine" { return crate::pine::generate(p); }
+    if p.growth_model != "lsystem" { return crate::botanical::generate(p); }
     let rules = parse_rules(&p.rules)?;
     let s = expand(&p.premise, &rules, p.generations)?;
     let data = geometry(&s, p)?;

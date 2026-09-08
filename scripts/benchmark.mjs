@@ -6,7 +6,7 @@ import {
 } from "../web/tests/reference/l-system.ts";
 import { setSeed } from "../web/tests/reference/rng.ts";
 import { decodeGeometry } from "../web/src/geometry-client.ts";
-const base = process.env.BENCH_URL || "http://127.0.0.1:3000";
+const base = process.env.BENCH_URL || "http://127.0.0.1:5173";
 const birch = { ...cloneParams(builtinPresets[0].params), generations: 6 };
 const dense = {
   ...cloneParams(birch),
