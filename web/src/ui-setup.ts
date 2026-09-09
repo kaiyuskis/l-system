@@ -54,8 +54,8 @@ function color(key: keyof PlantParams, label: string) {
 export function setupUI(actions: UIActions) {
   element("preset-grid").innerHTML = builtinPresets
     .map(
-      (preset, index) =>
-        `<button class="preset-card" data-preset="${preset.id}" aria-label="${escapeHTML(preset.name)}のプリセット" aria-pressed="false" title="${escapeHTML(preset.description)}">${plantIllustration(index)}<span class="preset-check">${icon("check")}</span><strong>${escapeHTML(preset.name)}</strong><small>${escapeHTML(preset.tag)}</small></button>`,
+      (preset) =>
+        `<button class="preset-card" data-preset="${preset.id}" aria-label="${escapeHTML(preset.name)}のプリセット" aria-pressed="false" title="${escapeHTML(preset.description)}">${plantIllustration(["birch", "maple", "sakura", "fern", "pine"].indexOf(preset.params.growthModel))}<span class="preset-check">${icon("check")}</span><strong>${escapeHTML(preset.name)}</strong><small>${escapeHTML(preset.tag)}</small></button>`,
     )
     .join("");
   element("panel-shape").innerHTML =
@@ -64,12 +64,26 @@ export function setupUI(actions: UIActions) {
     `<section class="control-section"><div class="control-heading">葉の表情 ${icon("leaf")}</div><div class="control-row"><label class="control-label" for="leaf-texture">葉のかたち</label><select id="leaf-texture" data-param="leafTextureKey"><option value="leaf_default">楕円の葉</option><option value="leaf_maple">モミジの葉</option><option value="pine_needles">松の針葉（立体）</option><option value="leaf_birch">シラカバの鋸歯葉（立体）</option><option value="leaf_cherry">サクラの葉（立体）</option><option value="fern_pinnule">シダの小羽片（立体）</option></select></div>${color("leafColor", "葉の色")}${slider("leafSize", "葉の大きさ", 0, 5, 0.05)}</section><section id="flower-settings" class="control-section"><div class="control-heading">花とつぼみ</div>${color("flowerColor", "花の色")}${slider("flowerSize", "花の大きさ", 0, 5, 0.05)}${color("budColor", "つぼみの色")}${slider("budSize", "つぼみの大きさ", 0, 5, 0.05)}<p class="control-help" id="flower-help">大きさを0にすると非表示になります。</p></section><section class="control-section"><div class="control-heading">樹皮</div>${color("branchColor", "幹と枝の色")}</section>`;
   element("panel-rules").innerHTML =
     `<section class="control-section"><label class="control-label" for="growth-model">成長モデル</label><select id="growth-model" data-param="growthModel"><option value="pine">クロマツの成長</option><option value="birch">シラカバの成長</option><option value="maple">モミジの成長</option><option value="sakura">サクラの成長</option><option value="fern">シダの成長</option><option value="lsystem">自由なL-system（文字列ルール）</option></select></section><p id="pine-rule-notice" class="rule-help" hidden>樹種別のモデルは、次数・長さ・太さ・方向を持つ芽を置換するパラメトリックL-systemです。「かたち」と世代で調整します。独自の文字列ルールを使う場合は「自由なL-system」へ切り替えてください。</p><section class="control-section"><div class="control-heading">L-system エディター ${icon("code")}</div><div class="control-row"><label class="control-label" for="premise">はじめの文字列（公理）</label><input id="premise" class="text-input" data-param="premise" spellcheck="false" maxlength="250000"/></div><label class="control-label" for="rules-editor">枝分かれのルール <span>1行に1つ</span></label><textarea id="rules-editor" class="rule-editor" spellcheck="false" aria-describedby="rule-guidance" maxlength="100000"></textarea><div class="rule-help" id="rule-guidance"><code>A=F[+A][-A]</code><br>世代が進むたび、左の文字を右の文字列に置き換えます。<br><code>F</code> 枝を伸ばす　<code>L</code> 葉　<code>K</code> 花<br><code>[ ]</code> 枝分かれ　<code>+ −</code> 向きを変える<br><button class="text-link" data-action="help">記号と書き方を詳しく見る ${icon("arrow")}</button></div></section><section class="control-section"><div class="control-heading">展開された文字列 <span id="symbol-count">0 文字</span></div><pre class="result-string" id="result-string">—</pre><p class="control-help">先頭 1,000 文字を表示。複雑すぎるルールは、画面の停止を防ぐため生成を制限します。</p></section>`;
+  const filterPresets = () => {
+    const query = element<HTMLInputElement>("preset-search").value.trim().toLowerCase();
+    const category = element<HTMLSelectElement>("preset-category").value;
+    let count = 0;
+    document.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach(button => {
+      const p = builtinPresets.find(p => p.id === button.dataset.preset)!;
+      button.hidden = !!((category && p.params.growthModel !== category) || ![p.name,p.tag,p.description].join(" ").toLowerCase().includes(query));
+      if (!button.hidden) count++;
+    });
+    element("preset-count").textContent = count ? count + " 件のプリセット" : "該当するプリセットがありません";
+  };
+  element("preset-search").addEventListener("input", filterPresets);
+  element("preset-category").addEventListener("change", filterPresets);
+  filterPresets();
   refreshIcons();
   document
     .querySelectorAll<HTMLButtonElement>("[data-preset]")
     .forEach((button) =>
       button.addEventListener("click", () =>
-        actions.preset(button.dataset.preset!),
+        { actions.preset(button.dataset.preset!); element<HTMLDetailsElement>("preset-library").open = false; },
       ),
     );
   document
@@ -160,6 +174,7 @@ export function setupUI(actions: UIActions) {
     "view-front",
     "view-top",
     "toggle-grid",
+    "toggle-environment",
     "toggle-rotate",
     "toggle-wind",
     "play-growth",
@@ -240,6 +255,7 @@ export function setupUI(actions: UIActions) {
           button.classList.toggle("selected", active);
           button.setAttribute("aria-pressed", String(active));
         });
+      element("preset-current").textContent = customName || preset?.name || "カスタム";
       element("specimen-name").textContent =
         customName || preset?.name || "あなただけの樹木";
       element("specimen-latin").textContent =

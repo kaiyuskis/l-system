@@ -6,7 +6,8 @@ if (!viewport) throw new Error("3D ビューポートが見つかりません。
 
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color("#e5eaee");
-scene.fog = new THREE.Fog("#e5eaee", 75, 240);
+const sceneFog = new THREE.Fog("#e5eaee", 75, 240);
+scene.fog = sceneFog;
 
 export const camera = new THREE.PerspectiveCamera(38, 1, 0.02, 1000);
 camera.position.set(18, 13, 25);
@@ -54,7 +55,7 @@ const groundMaterial = new THREE.ShadowMaterial({
   opacity: 0.18,
 });
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(1200, 1200),
+  new THREE.PlaneGeometry(100, 100),
   groundMaterial,
 );
 ground.rotation.x = -Math.PI / 2;
@@ -83,6 +84,12 @@ export const windUniforms = {
 };
 let windPaused = false;
 
+export function setEnvironmentVisible(visible: boolean): void {
+  ground.visible = visible;
+  renderer.shadowMap.enabled = visible;
+  directionalLight.castShadow = visible;
+  scene.fog = visible ? sceneFog : null;
+}
 export function setGridVisible(visible: boolean): void {
   grid.visible = visible;
 }
@@ -104,7 +111,7 @@ export function setSceneTheme(theme: "light" | "dark"): void {
   const dark = theme === "dark";
   const background = dark ? "#202a34" : "#e5eaee";
   (scene.background as THREE.Color).set(background);
-  (scene.fog as THREE.Fog).color.set(background);
+  sceneFog.color.set(background);
   gridMaterial.opacity = dark ? 0.17 : 0.24;
   groundMaterial.color.set(dark ? 0x040b07 : 0x465c6c);
   groundMaterial.opacity = dark ? 0.35 : 0.18;
@@ -166,22 +173,35 @@ export function fitCamera(
   controls.maxDistance = extent * 15;
   controls.update();
 
-  const shadowExtent = extent * 0.85;
+  fitEnvironment(object);
+  sceneFog.near = Math.max(distance + extent * 2, 30);
+  sceneFog.far = sceneFog.near + extent * 12;
+}
+
+/** Keep the receiving plane and shadow coverage in sync even during growth playback. */
+export function fitEnvironment(object: THREE.Object3D): void {
+  const box = new THREE.Box3().setFromObject(object);
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const extent = Math.max(size.x, size.y, size.z, .5);
+  if (!Number.isFinite(extent)) return;
+  const groundScale = Math.max(0.1, extent / 18);
+  const shadowExtent = 100 * groundScale;
   const shadowCamera = directionalLight.shadow.camera;
   shadowCamera.left = shadowCamera.bottom = -shadowExtent;
   shadowCamera.right = shadowCamera.top = shadowExtent;
   shadowCamera.near = 0.05;
-  shadowCamera.far = extent * 7;
+  shadowCamera.far = Math.max(extent * 7, shadowExtent * 4);
   directionalLight.position
     .copy(center)
     .add(new THREE.Vector3(1.4, 2.3, 1.6).multiplyScalar(extent));
   directionalLight.target.position.copy(center);
   shadowCamera.updateProjectionMatrix();
   directionalLight.shadow.normalBias = Math.max(0.002, extent * 0.001);
-  grid.scale.setScalar(Math.max(0.1, extent / 18));
-  const fog = scene.fog as THREE.Fog;
-  fog.near = Math.max(distance + extent * 2, 30);
-  fog.far = fog.near + extent * 12;
+  grid.scale.setScalar(groundScale);
+  ground.scale.setScalar(groundScale);
+
 }
 
 function resize(): void {

@@ -382,7 +382,11 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
     );
     while !word.is_empty() {
         let mut next = vec![];
-        for b in word {
+        for mut b in word {
+            let development = crate::growth::development(p, b.order, b.identity);
+            if development <= 0. { continue; }
+            b.length *= development;
+            b.radius *= development.sqrt().max(0.2);
             let rings = woody_axis(b, p);
             record(
                 &mut g,
@@ -438,7 +442,6 @@ fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
         g.surface = Some(s);
         return Ok((b"R(0)".to_vec(), g, crate::growth::LIMIT));
     }
-    let mut rng = Random::new(p.seed as u64);
     let count = 2 + p.generations as usize;
     let maturity = if p.growth_mode {
         crate::growth::size(p)
@@ -447,10 +450,12 @@ fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
     };
     let length = p.max_length * 2.2 * maturity;
     for frond in 0..count {
+        let mut rng = Random::new(id(p.seed as u64, frond));
+        let unfolding = if p.growth_mode { ((p.generations as f64 + 2. - frond as f64) / (2. + rng.unit() * 2.)).clamp(0.18, 1.) } else { 1. };
         let phase = frond as f64 * 2.3999632297 + rng.signed() * 0.15;
         let radial = direction(phase, 0.);
         let across = radial.cross(DVec3::Y).normalize();
-        let size = length * mix(0.75, 1.15, rng.unit());
+        let size = length * mix(0.75, 1.15, rng.unit()) * unfolding;
         let reach = p.crown_spread * mix(0.52, 0.9, rng.unit());
         let tilt = rng.signed() * 0.035 * p.branch_twist * (p.angle_variance / 3.).clamp(0., 3.);
         let rings = (0..=48)

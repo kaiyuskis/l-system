@@ -4,7 +4,7 @@ import * as THREE from "three";
  * No alpha cards. The exact geometry is shared by the preview and GLB export. */
 export const NEEDLES_PER_SHOOT = 80;
 export function needleShoot(length = 1): THREE.BufferGeometry {
-  const positions: number[] = [], colors: number[] = [], indices: number[] = [];
+  const positions: number[] = [], colors: number[] = [], uvs: number[] = [], indices: number[] = [];
   let state = 7319;
   const random = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 4294967296);
   function tube(points: THREE.Vector3[], radius: number, tint: THREE.Color, needle: boolean) {
@@ -22,6 +22,7 @@ export function needleShoot(length = 1): THREE.BufferGeometry {
         const a = j * Math.PI * 2 / sides;
         const p = points[i].clone().addScaledVector(side, Math.cos(a) * width).addScaledVector(other, Math.sin(a) * width);
         positions.push(p.x, p.y, p.z);
+        uvs.push(j / sides, t);
         const shade = needle ? (.50 + .5 * Math.sin(t * Math.PI * .75)) * (j === 0 ? 1.08 : .94) : 1;
         colors.push(tint.r * shade, tint.g * shade, tint.b * shade);
       }
@@ -31,8 +32,8 @@ export function needleShoot(length = 1): THREE.BufferGeometry {
       indices.push(a, b, a + sides, b, b + sides, a + sides);
     }
   }
-  const stem = Array.from({ length: 5 }, (_, i) => new THREE.Vector3(.008 * Math.sin(i * .6), i * .04, 0));
-  tube(stem, .0055, new THREE.Color(.62, .46, .28), false);
+
+
   for (let f = 0; f < NEEDLES_PER_SHOOT / 2; f++) {
     const position = (f + random() * .6) / (NEEDLES_PER_SHOOT / 2);
     const base = new THREE.Vector3(.006 * Math.sin(position * 2.4), .012 + position * .14, 0);
@@ -55,6 +56,7 @@ export function needleShoot(length = 1): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();

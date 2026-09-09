@@ -8,7 +8,6 @@ const web = fileURLToPath(new URL("../web/", import.meta.url));
 const envFile = fileURLToPath(new URL("../.env", import.meta.url));
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 process.env.PORT ||= process.env.APP_PORT || "5173";
-process.env.OLLAMA_MODEL ||= "gemma4:e4b";
 const command = process.argv[2];
 const cargoBin = join(
   process.env.CARGO_HOME || join(homedir(), ".cargo"),

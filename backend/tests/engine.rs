@@ -2,7 +2,7 @@ use komorebi::{
     engine, mesh,
     model::{Plant, Rule, presets},
 };
-use serde_json::{Value, json};
+use serde_json::Value;
 fn plant() -> Plant {
     let mut p: Plant = serde_json::from_value(presets()[0]["params"].clone()).unwrap();
     p.growth_model = "lsystem".into(); // These tests exercise the editable string grammar.
@@ -178,28 +178,4 @@ fn compact_gpu_taper_reconstructs_the_same_vertices_as_export_mesh() {
             }
         }
     }
-}
-#[test]
-fn ai_proposal_validation_preserves_current_and_rejects_bad_geometry() {
-    let v = json!({"name":"紅葉","description":"赤い葉","preset":"maple","settings":{"leafColor":"#ff0000","generations":4}});
-    let current: Plant = serde_json::from_value(presets()[2]["params"].clone()).unwrap();
-    let (_, _, p) = komorebi::ai::validate_proposal(v.clone(), Some(&current)).unwrap();
-    assert_eq!(p.rules[0].expression, current.rules[0].expression);
-    assert_eq!(p.leaf_color, "#ff0000");
-    for patch in [
-        json!({"scale":100}),
-        json!({"seed":-1}),
-        json!({"gravity":"1"}),
-        json!({"leafColor":"red"}),
-        json!({"leafTextureKey":"unknown"}),
-        json!({"initThickness":1}),
-    ] {
-        let mut bad = v.clone();
-        bad["settings"] = patch;
-        assert!(komorebi::ai::validate_proposal(bad, None).is_err());
-    }
-    let mut bad = v;
-    bad["rules"] = json!(["A=A"]);
-    bad["premise"] = json!("A");
-    assert!(komorebi::ai::validate_proposal(bad, None).is_err());
 }

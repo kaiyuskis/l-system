@@ -310,7 +310,7 @@ export function buildTree(
         color: appearance.leafColor,
         emissive: appearance.leafColor,
         emissiveIntensity: pine ? 0.08 : 0.16,
-        map: pine || leafKind ? null : texture(maple ? "leaf-maple.png" : "leaf-default.png", true),
+        map: pine ? needleTexture() : leafKind ? null : texture(maple ? "leaf-maple.png" : "leaf-default.png", true),
         vertexColors: !!(pine || leafKind),
         side: THREE.DoubleSide,
         alphaTest: pine || leafKind ? 0 : 0.4,
@@ -328,6 +328,21 @@ export function buildTree(
         }
       }
       group.add(foliage);
+      if (pine) {
+        const stemGeometry = new THREE.CylinderGeometry(.0025, .007, .16, 5, 4).translate(0,.08,0);
+        const stemMaterial = new THREE.MeshStandardMaterial({ map:texture("pine-bark.png", false), roughness:.95 });
+        const stems = organs(data.leaves, "Pine short shoots", stemGeometry, stemMaterial, true);
+        const frame = new THREE.Matrix4(), position = new THREE.Vector3(), rotation = new THREE.Quaternion(), scale = new THREE.Vector3();
+        for (let i=0; i<data.leaves.count; i++) {
+          stems.getMatrixAt(i, frame); frame.decompose(position, rotation, scale);
+          const radial = Math.min(scale.x, Math.max(.0004, data.leaves.thickness[i] * .7) / .007);
+          scale.x = scale.z = radial;
+          frame.compose(position, rotation, scale); stems.setMatrixAt(i, frame);
+        }
+        stems.computeBoundingBox(); stems.computeBoundingSphere();
+        // The short shoot is a thin lateral twig, independent of needle length.
+        group.add(stems);
+      }
     }
     if (data.flowers.count) {
       const blossom = appearance.growthModel === "sakura";
@@ -389,4 +404,19 @@ if (import.meta.hot) {
     textures.clear();
     textureLoads.clear();
   });
+}
+
+let needleMap: THREE.CanvasTexture | undefined;
+function needleTexture(): THREE.CanvasTexture {
+  if (needleMap) return needleMap;
+  const canvas = document.createElement("canvas"); canvas.width=64; canvas.height=128;
+  const ctx=canvas.getContext("2d")!;
+  ctx.fillStyle="#dbe2c8"; ctx.fillRect(0,0,64,128);
+  for(let x=0;x<64;x++) {
+    ctx.fillStyle = x % 7 < 2 ? "#9cae85" : "#e5ebd9";
+    ctx.globalAlpha=.35; ctx.fillRect(x,0,1,128);
+  }
+  ctx.globalAlpha=.4; ctx.fillStyle="#f6efc4"; ctx.fillRect(0,112,64,16);
+  needleMap = new THREE.CanvasTexture(canvas); needleMap.colorSpace=THREE.SRGBColorSpace;
+  return needleMap;
 }

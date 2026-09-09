@@ -1,4 +1,4 @@
-use komorebi::{AppState, ai::Ai, app};
+use komorebi::{AppState, app};
 use std::{env, time::Duration};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,23 +19,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if port == 0 {
         return Err("PORT must be between 1 and 65535".into());
     }
-    let timeout = env::var("AI_TIMEOUT_MS")
-        .unwrap_or("180000".into())
-        .parse::<u64>()?;
-    if !(1000..=600000).contains(&timeout) {
-        return Err("AI_TIMEOUT_MS must be 1000..600000".into());
-    }
-    let ai = Ai::new(
-        &env::var("OLLAMA_BASE_URL").unwrap_or("http://127.0.0.1:11434".into()),
-        env::var("OLLAMA_MODEL").unwrap_or("gemma4:e4b".into()),
-        Duration::from_millis(timeout),
-    )?;
     let listener = tokio::net::TcpListener::bind(format!("{host}:{port}")).await?;
-    println!("Komorebi Rust: http://{host}:{port} (model: {})", ai.model);
+    println!("Komorebi Rust: http://{host}:{port}");
     axum::serve(
         listener,
         app(
-            AppState::new(ai),
+            AppState::new(),
             &env::var("STATIC_DIR").unwrap_or("web/dist".into()),
         ),
     )

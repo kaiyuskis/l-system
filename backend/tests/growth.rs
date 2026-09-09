@@ -28,3 +28,21 @@ fn generations_grow_every_species_and_maximum_fits() {
         }
     }
 }
+#[test]
+fn buds_wake_asynchronously_and_growth_is_not_a_uniform_scale() {
+    let mut p: Plant = serde_json::from_value(presets()[0]["params"].clone()).unwrap();
+    let mut stages = vec![];
+    for generation in 3..=5 {
+        p.generations = generation;
+        let (_, geometry, _) = engine::generate(&p).unwrap();
+        let trunk = &geometry.branches[0];
+        let norm = glam::DVec3::from_array(trunk.end).distance(glam::DVec3::from_array(trunk.start));
+        stages.push(geometry.branches.iter().map(|b| glam::DVec3::from_array(b.end).distance(glam::DVec3::from_array(b.start)) / norm).collect::<Vec<_>>());
+    }
+    assert_ne!(stages[0], stages[1]);
+    assert_ne!(stages[1], stages[2]);
+    p.generations = 4;
+    let rates: Vec<_> = (0..100).map(|id| komorebi::growth::development(&p, 2, id)).collect();
+    assert!(rates.iter().any(|&x| x == 0.));
+    assert!(rates.iter().any(|&x| x > 0.));
+}

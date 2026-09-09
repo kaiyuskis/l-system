@@ -135,9 +135,9 @@ fn production(bud: Bud, rings: &[Ring], p: &Plant, max_order: u32) -> Vec<Bud> {
         // envelope broadens low down and tapers gently to an irregular crown.
         let count = 11;
         for i in 0..count {
-            let t = 0.30 + i as f64 * 0.060 + rng.signed() * 0.018;
+            let t = 0.30 + i as f64 * 0.060 + rng.signed() * 0.035;
             let (origin, _, radius) = sample(rings, t);
-            let azimuth = bud.phase + i as f64 * 2.3999632297 + rng.signed() * 0.28;
+            let azimuth = bud.phase + i as f64 * 2.3999632297 + rng.signed() * 0.65;
             let reach = (0.51 * (1. - t).powf(0.48) + 0.055) * bud.length * p.crown_spread;
             let rise = mix(-0.08, 0.12, t * t) + rng.signed() * 0.10;
             children.push(Bud {
@@ -152,9 +152,9 @@ fn production(bud: Bud, rings: &[Ring], p: &Plant, max_order: u32) -> Vec<Bud> {
         }
         // Reiterated leaders fill an irregular dome without a bare central spike.
         for i in 0..4 {
-            let t = 0.87 + i as f64 * 0.042;
+            let t = 0.85 + i as f64 * 0.042 + rng.signed() * 0.015;
             let (origin, _, radius) = sample(rings, t);
-            let azimuth = bud.phase + 1.3 + i as f64 * 2.4;
+            let azimuth = bud.phase + 1.3 + i as f64 * 2.4 + rng.signed() * 0.5;
             children.push(Bud {
                 origin,
                 heading: direction(azimuth, 0.07),
@@ -266,7 +266,11 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
     );
     while !word.is_empty() {
         let mut next = vec![];
-        for bud in word {
+        for mut bud in word {
+            let development = crate::growth::development(p, bud.order, bud.identity);
+            if development <= 0. { continue; }
+            bud.length *= development;
+            bud.radius *= development.sqrt().max(0.2);
             let rings = axis(bud, p);
             let sides = if bud.order == 0 {
                 32

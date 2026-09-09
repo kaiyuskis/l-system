@@ -6,7 +6,8 @@ import { validateParams, builtinPresets, cloneParams } from "../src/studio-state
 test("paired needles have a closed cross-section, finite normals and no alpha-card texture", () => {
   const geometry=needleShoot();
   assert.equal(NEEDLES_PER_SHOOT,80);
-  assert.equal(geometry.getAttribute("uv"),undefined);
+  assert.equal(geometry.getAttribute("uv").count, geometry.getAttribute("position").count);
+  assert.ok([...geometry.getAttribute("uv").array].every(v => Number.isFinite(v) && v >= 0 && v <= 1));
   for(const key of ["position","normal","color"]) assert.ok([...geometry.getAttribute(key).array].every(Number.isFinite),key);
   assert.ok(geometry.boundingBox.max.x-geometry.boundingBox.min.x>0.2);
   assert.ok(geometry.boundingBox.max.z-geometry.boundingBox.min.z>0.2);

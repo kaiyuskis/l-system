@@ -1,14 +1,17 @@
 import "./style.css";
+import { bakeInstances } from "./export-model.ts";
 import { generationEstimate } from "./generation-estimate.ts";
-import { setupAI } from "./ai-panel.ts";
+
 import * as THREE from "three";
 import {
   scene,
   renderer,
   windUniforms,
   fitCamera,
+  fitEnvironment,
   zoomCamera,
   setGridVisible,
+  setEnvironmentVisible,
   setAutoRotate,
   setWindPaused,
   renderFrame,
@@ -52,7 +55,7 @@ try {
     selectedPreset =
       builtinPresets.find(
         (preset) =>
-          JSON.stringify(preset.params.rules) === JSON.stringify(params.rules),
+          JSON.stringify(validateParams(preset.params)) === JSON.stringify(validateParams(params)),
       )?.id ?? null;
   }
 } catch (error) {
@@ -73,6 +76,7 @@ let revision = 0;
 let needsFit = true;
 let view: "perspective" | "front" | "top" = "perspective";
 let grid = true;
+let environment = true;
 let rotating = false;
 let wind = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let generationLimit = 10;
@@ -221,6 +225,7 @@ async function regenerate(): Promise<boolean> {
     tree = nextTree;
     nextTree = null;
     lastSuccessful = cloneParams(validated);
+    fitEnvironment(tree);
     if (needsFit) {
       fitCamera(tree, view);
       needsFit = false;
@@ -378,8 +383,8 @@ function showLibrary() {
             preset:
               builtinPresets.find(
                 (p) =>
-                  JSON.stringify(p.params.rules) ===
-                  JSON.stringify(item.data.rules),
+                  JSON.stringify(validateParams(p.params)) ===
+                  JSON.stringify(validateParams(item.data)),
               )?.id ?? null,
             name: item.name,
           });
@@ -415,7 +420,7 @@ function showLibrary() {
 function showExport() {
   openDialog(
     "モデルを書き出す",
-    `<p class="dialog-description">用途に合わせてファイル形式を選択してください。</p><button class="export-option" data-export="png">${icon("image")}<span><strong>プレビュー画像</strong><small>いまの視点と背景を、そのまま画像に。</small></span><b>PNG</b></button><button class="export-option" data-export="glb">${icon("cube")}<span><strong>3Dモデル</strong><small>樹木とテクスチャを、ひとつのファイルに。</small></span><b>GLB</b></button><button class="export-option" data-export="json">${icon("code")}<span><strong>ルールと設定</strong><small>バックアップや、別のブラウザーでの再編集に。</small></span><b>JSON</b></button><p class="control-help">3Dモデルには風のアニメーションを含みません。高さはモデル内の相対単位です。</p><div class="dialog-actions"><button class="button button-quiet" id="export-import">${icon("upload")}JSONを読み込む</button></div>`,
+    `<p class="dialog-description">用途に合わせてファイル形式を選択してください。</p><button class="export-option" data-export="png">${icon("image")}<span><strong>プレビュー画像</strong><small>いまの視点と背景を、そのまま画像に。</small></span><b>PNG</b></button><button class="export-option" data-export="glb">${icon("cube")}<span><strong>Blender用 3Dモデル</strong><small>GLB：材質・テクスチャを同梱。BlenderのglTF 2.0読み込みに対応。</small></span><b>GLB</b></button><button class="export-option" data-export="json">${icon("code")}<span><strong>ルールと設定</strong><small>バックアップや、別のブラウザーでの再編集に。</small></span><b>JSON</b></button><p class="control-help">葉・針葉も編集可能なメッシュで保存します。密度が高いほど容量と処理時間が増えます。風のアニメーションは含みません。高さはモデル内の相対単位です。</p><div class="dialog-actions"><button class="button button-quiet" id="export-import">${icon("upload")}JSONを読み込む</button></div>`,
     "EXPORT",
   );
   element("export-import").addEventListener("click", () =>
@@ -479,6 +484,8 @@ async function exportFile(format: string, button: HTMLButtonElement) {
         );
         let result: ArrayBuffer | { [key: string]: unknown };
         try {
+          exported.name = filename();
+          bakeInstances(exported);
           exported.traverse((object) => {
             if (object instanceof THREE.Mesh)
               object.geometry.deleteAttribute("aThickness");
@@ -572,6 +579,11 @@ function action(name: string) {
       );
       if (tree) fitCamera(tree, view);
       break;
+    case "toggle-environment":
+      environment = !environment;
+      setEnvironmentVisible(environment);
+      setToggle(name, environment);
+      break;
     case "toggle-grid":
       grid = !grid;
       setGridVisible(grid);
@@ -596,14 +608,7 @@ function action(name: string) {
   }
 }
 const ui = setupUI({ change, preset: selectPreset, action });
-const disposeAI = setupAI({
-  getCurrent: () => cloneParams(params),
-  apply: (proposal) => {
-    remember();
-    restore({ params: proposal.params, preset: null, name: proposal.name });
-    toast("AIが考えた樹木を反映しました。", "success");
-  },
-});
+
 sync();
 setToggle("toggle-wind", wind);
 setWindPaused(!wind);
@@ -691,7 +696,7 @@ if (draftWarning) toast(draftWarning, "error", 6500);
 schedule(0);
 if (import.meta.hot)
   import.meta.hot.dispose(() => {
-    disposeAI();
+
     geometryController?.abort();
     clearTimeout(generationTimer);
     clearTimeout(playbackTimer);

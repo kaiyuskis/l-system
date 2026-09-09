@@ -1,4 +1,4 @@
-pub mod ai;
+
 pub mod botanical;
 pub mod engine;
 pub mod growth;
@@ -8,7 +8,7 @@ pub mod pine;
 pub mod sweep;
 use axum::{
     Json, Router,
-    body::{Body, Bytes},
+    body::Bytes,
     extract::{DefaultBodyLimit, Request, State},
     http::{StatusCode, header},
     middleware::{self, Next},
@@ -18,11 +18,10 @@ use axum::{
 use serde_json::{Value, json};
 use std::{
     collections::VecDeque,
-    convert::Infallible,
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Instant,
 };
-use tokio::sync::{Semaphore, mpsc};
+use tokio::sync::Semaphore;
 use tower_http::{compression::CompressionLayer, services::ServeDir};
 
 #[derive(Debug)]
@@ -67,17 +66,13 @@ impl IntoResponse for ApiError {
 type Cache = VecDeque<(String, Bytes)>;
 #[derive(Clone)]
 pub struct AppState {
-    pub ai: ai::Ai,
     compute: Arc<Semaphore>,
-    inference: Arc<Semaphore>,
     cache: Arc<Mutex<Cache>>,
 }
 impl AppState {
-    pub fn new(ai: ai::Ai) -> Self {
+    pub fn new() -> Self {
         Self {
-            ai,
             compute: Arc::new(Semaphore::new(2)),
-            inference: Arc::new(Semaphore::new(1)),
             cache: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
@@ -208,48 +203,6 @@ async fn calculate(
     }
     Ok(binary(bytes, false))
 }
-async fn status(State(state): State<AppState>) -> Json<Value> {
-    Json(tokio::time::timeout(Duration::from_secs(5),state.ai.status()).await.unwrap_or_else(|_|json!({"available":false,"model":state.ai.model,"message":"Ollamaの接続確認がタイムアウトしました。"})))
-}
-async fn generate_ai(
-    State(state): State<AppState>,
-    body: Result<Json<ai::Input>, axum::extract::rejection::JsonRejection>,
-) -> Result<Response, ApiError> {
-    let Json(input) = body.map_err(|e| ApiError {
-        status: e.status(),
-        message: "指示と現在の設定をJSONで送信してください。".into(),
-    })?;
-    ai::validate_input(&input)?;
-    let permit = state
-        .inference
-        .clone()
-        .try_acquire_owned()
-        .map_err(|_| ApiError::busy())?;
-    let (tx, rx) = mpsc::channel::<Result<Bytes, Infallible>>(2);
-    // Whitespace is valid before JSON. Streaming it lets Hyper observe disconnects
-    // immediately, so cancelling the browser aborts the upstream Ollama future.
-    tokio::spawn(async move {
-        let _permit = permit;
-        let work = tokio::time::timeout(state.ai.timeout, state.ai.generate(input));
-        tokio::pin!(work);
-        let mut heartbeat = tokio::time::interval(Duration::from_secs(2));
-        loop {
-            tokio::select! {
-                _=tx.closed()=>break,
-                _=heartbeat.tick()=>{if tx.send(Ok(Bytes::from_static(b"\n"))).await.is_err(){break;}},
-                result=&mut work=>{let value=match result {Ok(Ok(v))=>v,Ok(Err(e))=>e.value(),Err(_)=>json!({"error":"AIの応答がタイムアウトしました。","code":504})};let _=tx.send(Ok(Bytes::from(value.to_string()))).await;break;}
-            }
-        }
-    });
-    Ok((
-        [
-            (header::CONTENT_TYPE, "application/json; charset=utf-8"),
-            (header::CACHE_CONTROL, "no-store"),
-        ],
-        Body::from_stream(tokio_stream::wrappers::ReceiverStream::new(rx)),
-    )
-        .into_response())
-}
 pub fn app(state: AppState, static_dir: &str) -> Router {
     Router::new()
         .route(
@@ -258,8 +211,6 @@ pub fn app(state: AppState, static_dir: &str) -> Router {
         )
         .route("/api/tree/generate", post(generate_tree))
         .route("/api/tree/export", post(export_tree))
-        .route("/api/ai/status", get(status))
-        .route("/api/ai/generate", post(generate_ai))
         .fallback_service(ServeDir::new(static_dir))
         .layer(DefaultBodyLimit::max(131072))
         .layer(CompressionLayer::new())
