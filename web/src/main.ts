@@ -16,6 +16,7 @@ import {
   setWindPaused,
   renderFrame,
 } from "./three-setup.ts";
+import { SPRUCE_NEEDLES_PER_SHOOT } from "./botanical-organs.ts";
 import { NEEDLES_PER_SHOOT } from "./pine-needles.ts";
 import { requestGeometry } from "./geometry-client.ts";
 import { buildTree, disposeTree, waitForTextures } from "./tree-renderer.ts";
@@ -232,13 +233,13 @@ async function regenerate(): Promise<boolean> {
     }
     ui.metrics(
       data.meta.branches,
-      validated.leafTextureKey === "pine_needles" ? data.leaves.count * NEEDLES_PER_SHOOT : data.leaves.count + data.flowers.count + data.buds.count,
+      validated.leafTextureKey === "pine_needles" ? data.leaves.count * NEEDLES_PER_SHOOT : validated.leafTextureKey === "spruce_needles" ? data.leaves.count * SPRUCE_NEEDLES_PER_SHOOT : data.leaves.count + data.flowers.count + data.buds.count,
       height,
       performance.now() - start,
       data.meta.preview,
       data.meta.symbolCount,
     );
-    element("metric-organ-label").textContent = validated.leafTextureKey === "pine_needles" ? "針葉" : "葉・花";
+    element("metric-organ-label").textContent = ["pine_needles", "spruce_needles"].includes(validated.leafTextureKey) ? "針葉" : "葉・花";
     updateGenerationLimit();
     try {
       saveDraft(validated);

@@ -31,5 +31,14 @@
 - `web/public/textures/pine-bark.png`: この作業で画像生成したクロマツの灰色の板状樹皮。1,254 × 1,254 px。外部の樹木写真を切り出して作ったものではない。
 - `birch-bark.png`・`maple-bark.png`・`cherry-bark.png`もこの作業で画像生成した樹種別の樹皮。葉と花は葉脈・折れ・鋸歯・花弁を持つ立体メッシュとして生成する。
 - 幹と古枝の周方向・長さ方向に連続したUVを与え、色と凹凸に使用。
-- 松の葉は画像ではなく、二本を一組にした曲がった三角断面の針葉。1房80本の共有メッシュを枝先へ配置する。
+- 松の葉は二本を一組にした長く硬い三角断面の針葉。1房64本の共有メッシュを枝先へ配置し、筋状の質感はコードで生成する。短枝の径の調整は針葉の行列を変更しない。
 - 外部の参考写真の著作権は各出典に帰属。再配布用アセットへは含めていない。
+
+## 追加樹種の形態
+
+- [NC State — Quercus robur](https://plants.ces.ncsu.edu/plants/quercus-robur/common-name/common-oak/): 広がる樹冠と丸い裂片の葉。ナラは不規則な太い主枝と丸い裂葉を生成する。
+- [NC State — Salix babylonica](https://plants.ces.ncsu.edu/plants/salix-babylonica/): 垂れる枝と細長い葉。ヤナギは主枝から下垂する細枝と披針形の葉を生成する。
+- [NC State Extension — Christmas Tree Species](https://content.ces.ncsu.edu/christmas-tree-species): トウヒの円錐形樹冠と四角い断面の単生針葉。松の対生する長い針葉とは別メッシュを使用する。
+- [OpenStax — Leaves](https://openstax.org/books/biology-2e/pages/30-4-leaves): イチョウの扇形の葉と二又分岐の葉脈を参照。短枝に扇形の葉を束生させる。
+
+未使用の `assets/source-textures/` 内の元画像6枚（69,127,918 bytes）は削除。配信する10枚は樹皮や従来の文字列L-systemで参照するため保持している。追加4樹種は既存の樹皮を共用し、専用の写真テクスチャは追加していない。

@@ -243,3 +243,7 @@ __marimo__/
 # Local browser verification artifacts
 .playwright-cli/
 output/playwright/
+output/revision2/
+
+# Generated model exports stay local
+/output/*.glb

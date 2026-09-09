@@ -3,6 +3,7 @@
 //! is a separate operation on the derived axes, shared with the pine model.
 use crate::{
     engine::{Branch, Geometry, Organ, unit_rotation},
+    growth::{Schedule, clip_axis},
     model::Plant,
     sweep::{Ring, Surface},
 };
@@ -73,6 +74,7 @@ struct Bud {
     radius: f64,
     order: u32,
     identity: u64,
+    schedule: Schedule,
 }
 
 fn woody_axis(b: Bud, p: &Plant) -> Vec<Ring> {
@@ -187,6 +189,7 @@ fn replacements(b: Bud, rings: &[Ring], p: &Plant) -> Vec<Bud> {
                     },
                 order: 1,
                 identity: id(b.identity, i),
+                schedule: Schedule::child(p, b.schedule, t, id(b.identity, i)),
             });
         }
         if birch {
@@ -198,6 +201,7 @@ fn replacements(b: Bud, rings: &[Ring], p: &Plant) -> Vec<Bud> {
                 radius,
                 order: 1,
                 identity: id(b.identity, 20),
+                schedule: Schedule::child(p, b.schedule, 0.98, id(b.identity, 20)),
             });
         } else {
             for leader in 0..2 {
@@ -209,6 +213,7 @@ fn replacements(b: Bud, rings: &[Ring], p: &Plant) -> Vec<Bud> {
                     radius: radius * 0.8,
                     order: 1,
                     identity: id(b.identity, 21 + leader),
+                    schedule: Schedule::child(p, b.schedule, 0.91 + leader as f64 * 0.075, id(b.identity, 21 + leader)),
                 });
             }
         }
@@ -246,6 +251,7 @@ fn replacements(b: Bud, rings: &[Ring], p: &Plant) -> Vec<Bud> {
                     * (p.width_decay / 0.82).clamp(0.25, 1.22),
                 order: b.order + 1,
                 identity: id(b.identity, i),
+                schedule: Schedule::child(p, b.schedule, t, id(b.identity, i)),
             });
         }
         let (origin, tangent, radius) = sample(rings, 0.995);
@@ -256,17 +262,17 @@ fn replacements(b: Bud, rings: &[Ring], p: &Plant) -> Vec<Bud> {
             radius,
             order: b.order + 1,
             identity: id(b.identity, 9),
+            schedule: Schedule::child(p, b.schedule, 0.995, id(b.identity, 9)),
         });
     }
     children
 }
-fn woody_foliage(b: Bud, rings: &[Ring], p: &Plant, g: &mut Geometry) {
-    let mut rng = Random::new(b.identity ^ 0x38f991);
+fn woody_foliage(b: Bud, rings: &[Ring], progress: f64, radial_scale: f64, p: &Plant, g: &mut Geometry) {
     let cherry = p.growth_model == "sakura";
     let maple = p.growth_model == "maple";
     let count = ((if cherry { 9. } else { 14. })
         * p.foliage_density
-        * if crate::growth::order(p) == 5 {
+        * if crate::growth::max_order(p) == 5 {
             0.45
         } else {
             1.
@@ -274,7 +280,11 @@ fn woody_foliage(b: Bud, rings: &[Ring], p: &Plant, g: &mut Geometry) {
     .round() as usize;
     for i in 0..count {
         let t = mix(0.22, 0.995, (i as f64 + 0.5) / count as f64);
-        let (origin, tangent, width) = sample(rings, t);
+        if t > progress { continue; }
+        // Per-node random streams keep older leaves fixed as later nodes emerge.
+        let mut rng = Random::new(id(b.identity ^ 0x38f991, i));
+        let (origin, tangent, mature_width) = sample(rings, t);
+        let width = mature_width * radial_scale;
         let azimuth = if maple {
             (i / 2) as f64 * PI / 2. + (i % 2) as f64 * PI
         } else {
@@ -310,17 +320,28 @@ fn woody_foliage(b: Bud, rings: &[Ring], p: &Plant, g: &mut Geometry) {
             }
         }
     }
+    // A small apical leaf makes a fresh shoot visible before its first mature
+    // leaf node. Only this growing tip moves; existing nodes remain anchored.
+    if count > 0 && progress < 0.30 && p.leaf_size > 0. {
+        let (origin, tangent, width) = sample(rings, progress);
+        g.leaves.push(Organ {
+            position: origin.to_array(),
+            rotation: unit_rotation(DVec3::Y, tangent).to_array(),
+            scale: p.leaf_size * (0.15 + progress * 1.1),
+            thickness: width * radial_scale,
+        });
+    }
     if p.bud_size > 0. && count > 0 {
-        let (origin, tangent, width) = sample(rings, 0.995);
+        let (origin, tangent, width) = sample(rings, progress.min(0.995));
         g.buds.push(Organ {
             position: origin.to_array(),
             rotation: unit_rotation(DVec3::Y, tangent).to_array(),
             scale: p.bud_size * 0.12,
-            thickness: width,
+            thickness: width * radial_scale,
         });
     }
 }
-fn roots(p: &Plant, g: &mut Geometry, s: &mut Surface) {
+fn roots(p: &Plant, g: &mut Geometry, s: &mut Surface, progress: f64, radial_scale: f64) {
     let mut rng = Random::new(p.seed as u64);
     for i in 0..5 {
         let azimuth = i as f64 * TAU / 5. + rng.signed() * 0.2;
@@ -335,7 +356,8 @@ fn roots(p: &Plant, g: &mut Geometry, s: &mut Surface) {
                 }
             })
             .collect::<Vec<_>>();
-        record(g, s, &rings, 12, azimuth, 0.3);
+        let visible = clip_axis(&rings, progress, radial_scale);
+        if visible.len() >= 2 { record(g, s, &visible, 12, azimuth, 0.3); }
     }
 }
 pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
@@ -374,7 +396,9 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
         radius: p.max_thickness * age.powf(1.4),
         order: 0,
         identity: p.seed as u64,
+        schedule: Schedule::trunk(p, p.seed as u64),
     };
+    let radial_maturity = if p.growth_mode { trunk.schedule.progress(p).powf(0.85) } else { 1. };
     let mut word = vec![trunk];
     let mut derived = format!(
         "{}: B(order,length,radius) -> C(curved axis)[B lateral]B apical; terminal B -> leaf/flower modules\n",
@@ -382,16 +406,19 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
     );
     while !word.is_empty() {
         let mut next = vec![];
-        for mut b in word {
-            let development = crate::growth::development(p, b.order, b.identity);
-            if development <= 0. { continue; }
-            b.length *= development;
-            b.radius *= development.sqrt().max(0.2);
+        for b in word {
+            let progress = b.schedule.progress(p);
+            if progress <= 0. { continue; }
+            // Replacements always sample the immutable mature axis. Extending
+            // the parent can therefore never drag an existing daughter branch.
             let rings = woody_axis(b, p);
+            let radial_scale = radial_maturity * if b.order == 0 { 1. } else { 0.22 + progress.sqrt() * 0.78 };
+            let visible = clip_axis(&rings, progress, radial_scale);
+            if visible.len() < 2 { continue; }
             record(
                 &mut g,
                 &mut s,
-                &rings,
+                &visible,
                 if b.order == 0 {
                     32
                 } else if b.order == 1 {
@@ -403,16 +430,16 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
                 if b.order < 2 { 0.4 } else { 0.15 },
             );
             if derived.len() < 850 {
-                derived.push_str(&format!("B({},{:.2},{:.3}) ", b.order, b.length, b.radius));
+                derived.push_str(&format!("B({},{:.2},{:.3}) ", b.order, b.length * progress, b.radius * radial_scale));
             }
-            let terminal = b.order == crate::growth::order(p)
+            let terminal = b.order == crate::growth::max_order(p)
                 || (b.order >= 3 && Random::new(b.identity).unit() < 0.15);
-            if terminal || b.order >= 3 {
-                woody_foliage(b, &rings, p, &mut g);
+            let children = if terminal { vec![] } else { replacements(b, &rings, p) };
+            let active_children = children.iter().any(|child| child.schedule.progress(p) > 0.);
+            if terminal || b.order >= 3 || !active_children {
+                woody_foliage(b, &rings, progress, radial_scale, p, &mut g);
             }
-            if !terminal {
-                next.extend(replacements(b, &rings, p));
-            }
+            next.extend(children);
             if s.position.len() / 3 > 1_500_000
                 || g.leaves.len() + g.flowers.len() + g.buds.len() > 29_000
             {
@@ -426,7 +453,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
     }
     let mut root_params = p.clone();
     root_params.max_thickness *= age.powf(1.4);
-    roots(&root_params, &mut g, &mut s);
+    roots(&root_params, &mut g, &mut s, (trunk.schedule.progress(p) * 2.4).min(1.), radial_maturity);
     s.normals();
     g.surface = Some(s);
     Ok((derived.into_bytes(), g, crate::growth::LIMIT))
@@ -442,7 +469,7 @@ fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
         g.surface = Some(s);
         return Ok((b"R(0)".to_vec(), g, crate::growth::LIMIT));
     }
-    let count = 2 + p.generations as usize;
+    let count = if p.growth_mode { 18 } else { 2 + p.generations as usize };
     let maturity = if p.growth_mode {
         crate::growth::size(p)
     } else {
@@ -450,12 +477,19 @@ fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
     };
     let length = p.max_length * 2.2 * maturity;
     for frond in 0..count {
-        let mut rng = Random::new(id(p.seed as u64, frond));
-        let unfolding = if p.growth_mode { ((p.generations as f64 + 2. - frond as f64) / (2. + rng.unit() * 2.)).clamp(0.18, 1.) } else { 1. };
+        let identity = id(p.seed as u64, frond);
+        let mut rng = Random::new(identity);
+        let schedule = Schedule::new(
+            if frond == 0 { -0.4 } else { frond as f64 * 0.69 - 0.4 + rng.unit() * 0.85 },
+            2.8 + Random::new(identity ^ 0x117).unit() * 2.2,
+            identity,
+        );
+        let unfolding = schedule.progress(p);
+        if unfolding <= 0. { continue; }
         let phase = frond as f64 * 2.3999632297 + rng.signed() * 0.15;
         let radial = direction(phase, 0.);
         let across = radial.cross(DVec3::Y).normalize();
-        let size = length * mix(0.75, 1.15, rng.unit()) * unfolding;
+        let size = length * mix(0.75, 1.15, rng.unit());
         let reach = p.crown_spread * mix(0.52, 0.9, rng.unit());
         let tilt = rng.signed() * 0.035 * p.branch_twist * (p.angle_variance / 3.).clamp(0., 3.);
         let rings = (0..=48)
@@ -469,13 +503,24 @@ fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
                 }
             })
             .collect::<Vec<_>>();
-        record(&mut g, &mut s, &rings, 8, phase, 0.);
-        let pinnae = (4 + p.generations as usize).min(20);
+        let visible = clip_axis(&rings, unfolding, 0.35 + unfolding.sqrt() * 0.65);
+        if visible.len() < 2 { continue; }
+        record(&mut g, &mut s, &visible, 8, phase, 0.);
+        let pinnae = if p.growth_mode { 20 } else { (4 + p.generations as usize).min(20) };
         for pair in 0..pinnae {
             let t = mix(0.24, 0.97, pair as f64 / (pinnae - 1) as f64);
             let (origin, tangent, _) = sample(&rings, t);
             let envelope = ((t - 0.15) / 0.85 * PI).sin().max(0.).powf(0.8) * (1. - t * 0.4);
             for side in [-1., 1.] {
+                let pinna_identity = id(identity, pair * 2 + usize::from(side > 0.));
+                let mut timing = Random::new(pinna_identity ^ 0x11ae);
+                let pinna_schedule = Schedule::new(
+                    schedule.time_at(t) + 0.08 + timing.unit() * 0.42,
+                    0.8 + timing.unit() * 0.7,
+                    pinna_identity,
+                );
+                let pinna_progress = pinna_schedule.progress(p);
+                if pinna_progress <= 0. { continue; }
                 let heading = (across * side * 0.85
                     + tangent * (p.angle.to_radians().cos() * 0.7 + 0.35))
                     .normalize();
@@ -495,10 +540,13 @@ fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
                         }
                     })
                     .collect::<Vec<_>>();
-                record(&mut g, &mut s, &pinna, 6, phase, 0.);
+                let visible_pinna = clip_axis(&pinna, pinna_progress, 0.35 + pinna_progress.sqrt() * 0.65);
+                if visible_pinna.len() < 2 { continue; }
+                record(&mut g, &mut s, &visible_pinna, 6, phase, 0.);
                 let leaflets = (mix(5., 11., envelope) * p.foliage_density).round() as usize;
                 for k in 0..leaflets {
                     let u = mix(0.08, 0.97, (k as f64 + 0.5) / leaflets as f64);
+                    if u > pinna_progress { continue; }
                     let (base, pinna_tangent, width) = sample(&pinna, u);
                     for margin in [-1., 1.] {
                         let leaf_heading =

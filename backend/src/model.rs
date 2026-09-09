@@ -59,7 +59,7 @@ pub fn color(value: &str) -> bool {
 }
 impl Plant {
     pub fn validate(&self) -> Result<(), String> {
-        if !["lsystem", "pine", "birch", "maple", "sakura", "fern"].contains(&self.growth_model.as_str()) {
+        if !["lsystem", "pine", "birch", "maple", "sakura", "fern", "oak", "willow", "spruce", "ginkgo"].contains(&self.growth_model.as_str()) {
             return Err("生成方式が不正です。".into());
         }
         for (value, min, max, label) in [
@@ -96,7 +96,7 @@ impl Plant {
         {
             return Err("色はHEX形式で指定してください。".into());
         }
-        if !["leaf_default", "leaf_maple", "pine_needles", "leaf_birch", "leaf_cherry", "fern_pinnule"].contains(&self.leaf_texture_key.as_str()) {
+        if !["leaf_default", "leaf_maple", "pine_needles", "leaf_birch", "leaf_cherry", "fern_pinnule", "leaf_oak", "leaf_willow", "spruce_needles", "leaf_ginkgo"].contains(&self.leaf_texture_key.as_str()) {
             return Err("葉のテクスチャが不正です。".into());
         }
         if self.premise.trim().is_empty()

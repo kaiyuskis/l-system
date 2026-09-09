@@ -5,6 +5,7 @@ pub mod growth;
 pub mod mesh;
 pub mod model;
 pub mod pine;
+pub mod species;
 pub mod sweep;
 use axum::{
     Json, Router,

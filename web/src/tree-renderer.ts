@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import type { NativeGeometry, Population } from "./geometry-client.ts";
 import { windUniforms } from "./three-setup";
-import { needleShoot } from "./pine-needles.ts";
-import { broadleaf, cherryBlossom } from "./botanical-organs.ts";
+import { shortShootMatrices } from "./shoot-transforms.ts";
+import { needleShoot, NEEDLE_STEM_LENGTH } from "./pine-needles.ts";
+import { broadleaf, cherryBlossom, spruceNeedles } from "./botanical-organs.ts";
 
 export interface TreeAppearance {
   growthModel?: string;
@@ -243,7 +244,13 @@ export function buildTree(
   try {
     if (data.meta.branches) {
       const pine = appearance.growthModel === "pine";
-      const barkFile = ({pine:"pine-bark.png",birch:"birch-bark.png",maple:"maple-bark.png",sakura:"cherry-bark.png"} as Record<string,string>)[appearance.growthModel ?? ""];
+      const barkFile = ({
+        pine: "pine-bark.png",
+        birch: "birch-bark.png",
+        maple: "maple-bark.png",
+        sakura: "cherry-bark.png",
+        spruce: "pine-bark.png",
+      } as Record<string, string>)[appearance.growthModel ?? ""];
       const fern = appearance.growthModel === "fern";
       const material = new THREE.MeshStandardMaterial({
         color: appearance.branchColor,
@@ -300,26 +307,34 @@ export function buildTree(
     if (data.leaves.count) {
       const pine = appearance.leafTextureKey === "pine_needles";
       const maple = appearance.leafTextureKey === "leaf_maple";
-      const leafKind = appearance.leafTextureKey === "leaf_birch" ? "birch" : appearance.leafTextureKey === "leaf_cherry" ? "cherry" : appearance.leafTextureKey === "fern_pinnule" ? "fern" : maple && appearance.growthModel === "maple" ? "maple" : null;
-      const geometry = pine ? needleShoot(appearance.needleLength) : leafKind ? broadleaf(leafKind) : new THREE.PlaneGeometry(1, 1);
-      if (!pine && !leafKind) {
+      const spruce = appearance.leafTextureKey === "spruce_needles";
+      const leafKinds: Record<string, Parameters<typeof broadleaf>[0]> = {
+        leaf_birch: "birch", leaf_cherry: "cherry", fern_pinnule: "fern",
+        leaf_oak: "oak", leaf_willow: "willow", leaf_ginkgo: "ginkgo",
+      };
+      const leafKind = leafKinds[appearance.leafTextureKey]
+        ?? (maple && appearance.growthModel === "maple" ? "maple" : null);
+      const geometry = pine ? needleShoot(appearance.needleLength)
+        : spruce ? spruceNeedles(appearance.needleLength)
+        : leafKind ? broadleaf(leafKind) : new THREE.PlaneGeometry(1, 1);
+      if (!pine && !spruce && !leafKind) {
         if (!maple) geometry.rotateZ(Math.PI / 4).translate(0, 0.66, 0);
         else geometry.translate(0, 0.48, 0);
       }
       const material = new THREE.MeshStandardMaterial({
         color: appearance.leafColor,
         emissive: appearance.leafColor,
-        emissiveIntensity: pine ? 0.08 : 0.16,
-        map: pine ? needleTexture() : leafKind ? null : texture(maple ? "leaf-maple.png" : "leaf-default.png", true),
-        vertexColors: !!(pine || leafKind),
+        emissiveIntensity: pine || spruce ? 0.025 : 0.10,
+        map: pine ? needleTexture() : spruce || leafKind ? null : texture(maple ? "leaf-maple.png" : "leaf-default.png", true),
+        vertexColors: !!(pine || spruce || leafKind),
         side: THREE.DoubleSide,
-        alphaTest: pine || leafKind ? 0 : 0.4,
-        roughness: pine ? 0.65 : 0.92,
+        alphaTest: pine || spruce || leafKind ? 0 : 0.4,
+        roughness: pine || spruce ? 0.8 : 0.92,
         metalness: 0,
         alphaToCoverage: true,
       });
       const foliage = organs(data.leaves, pine ? "Pine paired needles" : "Leaves", geometry, material, true);
-      if (pine || leafKind) {
+      if (pine || spruce || leafKind) {
         const color = new THREE.Color();
         for (let i = 0; i < data.leaves.count; i++) {
           const variation = .82 + ((Math.imul(i + 7, 16807) >>> 0) % 101) / 300;
@@ -329,16 +344,10 @@ export function buildTree(
       }
       group.add(foliage);
       if (pine) {
-        const stemGeometry = new THREE.CylinderGeometry(.0025, .007, .16, 5, 4).translate(0,.08,0);
-        const stemMaterial = new THREE.MeshStandardMaterial({ map:texture("pine-bark.png", false), roughness:.95 });
+        const stemGeometry = new THREE.CylinderGeometry(.0025, .007, NEEDLE_STEM_LENGTH, 5, 4).translate(0,NEEDLE_STEM_LENGTH/2,0);
+        const stemMaterial = new THREE.MeshStandardMaterial({ map:texture("pine-bark.png", true, true), roughness:.95 });
         const stems = organs(data.leaves, "Pine short shoots", stemGeometry, stemMaterial, true);
-        const frame = new THREE.Matrix4(), position = new THREE.Vector3(), rotation = new THREE.Quaternion(), scale = new THREE.Vector3();
-        for (let i=0; i<data.leaves.count; i++) {
-          stems.getMatrixAt(i, frame); frame.decompose(position, rotation, scale);
-          const radial = Math.min(scale.x, Math.max(.0004, data.leaves.thickness[i] * .7) / .007);
-          scale.x = scale.z = radial;
-          frame.compose(position, rotation, scale); stems.setMatrixAt(i, frame);
-        }
+        stems.instanceMatrix = new THREE.InstancedBufferAttribute(shortShootMatrices(data.leaves), 16);
         stems.computeBoundingBox(); stems.computeBoundingSphere();
         // The short shoot is a thin lateral twig, independent of needle length.
         group.add(stems);
@@ -401,6 +410,8 @@ export function disposeTree(group: THREE.Group): void {
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     for (const cached of textures.values()) cached.dispose();
+    needleMap?.dispose();
+    needleMap = undefined;
     textures.clear();
     textureLoads.clear();
   });
@@ -411,12 +422,12 @@ function needleTexture(): THREE.CanvasTexture {
   if (needleMap) return needleMap;
   const canvas = document.createElement("canvas"); canvas.width=64; canvas.height=128;
   const ctx=canvas.getContext("2d")!;
-  ctx.fillStyle="#dbe2c8"; ctx.fillRect(0,0,64,128);
+  ctx.fillStyle="#f1f3ed"; ctx.fillRect(0,0,64,128);
   for(let x=0;x<64;x++) {
-    ctx.fillStyle = x % 7 < 2 ? "#9cae85" : "#e5ebd9";
-    ctx.globalAlpha=.35; ctx.fillRect(x,0,1,128);
+    ctx.fillStyle = x % 7 < 2 ? "#bdc5b5" : "#f5f6f1";
+    ctx.globalAlpha=.20; ctx.fillRect(x,0,1,128);
   }
-  ctx.globalAlpha=.4; ctx.fillStyle="#f6efc4"; ctx.fillRect(0,112,64,16);
+  ctx.globalAlpha=.12; ctx.fillStyle="#d8deb7"; ctx.fillRect(0,112,64,16);
   needleMap = new THREE.CanvasTexture(canvas); needleMap.colorSpace=THREE.SRGBColorSpace;
   return needleMap;
 }

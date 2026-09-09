@@ -1,56 +1,69 @@
 import * as THREE from "three";
 
-/** A reusable short shoot: 40 fascicles, each with two curved, tapered needles.
- * No alpha cards. The exact geometry is shared by the preview and GLB export. */
-export const NEEDLES_PER_SHOOT = 80;
+/** A single twig's needles, shared by all preview instances and GLB meshes.
+ * Black/red pine needles emerge in pairs from a common fascicle, not as scales
+ * or flat foliage cards. Their long, nearly straight blades make the silhouette. */
+export const NEEDLES_PER_SHOOT = 64;
+export const NEEDLE_STEM_LENGTH = .16;
+const RINGS_PER_NEEDLE = 5;
+const SIDES = 3;
+
 export function needleShoot(length = 1): THREE.BufferGeometry {
   const positions: number[] = [], colors: number[] = [], uvs: number[] = [], indices: number[] = [];
   let state = 7319;
   const random = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 4294967296);
-  function tube(points: THREE.Vector3[], radius: number, tint: THREE.Color, needle: boolean) {
-    const start = positions.length / 3;
-    const sides = needle ? 3 : 5;
-    let side = new THREE.Vector3(1, 0, 0);
-    for (let i = 0; i < points.length; i++) {
-      const t = i / (points.length - 1);
-      const tangent = points[Math.min(i + 1, points.length - 1)].clone().sub(points[Math.max(0, i - 1)]).normalize();
-      if (Math.abs(side.dot(tangent)) > .95) side.set(0, 0, 1);
-      side.addScaledVector(tangent, -side.dot(tangent)).normalize();
-      const other = new THREE.Vector3().crossVectors(tangent, side).normalize();
-      const width = radius * (needle ? Math.max(.02, Math.pow(1 - t, .55)) : 1 - t * .55);
-      for (let j = 0; j < sides; j++) {
-        const a = j * Math.PI * 2 / sides;
-        const p = points[i].clone().addScaledVector(side, Math.cos(a) * width).addScaledVector(other, Math.sin(a) * width);
-        positions.push(p.x, p.y, p.z);
-        uvs.push(j / sides, t);
-        const shade = needle ? (.50 + .5 * Math.sin(t * Math.PI * .75)) * (j === 0 ? 1.08 : .94) : 1;
-        colors.push(tint.r * shade, tint.g * shade, tint.b * shade);
-      }
-    }
-    for (let i = 0; i < points.length - 1; i++) for (let j = 0; j < sides; j++) {
-      const a = start + i * sides + j, b = start + i * sides + (j + 1) % sides;
-      indices.push(a, b, a + sides, b, b + sides, a + sides);
-    }
-  }
+  const fascicles = NEEDLES_PER_SHOOT / 2;
 
+  for (let f = 0; f < fascicles; f++) {
+    const along = (f + random() * .65) / fascicles;
+    // The straight woody short shoot owns the attachment. Rooting both blades
+    // on its centreline also keeps the narrowest twig instances connected.
+    const base = new THREE.Vector3(0, .028 + along * (NEEDLE_STEM_LENGTH - .03), 0);
+    const azimuth = f * 2.3999632297 + random() * .5;
+    const lean = .82 - along * .49 + random() * .16;
+    const needleLength = (.16 + random() * .07) * length;
+    const tint = .84 + random() * .22;
+    const pairOpening = .065 + random() * .075;
 
-  for (let f = 0; f < NEEDLES_PER_SHOOT / 2; f++) {
-    const position = (f + random() * .6) / (NEEDLES_PER_SHOOT / 2);
-    const base = new THREE.Vector3(.006 * Math.sin(position * 2.4), .012 + position * .14, 0);
-    const azimuth = f * 2.3999632297 + random() * .3;
-    const spread = .8 - position * .5 + random() * .2;
-    const needleLength = (.10 + random() * .05) * length;
-    const variation = .72 + random() * .40;
     for (let pair = 0; pair < 2; pair++) {
-      const angle = azimuth + (pair ? 1 : -1) * .065;
+      const angle = azimuth + (pair ? 1 : -1) * pairOpening;
       const outward = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-      const points = Array.from({length: 5}, (_, i) => {
-        const t = i / 4;
-        // Both needles share a fascicle base, then gradually splay and curve.
-        return base.clone().addScaledVector(outward, needleLength * (spread * t + .19 * t * t))
-          .add(new THREE.Vector3(0, needleLength * ((1 - spread * .4) * t - .12 * t * t), 0));
+      const start = positions.length / 3;
+      const radius = .00125 * (.88 + random() * .24);
+      const direction = outward.clone().multiplyScalar(Math.sin(lean))
+        .addScaledVector(THREE.Object3D.DEFAULT_UP, Math.cos(lean));
+      const points = Array.from({ length: RINGS_PER_NEEDLE }, (_, i) => {
+        const t = i / (RINGS_PER_NEEDLE - 1);
+        // A slight outward bow, with a stiff straight shaft rather than a curl.
+        return base.clone().addScaledVector(direction, needleLength * t)
+          .addScaledVector(outward, needleLength * .075 * t * t);
       });
-      tube(points, .0008 * (.85 + random() * .3), new THREE.Color(variation, variation * 1.03, variation * .81), true);
+      const side = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
+      for (let i = 0; i < RINGS_PER_NEEDLE; i++) {
+        const t = i / (RINGS_PER_NEEDLE - 1);
+        const tangent = points[Math.min(i + 1, RINGS_PER_NEEDLE - 1)].clone()
+          .sub(points[Math.max(0, i - 1)]).normalize();
+        const other = new THREE.Vector3().crossVectors(tangent, side).normalize();
+        // Most of the needle keeps its width; the final section has a sharp tip.
+        const width = radius * Math.max(.008, (1 - t * .25) * (1 - Math.pow(t, 4)));
+        for (let j = 0; j < SIDES; j++) {
+          const a = j * Math.PI * 2 / SIDES;
+          const point = points[i].clone().addScaledVector(side, Math.cos(a) * width)
+            .addScaledVector(other, Math.sin(a) * width);
+          positions.push(point.x, point.y, point.z);
+          uvs.push(j / SIDES, t);
+          const shade = tint * (.76 + .24 * t) * (j === 0 ? 1.04 : .96);
+          colors.push(shade, shade * 1.015, shade * .9);
+        }
+      }
+      for (let i = 0; i < RINGS_PER_NEEDLE - 1; i++) for (let j = 0; j < SIDES; j++) {
+        const a = start + i * SIDES + j, b = start + i * SIDES + (j + 1) % SIDES;
+        indices.push(a, b, a + SIDES, b, b + SIDES, a + SIDES);
+      }
+      // Closed triangular ends survive two-sided export and extreme closeups.
+      indices.push(start + 2, start + 1, start);
+      const tip = start + (RINGS_PER_NEEDLE - 1) * SIDES;
+      indices.push(tip, tip + 1, tip + 2);
     }
   }
   const geometry = new THREE.BufferGeometry();

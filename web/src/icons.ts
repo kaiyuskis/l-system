@@ -39,6 +39,11 @@ export function icon(name: string, className = ""): string {
   return `<svg class="icon ${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] ?? paths.leaf}</svg>`;
 }
 export function plantIllustration(index: number): string {
+  if (index === 5) return '<svg viewBox="0 0 120 80" aria-hidden="true"><path d="M59 76V38M59 55 31 31M59 55 86 32" fill="none" stroke="#78664c" stroke-width="7"/><path d="M17 47C3 38 11 22 24 23C18 9 42 2 50 11C54-2 82 2 82 17C100 7 114 25 103 36C119 46 99 60 83 50C67 64 44 61 38 50C26 60 14 57 17 47" fill="#537644"/></svg>';
+  if (index === 6) return '<svg viewBox="0 0 120 80" aria-hidden="true"><path d="M59 77V26M59 40 35 21M59 43 84 22" fill="none" stroke="#756a50" stroke-width="5"/><g fill="none" stroke="#7c9760" stroke-width="7" stroke-linecap="round"><path d="M60 16Q17 4 17 69M58 17Q29 4 29 68M61 15Q43 7 43 69M62 17Q73 2 77 68M61 19Q99 5 99 70M60 17Q65 5 66 56"/></g></svg>';
+  if (index === 7) return '<svg viewBox="0 0 120 80" aria-hidden="true"><path d="M60 77V9" stroke="#746650" stroke-width="5"/><path d="M60 4 42 29H51L30 48H44L19 69H102L76 48H90L69 29H78Z" fill="#406f57"/><path d="M60 13V66M60 38 46 46M60 47 82 62" stroke="#2b5141" fill="none" stroke-width="2"/></svg>';
+  if (index === 8) return '<svg viewBox="0 0 120 80" aria-hidden="true"><path d="M60 77V21M59 50 38 28M60 43 84 25" stroke="#766749" fill="none" stroke-width="4"/><g fill="#b6aa46"><path d="M60 48 26 16Q43-3 59 13Q78-4 96 16Z"/><path d="M33 62 9 32Q23 20 34 28Q43 17 61 34Z"/><path d="M87 62 59 34Q74 21 86 28Q101 19 112 33Z"/></g></svg>';
+
   if (index === 4) return `<svg viewBox="0 0 120 80" aria-hidden="true"><g fill="none" stroke="#70685b" stroke-linecap="round"><path d="M61 75Q55 54 65 42T62 15M60 58 31 44M62 47 91 36M63 31 40 22" stroke-width="4"/></g><g fill="#61754d"><ellipse cx="29" cy="41" rx="21" ry="8"/><ellipse cx="90" cy="32" rx="23" ry="8"/><ellipse cx="41" cy="20" rx="19" ry="7"/><ellipse cx="67" cy="12" rx="18" ry="7"/></g></svg>`;
   const color = ["#779277", "#b77654", "#d09aa7", "#6d8b78"][index % 4];
   if (index === 3)

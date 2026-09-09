@@ -22,6 +22,7 @@ struct Bud {
     order: u32,
     phase: f64,
     identity: u64,
+    schedule: crate::growth::Schedule,
 }
 struct Random(u64);
 impl Random {
@@ -148,6 +149,7 @@ fn production(bud: Bud, rings: &[Ring], p: &Plant, max_order: u32) -> Vec<Bud> {
                 order: 1,
                 phase: azimuth,
                 identity: child_id(bud.identity, i),
+                schedule: crate::growth::Schedule::child(p, bud.schedule, t, child_id(bud.identity, i)),
             });
         }
         // Reiterated leaders fill an irregular dome without a bare central spike.
@@ -163,6 +165,7 @@ fn production(bud: Bud, rings: &[Ring], p: &Plant, max_order: u32) -> Vec<Bud> {
                 order: 1,
                 phase: azimuth,
                 identity: child_id(bud.identity, 15 + i),
+                schedule: crate::growth::Schedule::child(p, bud.schedule, t, child_id(bud.identity, 15 + i)),
             });
         }
     } else {
@@ -188,6 +191,7 @@ fn production(bud: Bud, rings: &[Ring], p: &Plant, max_order: u32) -> Vec<Bud> {
                 order: bud.order + 1,
                 phase: azimuth,
                 identity: child_id(bud.identity, i),
+                schedule: crate::growth::Schedule::child(p, bud.schedule, t, child_id(bud.identity, i)),
             });
         }
         // Apical continuation retains a fan-shaped outer contour.
@@ -200,35 +204,39 @@ fn production(bud: Bud, rings: &[Ring], p: &Plant, max_order: u32) -> Vec<Bud> {
             order: bud.order + 1,
             phase: bud.phase + 0.8,
             identity: child_id(bud.identity, 8),
+            schedule: crate::growth::Schedule::child(p, bud.schedule, 0.99, child_id(bud.identity, 8)),
         });
     }
     children
 }
-fn foliage(bud: Bud, rings: &[Ring], p: &Plant, geometry: &mut Geometry) {
+fn foliage(bud: Bud, rings: &[Ring], progress: f64, radial_scale: f64, p: &Plant, geometry: &mut Geometry) {
     if p.foliage_density == 0. || p.leaf_size == 0. {
         return;
     }
     let mut rng = Random::new(bud.identity ^ 0x83b794);
-    let count = (4.5 * p.foliage_density).round() as usize;
+    let count = (3.5 * p.foliage_density * mix(0.8, 1.3, rng.unit())).round().max(1.) as usize;
     for i in 0..count {
-        let t = mix(0.35, 0.99, (i as f64 + 0.5) / count as f64);
+        // Needles remain on the distal, young wood. Uneven fan-shaped tufts
+        // leave the old scaffold visible instead of coating it in green dots.
+        let t = mix(0.64, 0.995, (i as f64 + 0.3 + rng.unit() * 0.65) / count as f64);
         let (origin, tangent, width) = sample(rings, t);
-        let spin = bud.phase + i as f64 * 2.4;
-        let outward = direction(spin, 1.7);
-        let heading = (tangent * 0.30 + outward * 0.7 + DVec3::Y * 0.30).normalize();
+        let spin = bud.phase + i as f64 * 2.3999632297 + rng.signed() * 0.5;
+        let outward = direction(spin, mix(0.7, 1.6, rng.unit()));
+        let heading = (tangent * 0.52 + outward * 0.42 + DVec3::Y * 0.32).normalize();
         let scale = p.leaf_size * mix(0.78, 1.2, rng.unit());
+        if progress < t { continue; }
         geometry.leaves.push(Organ {
             position: origin.to_array(),
             rotation: (unit_rotation(DVec3::Y, heading) * DQuat::from_rotation_y(spin)).to_array(),
             scale,
-            thickness: width,
+            thickness: width * radial_scale,
         });
         if p.bud_size > 0. && i == count - 1 {
             geometry.buds.push(Organ {
                 position: (origin + heading * scale * 0.16).to_array(),
                 rotation: unit_rotation(DVec3::Y, heading).to_array(),
                 scale: p.bud_size * 0.11,
-                thickness: width,
+                thickness: width * radial_scale,
             });
         }
     }
@@ -246,8 +254,10 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
         return Ok((b"B(0)".to_vec(), geometry, crate::growth::LIMIT));
     }
     let age = crate::growth::size(p);
-    let height = p.max_length * 7.2 * if p.growth_mode { age } else { 1. };
-    let radius = p.max_thickness * if p.growth_mode { age.powf(1.6) } else { 1. };
+    // The complete architecture is seed-stable. Growth reveals a prefix of
+    // each path; stretching a parent no longer lifts all of its older branches.
+    let height = p.max_length * 7.2 * age;
+    let radius = p.max_thickness;
     let mut random = Random::new(p.seed as u64);
     let phase = random.unit() * TAU;
     let trunk = Bud {
@@ -258,20 +268,28 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
         order: 0,
         phase,
         identity: p.seed as u64,
+        schedule: crate::growth::Schedule::trunk(p, p.seed as u64),
     };
-    let max_order = crate::growth::order(p);
+    let max_order = if p.growth_mode { 5 } else { crate::growth::order(p) };
     let mut word = vec![trunk];
     let mut derivation = String::from(
         "Parametric pine: B(order,length,radius) -> C(curved axis)[B lateral]B apical; terminal B -> S(needle shoots)\n",
     );
     while !word.is_empty() {
         let mut next = vec![];
-        for mut bud in word {
-            let development = crate::growth::development(p, bud.order, bud.identity);
+        for bud in word {
+            let development = bud.schedule.progress(p);
             if development <= 0. { continue; }
-            bud.length *= development;
-            bud.radius *= development.sqrt().max(0.2);
-            let rings = axis(bud, p);
+            let mature_rings = axis(bud, p);
+            let radial_scale = if p.growth_mode {
+                let years = (p.generations as f64 - bud.schedule.onset).max(0.);
+                (0.20 + years * 0.07).clamp(0.2, 1.)
+            } else { 1. };
+            let rings = crate::growth::clip_axis(&mature_rings, development, radial_scale);
+            if rings.len() < 2 { continue; }
+            let children = if bud.order < max_order && (bud.order < 3 || Random::new(bud.identity).unit() > 0.40) {
+                production(bud, &mature_rings, p, max_order)
+            } else { vec![] };
             let sides = if bud.order == 0 {
                 32
             } else if bud.order == 1 {
@@ -290,22 +308,31 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
                 start: bud.origin.to_array(),
                 end: rings.last().unwrap().center.to_array(),
                 rotation: unit_rotation(DVec3::Y, bud.heading).to_array(),
-                radius_bottom: bud.radius,
+                radius_bottom: bud.radius * radial_scale,
                 radius_top: rings.last().unwrap().radius,
             });
             if derivation.len() < 900 {
                 derivation.push_str(&format!(
                     "B({},{:.3},{:.4}) ",
-                    bud.order, bud.length, bud.radius
+                    bud.order, bud.length * development, bud.radius * radial_scale
                 ));
             }
-            if bud.order == max_order || (bud.order >= 3 && max_order >= 3) {
-                foliage(bud, &rings, p, &mut geometry);
+            if bud.order >= 1 || children.iter().all(|child| child.schedule.progress(p) == 0.) {
+                foliage(bud, &mature_rings, development, radial_scale, p, &mut geometry);
             }
+                // A growing candle already carries a small terminal needle fan.
+                // Only this new tip advances; all established fascicles stay put.
+                if bud.order < 3 && development < 0.95 && p.foliage_density > 0. && p.leaf_size > 0. {
+                    let (origin, heading, thickness) = sample(&rings, 0.98);
+                    geometry.leaves.push(Organ {
+                        position: origin.to_array(),
+                        rotation: (unit_rotation(DVec3::Y, heading) * DQuat::from_rotation_y(bud.phase)).to_array(),
+                        scale: p.leaf_size * 0.8,
+                        thickness,
+                    });
+                }
             // Keep some mature terminal buds dormant instead of splitting every tip.
-            if bud.order < max_order && (bud.order < 3 || Random::new(bud.identity).unit() > 0.40) {
-                next.extend(production(bud, &rings, p, max_order));
-            }
+            next.extend(children);
             if surface.position.len() / 3 > 1_500_000 || geometry.leaves.len() > 25_000 {
                 return Err(
                     "松の形状が上限を超えました。世代または針葉密度を下げてください。".into(),
@@ -315,6 +342,9 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
         word = next;
     }
     // Root flare: woody, tapered roots partly buried in the ground plane.
+    let root_radial = if p.growth_mode {
+        (0.20 + (p.generations as f64 - trunk.schedule.onset).max(0.) * 0.07).clamp(0.2, 1.)
+    } else { 1. };
     for i in 0..6 {
         let azimuth = phase + i as f64 * TAU / 6.;
         let radial = direction(azimuth, 0.);
@@ -327,7 +357,8 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
                 radius: radius * 0.48 * (1. - t).powf(1.3) + 0.002,
             });
         }
-        surface.axis(&rings, 12, azimuth, 1.);
+        let visible = crate::growth::clip_axis(&rings, (trunk.schedule.progress(p) * 2.4).min(1.), root_radial);
+        if visible.len() >= 2 { surface.axis(&visible, 12, azimuth, 1.); }
     }
     surface.normals();
     geometry.surface = Some(surface);

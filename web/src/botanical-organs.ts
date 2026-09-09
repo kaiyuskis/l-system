@@ -37,7 +37,9 @@ class OrganMesh {
     g.setIndex(this.indices);g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();return g;
   }
 }
-export function broadleaf(kind:"birch"|"maple"|"cherry"|"fern"):THREE.BufferGeometry {
+export function broadleaf(kind:"birch"|"maple"|"cherry"|"fern"|"oak"|"willow"|"ginkgo"):THREE.BufferGeometry {
+  if (kind === "oak" || kind === "willow") return elongatedLeaf(kind);
+  if (kind === "ginkgo") return ginkgoLeaf();
   const m=new OrganMesh();
   const fern=kind==="fern",maple=kind==="maple";
   const stem=fern?.002:maple?.033:.021;
@@ -127,6 +129,93 @@ export function cherryBlossom():THREE.BufferGeometry {
     const end=new THREE.Vector3(Math.cos(a)*r,centerY+.010+(i%3)*.001,Math.sin(a)*r);
     m.tube([new THREE.Vector3(0,centerY,0),end],.00024,new THREE.Color(.98,.91,.68),3);
     m.tube([end,end.clone().add(new THREE.Vector3(0,.0012,0))],.00068,new THREE.Color(.95,.66,.23),4);
+  }
+  return m.finish();
+}
+
+/** Oak has rounded lobes; willow a narrow, finely serrated lanceolate blade. */
+function elongatedLeaf(kind: "oak" | "willow"): THREE.BufferGeometry {
+  const m = new OrganMesh();
+  const oak = kind === "oak";
+  const stem = oak ? .022 : .016, length = oak ? .18 : .24;
+  const halfWidth = oak ? .059 : .014;
+  const rows = oak ? 40 : 28, columns = 5;
+  const width = (t: number) => halfWidth * Math.pow(Math.sin(Math.PI * t), oak ? .52 : .85)
+    * (oak ? .72 + .28 * Math.cos(t * Math.PI * 10 + .5) : 1 - .045 * Math.cos(t * Math.PI * 28));
+  const z = (x: number, t: number) => Math.abs(x) * .16 + .016 * t * t;
+  m.tube([new THREE.Vector3(), new THREE.Vector3(0,stem,0)], .0006, new THREE.Color(.65,.72,.47));
+  const offset = m.positions.length / 3;
+  for (let row=0; row<=rows; row++) {
+    const t=row/rows;
+    for (let column=0; column<columns; column++) {
+      const u=2*column/(columns-1)-1, x=u*Math.max(.00003,width(t));
+      const shade=.80+.16*(1-Math.abs(u));
+      m.vertex(x,stem+length*t,z(x,t),shade,shade,shade*.89);
+    }
+  }
+  for(let row=0;row<rows;row++)for(let c=0;c<columns-1;c++) {
+    const a=offset+row*columns+c,b=a+columns;
+    m.triangle(a,a+1,b);m.triangle(a+1,b+1,b);
+  }
+  const vein=new THREE.Color(.79,.88,.57);
+  m.tube([0,.25,.5,.75,1].map(t=>new THREE.Vector3(0,stem+length*t,z(0,t)+.0003)),.0003,vein,3);
+  for(let i=1;i<=8;i++)for(const side of [-1,1]) {
+    const t=i/10,end=Math.min(.98,t+.07),x=width(end)*side*.94;
+    m.tube([new THREE.Vector3(0,stem+length*t,z(0,t)+.0003),new THREE.Vector3(x,stem+length*end,z(x,end)+.0003)],.00014,vein,3);
+  }
+  return m.finish();
+}
+
+/** A petiole and fan-shaped blade with a central cleft and radiating veins. */
+function ginkgoLeaf(): THREE.BufferGeometry {
+  const m=new OrganMesh(), stem=.042, rows=7, columns=33;
+  const point=(t:number,a:number) => {
+    const edge=.10*(.97+.025*Math.cos(a*18))-.015*Math.exp(-a*a/.025);
+    const r=t*edge;
+    return new THREE.Vector3(Math.sin(a)*r,stem+Math.cos(a)*r,.006*t*t*Math.cos(a*4)+.003*Math.abs(a)*t);
+  };
+  m.tube([new THREE.Vector3(),new THREE.Vector3(0,stem,0)],.0007,new THREE.Color(.71,.79,.42));
+  const offset=m.positions.length/3;
+  for(let row=0;row<=rows;row++)for(let col=0;col<columns;col++) {
+    const t=Math.max(.001,row/rows),a=(col/(columns-1)*2-1)*1.12,p=point(t,a);
+    const shade=.80+.13*t+.03*Math.cos(a*20);
+    m.vertex(p.x,p.y,p.z,shade,shade,shade*.88);
+  }
+  for(let row=0;row<rows;row++)for(let col=0;col<columns-1;col++) {
+    const a=offset+row*columns+col,b=a+columns;
+    m.triangle(a,a+1,b);m.triangle(a+1,b+1,b);
+  }
+  for(let i=0;i<17;i++) {
+    const a=(i/16*2-1)*1.1;
+    m.tube([.03,.35,.65,.94].map(t=>point(t,a).add(new THREE.Vector3(0,0,.00024))),.00016,new THREE.Color(.87,.92,.62),3);
+  }
+  return m.finish();
+}
+
+export const SPRUCE_NEEDLES_PER_SHOOT = 40;
+/** Short, single needles radiate around a woody spruce twig, unlike pine pairs. */
+export function spruceNeedles(length=1): THREE.BufferGeometry {
+  const m=new OrganMesh(), stem=.12;
+  m.tube([new THREE.Vector3(),new THREE.Vector3(0,stem,0)],.0015,new THREE.Color(.57,.45,.27),5);
+  for(let i=0;i<SPRUCE_NEEDLES_PER_SHOOT;i++) {
+    const t=(i+.5)/SPRUCE_NEEDLES_PER_SHOOT,a=i*2.3999632297;
+    const base=new THREE.Vector3(0,stem*t,0);
+    const direction=new THREE.Vector3(Math.cos(a),.25+.45*t,Math.sin(a)).normalize();
+    const side=new THREE.Vector3(-Math.sin(a),0,Math.cos(a));
+    const across=new THREE.Vector3().crossVectors(direction,side).normalize();
+    const needleLength=(.030+.016*((i*17)%13)/13)*length;
+    const start=m.positions.length/3;
+    for(let ring=0;ring<2;ring++)for(let j=0;j<4;j++) {
+      const theta=j*Math.PI/2,r=.0011*(ring===0?1:.68);
+      const p=base.clone().addScaledVector(direction,needleLength*ring*.78).addScaledVector(side,Math.cos(theta)*r).addScaledVector(across,Math.sin(theta)*r);
+      m.vertex(p.x,p.y,p.z,.78+ring*.12,.88+ring*.08,.73+ring*.10);
+    }
+    const tip=base.clone().addScaledVector(direction,needleLength);
+    const tipIndex=m.vertex(tip.x,tip.y,tip.z,.93,.98,.81);
+    for(let j=0;j<4;j++) {
+      const a=start+j,b=start+(j+1)%4;
+      m.triangle(a,b,a+4);m.triangle(b,b+4,a+4);m.triangle(a+4,b+4,tipIndex);
+    }
   }
   return m.finish();
 }

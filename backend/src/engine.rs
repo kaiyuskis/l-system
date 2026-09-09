@@ -437,6 +437,7 @@ pub fn geometry(s: &[u8], p: &Plant) -> Result<Geometry> {
 pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32)> {
     p.validate()?;
     if p.growth_model == "pine" { return crate::pine::generate(p); }
+    if crate::species::supports(&p.growth_model) { return crate::species::generate(p); }
     if p.growth_model != "lsystem" { return crate::botanical::generate(p); }
     let rules = parse_rules(&p.rules)?;
     let s = expand(&p.premise, &rules, p.generations)?;

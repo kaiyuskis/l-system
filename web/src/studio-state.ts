@@ -1,7 +1,7 @@
 import presetData from "../../shared/presets.json" with { type: "json" };
 /** Portable plant settings. Camera position and generated geometry stay out of presets. */
 export interface PlantParams {
-  growthModel: "lsystem" | "pine" | "birch" | "maple" | "sakura" | "fern";
+  growthModel: "lsystem" | "pine" | "birch" | "maple" | "sakura" | "fern" | "oak" | "willow" | "spruce" | "ginkgo";
   crownSpread: number;
   branchTwist: number;
   foliageDensity: number;
@@ -22,7 +22,7 @@ export interface PlantParams {
   flowerColor: string;
   flowerSize: number;
   leafColor: string;
-  leafTextureKey: "leaf_default" | "leaf_maple" | "pine_needles" | "leaf_birch" | "leaf_cherry" | "fern_pinnule";
+  leafTextureKey: "leaf_default" | "leaf_maple" | "pine_needles" | "leaf_birch" | "leaf_cherry" | "fern_pinnule" | "leaf_oak" | "leaf_willow" | "spruce_needles" | "leaf_ginkgo";
   leafSize: number;
   budColor: string;
   budSize: number;
@@ -95,15 +95,15 @@ export function validateParams(value: unknown): PlantParams {
     throw new Error("植物の設定が正しい JSON オブジェクトではありません。");
   if (typeof value.growthMode !== "boolean")
     throw new Error("成長連動の設定は true または false にしてください。");
-  if (value.growthModel !== undefined && !["lsystem", "pine", "birch", "maple", "sakura", "fern"].includes(value.growthModel as string))
+  if (value.growthModel !== undefined && !["lsystem", "pine", "birch", "maple", "sakura", "fern", "oak", "willow", "spruce", "ginkgo"].includes(value.growthModel as string))
     throw new Error("生成方式が不正です。");
   if (
     value.leafTextureKey !== "leaf_default" &&
     value.leafTextureKey !== "leaf_maple" &&
-    value.leafTextureKey !== "pine_needles" && value.leafTextureKey !== "leaf_birch" && value.leafTextureKey !== "leaf_cherry" && value.leafTextureKey !== "fern_pinnule"
+    value.leafTextureKey !== "pine_needles" && value.leafTextureKey !== "leaf_birch" && value.leafTextureKey !== "leaf_cherry" && value.leafTextureKey !== "fern_pinnule" && value.leafTextureKey !== "leaf_oak" && value.leafTextureKey !== "leaf_willow" && value.leafTextureKey !== "spruce_needles" && value.leafTextureKey !== "leaf_ginkgo"
   ) {
     throw new Error(
-      "葉の形は leaf_default、leaf_maple、pine_needles を指定してください。",
+      "葉のかたちが不正です。用意された葉のかたちを選んでください。",
     );
   }
   if (
@@ -145,7 +145,7 @@ export function validateParams(value: unknown): PlantParams {
     growthModel: (value.growthModel ?? "lsystem") as PlantParams["growthModel"],
     crownSpread: numberField(value.crownSpread ?? 1, "樹冠の広がり", 0.3, 2),
     branchTwist: numberField(value.branchTwist ?? 1, "枝の曲がり", 0, 2),
-    foliageDensity: numberField(value.foliageDensity ?? 1, "針葉の密度", 0, 2),
+    foliageDensity: numberField(value.foliageDensity ?? 1, "葉・花の密度", 0, 2),
     needleLength: numberField(value.needleLength ?? 1, "針葉の長さ", 0.3, 2),
     growthMode: value.growthMode,
     maxLength: numberField(value.maxLength, "枝の長さ", 0.01, 5),
