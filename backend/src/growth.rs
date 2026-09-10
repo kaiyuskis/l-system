@@ -4,6 +4,14 @@ use crate::{model::Plant, sweep::Ring};
 
 pub const LIMIT: u32 = 16;
 
+/// Juvenile wood thickens more slowly than it extends. This changes only
+/// radii, preserving all mature centerlines and established attachments.
+pub fn juvenile_radial(p: &Plant) -> f64 {
+    if !p.growth_mode { return 1.; }
+    let age = (p.generations as f64 / 12.).clamp(0., 1.);
+    0.02 + 0.98 * age.powf(1.5)
+}
+
 /// In the non-growing editing mode generations still select branching detail.
 pub fn order(p: &Plant) -> u32 {
     [1, 2, 4, 6, 9, 13]

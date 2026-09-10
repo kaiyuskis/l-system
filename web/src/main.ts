@@ -1,6 +1,7 @@
 import "./style.css";
 import { bakeInstances } from "./export-model.ts";
 import { generationEstimate } from "./generation-estimate.ts";
+import { prepareGrowth } from "./growth-transition.ts";
 
 import * as THREE from "three";
 import {
@@ -12,6 +13,9 @@ import {
   zoomCamera,
   setGridVisible,
   setEnvironmentVisible,
+  setLightingQuality,
+  setAntialias,
+  type LightingQuality,
   setAutoRotate,
   setWindPaused,
   renderFrame,
@@ -84,6 +88,8 @@ let generationLimit = 10;
 let geometryController: AbortController | null = null;
 let exportBusy = false;
 let lastSuccessful: PlantParams | null = null;
+let finishGrowth: (() => void) | null = null;
+let antialias = true;
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -186,7 +192,7 @@ function updateGenerationLimit() {
         const value = Math.round(
           (index * Number(timeline.max)) / Math.min(6, Number(timeline.max)),
         );
-        return `<span>${value === 0 ? "種" : value}</span>`;
+        return `<span style="left:${value / Number(timeline.max) * 100}%">${value === 0 ? "種" : value}</span>`;
       },
     ).join("");
 }
@@ -218,11 +224,13 @@ async function regenerate(): Promise<boolean> {
     if (thisRevision !== revision || run !== activeRun) return false;
     generationLimit = data.meta.generationLimit;
     nextTree = buildTree(data, validated);
+    finishGrowth?.();
     const height = new THREE.Box3()
       .setFromObject(nextTree)
       .getSize(new THREE.Vector3()).y;
     scene.add(nextTree);
-    if (tree) disposeTree(tree);
+    const previousTree = tree;
+    const previousParams = lastSuccessful;
     tree = nextTree;
     nextTree = null;
     lastSuccessful = cloneParams(validated);
@@ -231,6 +239,39 @@ async function regenerate(): Promise<boolean> {
       fitCamera(tree, view);
       needsFit = false;
     }
+    const onlyAgeChanged = previousParams && previousParams.generations !== validated.generations &&
+      JSON.stringify({ ...previousParams, generations: 0 }) === JSON.stringify({ ...validated, generations: 0 });
+    if (previousTree && onlyAgeChanged && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const growing = validated.generations > previousParams!.generations;
+      const large = growing ? tree : previousTree;
+      const small = growing ? previousTree : tree;
+      const morph = prepareGrowth(large, small);
+      small.visible = false;
+      const started = performance.now();
+      const duration = Math.min(1600, 650 + Math.abs(validated.generations - previousParams!.generations) * 80);
+      let frame = 0;
+      const current = tree;
+      finishGrowth = () => {
+        cancelAnimationFrame(frame);
+        morph.finish();
+        current.visible = true;
+        disposeTree(previousTree);
+        finishGrowth = null;
+        element("growth-status").hidden = true;
+      };
+      element("growth-status").hidden = false;
+      morph.update(growing ? 0 : 1);
+      const animate = (now: number) => {
+        const progress = Math.min(1, (now - started) / duration);
+        morph.update(growing ? progress : 1 - progress);
+        const eased = THREE.MathUtils.smoothstep(progress, 0, 1);
+        const displayed = previousParams!.generations + (validated.generations - previousParams!.generations) * eased;
+        element("growth-status").textContent = `表示 ${displayed.toFixed(1)} 世代`;
+        if (progress >= 1) finishGrowth?.();
+        else frame = requestAnimationFrame(animate);
+      };
+      frame = requestAnimationFrame(animate);
+    } else if (previousTree) disposeTree(previousTree);
     ui.metrics(
       data.meta.branches,
       validated.leafTextureKey === "pine_needles" ? data.leaves.count * NEEDLES_PER_SHOOT : validated.leafTextureKey === "spruce_needles" ? data.leaves.count * SPRUCE_NEEDLES_PER_SHOOT : data.leaves.count + data.flowers.count + data.buds.count,
@@ -319,10 +360,12 @@ async function ensureCurrentTree(): Promise<boolean> {
   clearTimeout(generationTimer);
   while (busy)
     await new Promise<void>((resolve) => window.setTimeout(resolve, 20));
-  return (
+  const current = (
     JSON.stringify(lastSuccessful) === JSON.stringify(params) ||
     (await regenerate())
   );
+  finishGrowth?.();
+  return current;
 }
 function showSave() {
   openDialog(
@@ -590,6 +633,12 @@ function action(name: string) {
       setGridVisible(grid);
       setToggle(name, grid);
       break;
+    case "toggle-antialias":
+      antialias = !antialias;
+      setAntialias(antialias);
+      setToggle(name, antialias);
+      try { localStorage.setItem("komorebi_antialias", String(antialias)); } catch { /* Session only. */ }
+      break;
     case "toggle-rotate":
       rotating = !rotating;
       setAutoRotate(rotating);
@@ -609,6 +658,21 @@ function action(name: string) {
   }
 }
 const ui = setupUI({ change, preset: selectPreset, action });
+try { antialias = localStorage.getItem("komorebi_antialias") !== "false"; } catch { /* Session only. */ }
+setAntialias(antialias);
+setToggle("toggle-antialias", antialias);
+setToggle("toggle-environment", environment);
+setToggle("toggle-grid", grid);
+const qualityControl = element<HTMLSelectElement>("lighting-quality");
+try {
+  const saved = localStorage.getItem("komorebi_lighting_quality");
+  if (saved === "low" || saved === "medium" || saved === "high") qualityControl.value = saved;
+} catch { /* Rendering remains available without browser storage. */ }
+setLightingQuality(qualityControl.value as LightingQuality);
+qualityControl.addEventListener("change", () => {
+  setLightingQuality(qualityControl.value as LightingQuality);
+  try { localStorage.setItem("komorebi_lighting_quality", qualityControl.value); } catch { /* Session only. */ }
+});
 
 sync();
 setToggle("toggle-wind", wind);
@@ -701,5 +765,6 @@ if (import.meta.hot)
     geometryController?.abort();
     clearTimeout(generationTimer);
     clearTimeout(playbackTimer);
+    finishGrowth?.();
     if (tree) disposeTree(tree);
   });

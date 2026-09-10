@@ -4,6 +4,35 @@ use komorebi::{
 };
 
 #[test]
+fn young_trunks_are_slender_and_thicken_without_losing_mature_size() {
+    let all = presets();
+    for name in ["birch", "maple", "sakura", "pine", "oak", "willow", "spruce", "ginkgo"] {
+        let preset = all.as_array().unwrap().iter().find(|p| p["id"] == name).unwrap();
+        let mut p: Plant = serde_json::from_value(preset["params"].clone()).unwrap();
+        p.generations = 16;
+        let (_, mature, _) = engine::generate(&p).unwrap();
+        let mature_radius = mature.branches[0].radius_bottom;
+        let mut previous = 0.;
+        for generation in 1..=16 {
+            p.generations = generation;
+            let (_, g, _) = engine::generate(&p).unwrap();
+            let trunk = &g.branches[0];
+            assert!(trunk.radius_bottom >= previous, "{name}: thickness decreased");
+            previous = trunk.radius_bottom;
+            if generation <= 3 {
+                let length = glam::DVec3::from_array(trunk.end).distance(glam::DVec3::from_array(trunk.start));
+                assert!(2. * trunk.radius_bottom / length < 0.08, "{name}: generation {generation}, ratio {}", 2. * trunk.radius_bottom / length);
+                assert!(trunk.radius_bottom < mature_radius * 0.2, "{name}: juvenile too thick");
+            }
+        }
+        assert_eq!(komorebi::growth::juvenile_radial(&p), 1.);
+        p.generations = 1;
+        p.growth_mode = false;
+        assert_eq!(komorebi::growth::juvenile_radial(&p), 1.);
+    }
+}
+
+#[test]
 fn generations_grow_every_species_and_maximum_fits() {
     for preset in presets().as_array().unwrap() {
         let mut p: Plant = serde_json::from_value(preset["params"].clone()).unwrap();

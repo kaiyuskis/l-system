@@ -1,5 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 const viewport = document.querySelector<HTMLElement>("#viewport");
 if (!viewport) throw new Error("3D ビューポートが見つかりません。");
@@ -12,7 +15,7 @@ scene.fog = sceneFog;
 export const camera = new THREE.PerspectiveCamera(38, 1, 0.02, 1000);
 camera.position.set(18, 13, 25);
 
-export const renderer = new THREE.WebGLRenderer({ antialias: true });
+export const renderer = new THREE.WebGLRenderer({ antialias: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -25,6 +28,19 @@ renderer.domElement.setAttribute(
 );
 renderer.domElement.setAttribute("role", "img");
 viewport.appendChild(renderer.domElement);
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+const outputPass = new OutputPass();
+composer.addPass(renderPass);
+composer.addPass(outputPass);
+let antialias = true;
+export function setAntialias(enabled: boolean): void {
+  antialias = enabled;
+  const samples = enabled ? Math.min(4, renderer.capabilities.maxSamples) : 0;
+  for (const target of [composer.renderTarget1, composer.renderTarget2]) {
+    if (target.samples !== samples) { target.dispose(); target.samples = samples; }
+  }
+}
 
 const hemisphere = new THREE.HemisphereLight(0xf5f7ec, 0x899782, 2.5);
 scene.add(hemisphere);
@@ -41,6 +57,37 @@ scene.add(directionalLight, directionalLight.target);
 const fillLight = new THREE.DirectionalLight(0xe2eee7, 0.8);
 fillLight.position.set(-15, 12, -10);
 scene.add(fillLight);
+const rimLight = new THREE.DirectionalLight(0xe4edff, 0.35);
+rimLight.position.set(3, 16, -18);
+rimLight.visible = false;
+scene.add(rimLight);
+export type LightingQuality = "low" | "medium" | "high";
+let lightingQuality: LightingQuality = "medium";
+const qualitySettings = {
+  low: { shadowSize: 1024, pixelRatio: 1, soft: false, fill: false, rim: false },
+  medium: { shadowSize: 2048, pixelRatio: 1.5, soft: true, fill: true, rim: false },
+  high: { shadowSize: 4096, pixelRatio: 2, soft: true, fill: true, rim: true },
+};
+
+export function setLightingQuality(quality: LightingQuality): void {
+  lightingQuality = quality;
+  const settings = qualitySettings[quality];
+  directionalLight.shadow.map?.dispose();
+  directionalLight.shadow.map = null;
+  directionalLight.shadow.mapSize.set(settings.shadowSize, settings.shadowSize);
+  renderer.shadowMap.type = settings.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+  renderer.shadowMap.needsUpdate = true;
+  fillLight.visible = settings.fill;
+  rimLight.visible = settings.rim;
+  // Changing the light count or shadow filter changes material shader variants.
+  scene.traverse(object => {
+    if (object instanceof THREE.Mesh) {
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach(material => { material.needsUpdate = true; });
+    }
+  });
+  resize();
+}
 
 const grid = new THREE.GridHelper(100, 50, 0x8c9eac, 0xaebdc8);
 grid.position.y = -0.008;
@@ -209,8 +256,10 @@ function resize(): void {
   const height = Math.max(1, viewport!.clientHeight);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qualitySettings[lightingQuality].pixelRatio));
   renderer.setSize(width, height, false);
+  composer.setPixelRatio(renderer.getPixelRatio());
+  composer.setSize(width, height);
 }
 const resizeObserver = new ResizeObserver(resize);
 resizeObserver.observe(viewport);
@@ -218,7 +267,8 @@ resize();
 
 /** Render synchronously before capturing a PNG. */
 export function renderFrame(): void {
-  renderer.render(scene, camera);
+  if (antialias) composer.render();
+  else renderer.render(scene, camera);
 }
 
 let frameId = 0;
@@ -244,6 +294,8 @@ if (import.meta.hot) {
     ground.geometry.dispose();
     groundMaterial.dispose();
     directionalLight.shadow.map?.dispose();
+    outputPass.dispose();
+    composer.dispose();
     renderer.dispose();
     renderer.domElement.remove();
   });

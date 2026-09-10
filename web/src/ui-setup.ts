@@ -175,6 +175,7 @@ export function setupUI(actions: UIActions) {
     "view-top",
     "toggle-grid",
     "toggle-environment",
+    "toggle-antialias",
     "toggle-rotate",
     "toggle-wind",
     "play-growth",
@@ -252,6 +253,7 @@ export function setupUI(actions: UIActions) {
       if (document.activeElement !== rules)
         rules.value = params.rules.map((rule) => rule.expression).join("\n");
       const timeline = element<HTMLInputElement>("timeline-generation");
+      timeline.max = String(params.growthModel === "lsystem" ? Math.max(10, params.generations) : 16);
       timeline.value = String(params.generations);
       refreshRange(timeline);
       element("generation-value").textContent = String(params.generations);
@@ -346,6 +348,10 @@ export function closeDialog() {
   element<HTMLDialogElement>("studio-dialog").close();
 }
 export function setToggle(id: string, value: boolean) {
-  element(id).classList.toggle("active", value);
-  element(id).setAttribute("aria-pressed", String(value));
+  document.querySelectorAll<HTMLElement>(`#${id}, [data-action="${id}"]`).forEach(button => {
+    button.classList.toggle("active", value);
+    button.setAttribute("aria-pressed", String(value));
+    const state = button.querySelector(".toggle-state");
+    if (state) state.textContent = value ? "オン" : "オフ";
+  });
 }

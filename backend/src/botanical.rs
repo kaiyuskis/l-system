@@ -118,8 +118,8 @@ fn woody_axis(b: Bud, p: &Plant) -> Vec<Ring> {
                 + lateral
                     * (bend
                         * ((PI * t).sin()
-                            + ((t * TAU * 2.3 + phase).sin() - phase.sin()) * 0.18 * t))
-                + second * (bend * 0.55 * (TAU * t).sin() + drift * b.length * t * t)
+                            + ((t * TAU * 2.3 + phase).sin() - phase.sin()) * 0.32 * t))
+                + second * (bend * 0.55 * (TAU * t).sin() + bend * 0.24 * ((TAU * 1.8 * t + phase).sin() - phase.sin()) * t + drift * b.length * t * t)
                 - DVec3::Y
                     * (b.length
                         * (sag + p.gravity * 0.065)
@@ -351,7 +351,7 @@ fn roots(p: &Plant, g: &mut Geometry, s: &mut Surface, progress: f64, radial_sca
                 let t = j as f64 / 12.;
                 Ring {
                     center: direction(azimuth, 0.) * (length * t)
-                        + DVec3::Y * (p.max_thickness * (0.20 - 0.40 * t)),
+                        - DVec3::Y * (p.max_thickness * 0.20 * t),
                     radius: p.max_thickness * 0.35 * (1. - t).powf(1.4) + 0.001,
                 }
             })
@@ -398,7 +398,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
         identity: p.seed as u64,
         schedule: Schedule::trunk(p, p.seed as u64),
     };
-    let radial_maturity = if p.growth_mode { trunk.schedule.progress(p).powf(0.85) } else { 1. };
+    let radial_maturity = if p.growth_mode { trunk.schedule.progress(p).powf(0.85) * crate::growth::juvenile_radial(p) } else { 1. };
     let mut word = vec![trunk];
     let mut derived = format!(
         "{}: B(order,length,radius) -> C(curved axis)[B lateral]B apical; terminal B -> leaf/flower modules\n",

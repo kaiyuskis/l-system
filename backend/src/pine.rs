@@ -80,8 +80,9 @@ fn axis(bud: Bud, p: &Plant) -> Vec<Ring> {
         .map(|i| {
             let t = i as f64 / sections as f64;
             let wandering = (t * PI * bend_frequency).sin() * bend
+                + ((t * TAU * 1.7 + kink_phase).sin() - kink_phase.sin()) * 0.020 * p.branch_twist * t
                 + ((t * TAU * 3. + kink_phase).sin() - kink_phase.sin())
-                    * 0.016
+                    * 0.026
                     * p.branch_twist
                     * t;
             let vertical = if trunk {
@@ -283,7 +284,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
             let mature_rings = axis(bud, p);
             let radial_scale = if p.growth_mode {
                 let years = (p.generations as f64 - bud.schedule.onset).max(0.);
-                (0.20 + years * 0.07).clamp(0.2, 1.)
+                (0.20 + years * 0.07).clamp(0.2, 1.) * crate::growth::juvenile_radial(p)
             } else { 1. };
             let rings = crate::growth::clip_axis(&mature_rings, development, radial_scale);
             if rings.len() < 2 { continue; }
@@ -343,7 +344,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
     }
     // Root flare: woody, tapered roots partly buried in the ground plane.
     let root_radial = if p.growth_mode {
-        (0.20 + (p.generations as f64 - trunk.schedule.onset).max(0.) * 0.07).clamp(0.2, 1.)
+        (0.20 + (p.generations as f64 - trunk.schedule.onset).max(0.) * 0.07).clamp(0.2, 1.) * crate::growth::juvenile_radial(p)
     } else { 1. };
     for i in 0..6 {
         let azimuth = phase + i as f64 * TAU / 6.;
@@ -352,8 +353,8 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
         for j in 0..=16 {
             let t = j as f64 / 16.;
             rings.push(Ring {
-                center: radial * (radius * (0.4 + 3.8 * t))
-                    + DVec3::Y * (radius * (0.33 - 0.43 * t)),
+                center: radial * (radius * 4.2 * t)
+                    - DVec3::Y * (radius * 0.1 * t),
                 radius: radius * 0.48 * (1. - t).powf(1.3) + 0.002,
             });
         }

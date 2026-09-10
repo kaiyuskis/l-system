@@ -61,7 +61,7 @@ impl Axis {
     fn radial(self, p: &Plant) -> f64 {
         if !p.growth_mode { return 1.; }
         let age = (p.generations as f64 - self.onset).max(0.);
-        mix(0.18, 1., (age / (self.duration + 3.)).clamp(0., 1.).powf(0.7))
+        mix(0.18, 1., (age / (self.duration + 3.)).clamp(0., 1.).powf(0.7)) * crate::growth::juvenile_radial(p)
     }
 }
 
@@ -86,7 +86,7 @@ fn centerline(a: Axis, p: &Plant) -> Vec<Ring> {
         let t = i as f64 / count as f64;
         let center = a.origin + a.heading * a.length * t
             + lateral * (bend * ((PI * t).sin() + 0.35 * ((3.7 * PI * t + phase).sin() - phase.sin()) * t))
-            + second * (bend * 0.6 * (TAU * t).sin() + drift * a.length * t * t)
+            + second * (bend * 0.6 * (TAU * t).sin() + a.length * p.branch_twist * 0.014 * ((TAU * 2.1 * t + phase).sin() - phase.sin()) * t + drift * a.length * t * t)
             - DVec3::Y * (a.length * (sag + if a.order == 0 { 0. } else { p.gravity * 0.06 }) * t * t);
         let radius = a.radius * mix(1., if a.order == 0 { 0.06 } else { 0.045 }, t.powf(0.82))
             * (1. + 0.18 * (-20. * t).exp());
