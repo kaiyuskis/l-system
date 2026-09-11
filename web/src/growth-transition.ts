@@ -67,6 +67,18 @@ function sweptStart(large: THREE.Mesh, small: THREE.Mesh | undefined) {
   const origins = new Float32Array(oldAxes.length * 3);
   oldAxes.forEach((axis, i) => origins.set(previous!.slice((axis.end - 2) * 3, (axis.end - 1) * 3), i * 3));
   const originIndex = new PointIndex(origins);
+  const originGroups = new Map<string, Axis[]>();
+  oldAxes.forEach((axis, i) => {
+    const key = Array.from(origins.slice(i * 3, i * 3 + 3)).join(",");
+    const group = originGroups.get(key) ?? [];
+    group.push(axis); originGroups.set(key, group);
+  });
+  const heading = (axis: Axis, positions: ArrayLike<number>) => {
+    const direction = new THREE.Vector3();
+    for (let j = 0; j < axis.width - 1; j++)
+      for (let k = 0; k < 3; k++) direction.setComponent(k, direction.getComponent(k) + positions[(axis.start + axis.width + j) * 3 + k] / (axis.width - 1));
+    return direction.sub(new THREE.Vector3().fromArray(positions, (axis.end - 2) * 3)).normalize();
+  };
   const oldCenters: number[] = [];
   for (const axis of oldAxes) {
     for (let r = 0; r < axis.rings; r++) {
@@ -82,7 +94,17 @@ function sweptStart(large: THREE.Mesh, small: THREE.Mesh | undefined) {
   for (const axis of targetAxes) {
     const origin = Array.from(target.slice((axis.end - 2) * 3, (axis.end - 1) * 3));
     const match = originIndex.nearest(origin[0], origin[1], origin[2]);
-    const old = match >= 0 && Math.hypot(...origin.map((v, k) => v - origins[match * 3 + k])) < 1e-5 && oldAxes[match].width === axis.width ? oldAxes[match] : undefined;
+    let old: Axis | undefined;
+    if (match >= 0 && Math.hypot(...origin.map((v, k) => v - origins[match * 3 + k])) < 1e-5) {
+      const candidates = originGroups.get(Array.from(origins.slice(match * 3, match * 3 + 3)).join(","))!;
+      const direction = heading(axis, target);
+      let alignment = 0.99;
+      for (const candidate of candidates) {
+        if (candidate.width !== axis.width) continue;
+        const dot = direction.dot(heading(candidate, previous!));
+        if (dot > alignment) { old = candidate; alignment = dot; }
+      }
+    }
     const nearest = centerIndex.nearest(origin[0], origin[1], origin[2]);
     const collapsed = nearest < 0 ? [0, 0, 0] : Array.from(centers.slice(nearest * 3, nearest * 3 + 3));
     for (let v = axis.start; v < axis.end; v++) {

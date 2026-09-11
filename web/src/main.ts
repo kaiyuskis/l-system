@@ -258,6 +258,7 @@ async function regenerate(): Promise<boolean> {
         disposeTree(previousTree);
         finishGrowth = null;
         element("growth-status").hidden = true;
+        element("model-empty").hidden = current.children.length > 0;
       };
       element("growth-status").hidden = false;
       morph.update(growing ? 0 : 1);
@@ -280,6 +281,7 @@ async function regenerate(): Promise<boolean> {
       data.meta.preview,
       data.meta.symbolCount,
     );
+    if (finishGrowth) element("model-empty").hidden = true;
     element("metric-organ-label").textContent = ["pine_needles", "spruce_needles"].includes(validated.leafTextureKey) ? "針葉" : "葉・花";
     updateGenerationLimit();
     try {

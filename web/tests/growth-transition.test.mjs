@@ -91,3 +91,15 @@ test('seed transitions and reverse interpolation are finite and restore exact in
   assert.equal(leaves.instanceMatrix, original);
   assert.deepEqual(original.array, saved);
 });
+
+test('trunk and roots sharing an origin match by direction when reordered', () => {
+  const trunk = [[0,0,0],[0,1,0]], root = [[0,0,0],[1,0,0]];
+  const small = tree([root, trunk]);
+  const large = tree([[[0,0,0],[0,1,0],[.1,2,0]], [[0,0,0],[1,0,0],[2,0,.1]]]);
+  const morph = prepareGrowth(large, small);
+  morph.update(0);
+  const current = large.children[0].geometry.getAttribute('position');
+  assert.equal(current.getY(5), 1, 'trunk must not collapse or match a root');
+  assert.equal(current.getX(17 + 5), Math.fround(1.02), 'root direction must be retained');
+  morph.finish();
+});
