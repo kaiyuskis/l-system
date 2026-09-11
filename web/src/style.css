@@ -2185,3 +2185,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:3px soli
 .environment-controls .button[aria-pressed="false"] { background:#fff; color:#344452; border-color:#768694; }
 .environment-controls .button[aria-pressed="true"] { background:#254d39; color:#fff; }
 @media (max-width:600px) { .environment-controls { gap:4px; left:10px; max-width:calc(100% - 20px); } .environment-controls .button { padding:5px 7px; font-size:10px; } }
+
+/* Use the same 12px thumb geometry as the progress fill and tick inset. */
+input[type="range"]::-webkit-slider-thumb,
+input[type="range"]::-moz-range-thumb { box-sizing:border-box; width:12px; height:12px; }
+.environment-controls { background:rgba(229,234,238,.94); padding:8px; border:1px solid #a7b5bf; border-radius:10px; }

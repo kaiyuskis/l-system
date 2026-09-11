@@ -98,7 +98,9 @@ function sweptStart(large: THREE.Mesh, small: THREE.Mesh | undefined) {
     if (match >= 0 && Math.hypot(...origin.map((v, k) => v - origins[match * 3 + k])) < 1e-5) {
       const candidates = originGroups.get(Array.from(origins.slice(match * 3, match * 3 + 3)).join(","))!;
       const direction = heading(axis, target);
-      let alignment = 0.99;
+      // A clipped first internode and the completed curve can have
+      // different tangents, especially on a young winding trunk.
+      let alignment = 0.75;
       for (const candidate of candidates) {
         if (candidate.width !== axis.width) continue;
         const dot = direction.dot(heading(candidate, previous!));

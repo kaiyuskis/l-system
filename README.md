@@ -8,7 +8,45 @@
 
 ## セットアップと起動
 
-Dockerは使用しません。Node.js 24以上と[公式Rustツールチェーン](https://rust-lang.org/tools/install/)をインストールしてください。WindowsではRustの案内に従い、Visual Studio Build Toolsの「C++によるデスクトップ開発」（MSVCとWindows SDK）も導入します。
+### Dockerで起動（推奨）
+
+Docker Desktop（Windows / macOS / Linux）またはDocker EngineとComposeを用意し、起動してください。ホスト側のRust・Node.js・Cコンパイラーは不要です。WindowsではLinuxコンテナーを使用します。
+
+リポジトリ直下で実行します。
+
+```sh
+docker compose up --build -d
+```
+
+[http://127.0.0.1:5173](http://127.0.0.1:5173) を開きます。初回はイメージ取得とコンパイルに数分かかります。
+
+```sh
+docker compose ps          # 起動・health状態
+docker compose logs -f     # ログ（Ctrl+Cでログ表示終了）
+docker compose down        # 停止
+```
+
+変更の反映は再度 `docker compose up --build -d`。ポートを変更する場合はリポジトリ直下の `.env` に `APP_PORT=5174` などを設定してください。ホストへの公開は127.0.0.1限定です。ネイティブ版が5173で起動中なら先にCtrl+Cで停止してください。保存データはブラウザー側にあり、同じURLで開くと引き継がれます。
+
+[Dockerのマルチステージビルド](https://docs.docker.com/build/building/multi-stage/)でRustとWebをコンテナー内でコンパイルし、実行用イメージには実行ファイルとWeb配信物だけを含めます。Linux amd64 / arm64向けのベースイメージを利用し、使用するマシンのアーキテクチャでビルドします。
+
+### ネイティブで起動
+
+Node.js 24以上と[公式Rustツールチェーン](https://rust-lang.org/tools/install/)をインストールしてください。WindowsではRustの案内に従い、Visual Studio Build Toolsの「C++によるデスクトップ開発」（MSVCとWindows SDK）も導入します。
+
+UbuntuではRustのインストール前にCコンパイラーとリンカーも用意します。
+
+```sh
+sudo apt-get update
+sudo apt-get install -y build-essential curl
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+sh /tmp/rustup-init.sh -y --profile minimal
+. "$HOME/.cargo/env"
+rustc --version
+cargo --version
+```
+
+Node.js 24以上とnpmも必要です。`node --version` と `npm --version` で確認してください。Rustを導入した直後は端末を開き直すか、上記の `. "$HOME/.cargo/env"` でPATHを反映します。
 
 すべてリポジトリ直下で実行します。初回は依存関係の取得とRustのコンパイルに数分かかります。
 

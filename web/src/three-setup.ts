@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 const viewport = document.querySelector<HTMLElement>("#viewport");
@@ -33,10 +35,14 @@ const renderPass = new RenderPass(scene, camera);
 const outputPass = new OutputPass();
 composer.addPass(renderPass);
 composer.addPass(outputPass);
+// FXAA also covers devices that expose no multisampled render targets.
+const fallbackAA = new ShaderPass(FXAAShader);
+composer.addPass(fallbackAA);
 let antialias = true;
 export function setAntialias(enabled: boolean): void {
   antialias = enabled;
   const samples = enabled ? Math.min(4, renderer.capabilities.maxSamples) : 0;
+  fallbackAA.enabled = enabled && samples < 2;
   for (const target of [composer.renderTarget1, composer.renderTarget2]) {
     if (target.samples !== samples) { target.dispose(); target.samples = samples; }
   }
@@ -260,6 +266,8 @@ function resize(): void {
   renderer.setSize(width, height, false);
   composer.setPixelRatio(renderer.getPixelRatio());
   composer.setSize(width, height);
+  const pixelRatio = renderer.getPixelRatio();
+  fallbackAA.uniforms.resolution.value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
 }
 const resizeObserver = new ResizeObserver(resize);
 resizeObserver.observe(viewport);
@@ -295,6 +303,7 @@ if (import.meta.hot) {
     groundMaterial.dispose();
     directionalLight.shadow.map?.dispose();
     outputPass.dispose();
+    fallbackAA.dispose();
     composer.dispose();
     renderer.dispose();
     renderer.domElement.remove();

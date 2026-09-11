@@ -103,3 +103,14 @@ test('trunk and roots sharing an origin match by direction when reordered', () =
   assert.equal(current.getX(17 + 5), Math.fround(1.02), 'root direction must be retained');
   morph.finish();
 });
+
+
+test('a curved juvenile first segment matches its mature trunk without collapsing', () => {
+  const small = tree([[[0,0,0],[.04,.1,0]]]);
+  const large = tree([[[0,0,0],[0,1,0],[.2,2,0]]]);
+  const morph = prepareGrowth(large, small);
+  morph.update(0);
+  assert.deepEqual(large.children[0].geometry.getAttribute('position').array.slice(0,30),
+    small.children[0].geometry.getAttribute('position').array.slice(0,30));
+  morph.finish();
+});

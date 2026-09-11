@@ -1,0 +1,11 @@
+services:
+  komorebi:
+    build: .
+    ports:
+      - "127.0.0.1:${APP_PORT:-5173}:5173"
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

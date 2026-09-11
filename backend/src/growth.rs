@@ -136,3 +136,11 @@ pub fn development(p: &Plant, order: u32, identity: u64) -> f64 {
     let onset = [0., 1., 3., 5., 8., 12.][order.min(5) as usize] + noise(identity) * 2.4;
     Schedule::new(onset, 1.8 + noise(identity) * 2.2, identity).progress(p)
 }
+
+/// Small seeded changes of heading along the mature path. Independent of age,
+/// so already grown internodes and their attached organs never drift.
+pub fn wander(t: f64, phase: f64) -> f64 {
+    let tau = std::f64::consts::TAU;
+    ((t * tau * 2.4 + phase).sin() - phase.sin()) * 0.010
+        + ((t * tau * 4.1 + phase * 1.7).sin() - (phase * 1.7).sin()) * 0.004
+}

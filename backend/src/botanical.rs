@@ -119,7 +119,7 @@ fn woody_axis(b: Bud, p: &Plant) -> Vec<Ring> {
                     * (bend
                         * ((PI * t).sin()
                             + ((t * TAU * 2.3 + phase).sin() - phase.sin()) * 0.32 * t))
-                + second * (bend * 0.55 * (TAU * t).sin() + bend * 0.24 * ((TAU * 1.8 * t + phase).sin() - phase.sin()) * t + drift * b.length * t * t)
+                + second * (bend * 0.55 * (TAU * t).sin() + bend * 0.24 * ((TAU * 1.8 * t + phase).sin() - phase.sin()) * t + drift * b.length * t * t + b.length * p.branch_twist * crate::growth::wander(t, phase))
                 - DVec3::Y
                     * (b.length
                         * (sag + p.gravity * 0.065)

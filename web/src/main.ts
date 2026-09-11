@@ -89,6 +89,7 @@ let geometryController: AbortController | null = null;
 let exportBusy = false;
 let lastSuccessful: PlantParams | null = null;
 let finishGrowth: (() => void) | null = null;
+let growthSettled: Promise<void> = Promise.resolve();
 let antialias = true;
 
 function message(error: unknown): string {
@@ -222,6 +223,10 @@ async function regenerate(): Promise<boolean> {
     geometryController = controller;
     const data = await requestGeometry(validated, controller.signal);
     if (thisRevision !== revision || run !== activeRun) return false;
+    // Finish the visible extension before replacing its topology. Rapid slider
+    // edits coalesce to the latest revision without jumping to a hidden endpoint.
+    await growthSettled;
+    if (thisRevision !== revision || run !== activeRun) return false;
     generationLimit = data.meta.generationLimit;
     nextTree = buildTree(data, validated);
     finishGrowth?.();
@@ -251,12 +256,15 @@ async function regenerate(): Promise<boolean> {
       const duration = Math.min(1600, 650 + Math.abs(validated.generations - previousParams!.generations) * 80);
       let frame = 0;
       const current = tree;
+      let resolveGrowth!: () => void;
+      growthSettled = new Promise<void>(resolve => { resolveGrowth = resolve; });
       finishGrowth = () => {
         cancelAnimationFrame(frame);
         morph.finish();
         current.visible = true;
         disposeTree(previousTree);
         finishGrowth = null;
+        resolveGrowth();
         element("growth-status").hidden = true;
         element("model-empty").hidden = current.children.length > 0;
       };

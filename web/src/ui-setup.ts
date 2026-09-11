@@ -26,7 +26,7 @@ export function refreshRange(input: HTMLInputElement) {
     (Number(input.max) - Number(input.min));
   input.style.setProperty(
     "--range-progress",
-    `${Math.max(0, Math.min(100, amount * 100))}%`,
+    `calc(6px + (100% - 12px) * ${Number.isFinite(amount) ? Math.max(0, Math.min(1, amount)) : 0})`,
   );
 }
 export type UIActions = {

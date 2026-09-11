@@ -1,7 +1,7 @@
 # Project preferences
 
 - This app makes realistic tree modeling approachable while keeping generation and rendering lightweight.
-- Use the native Rust backend and TypeScript / Three.js frontend. Do not introduce Docker or a bundled CPU Ollama service. Connect to the user's existing Ollama.
+- Use the native Rust backend and TypeScript / Three.js frontend. Support Docker Compose execution as explicitly requested on 2026-09-11, alongside native execution. Do not bundle an Ollama service or restore the removed AI integration.
 - Keep setup and startup commands at the repository root. Bind to localhost by default.
 - The user delegates design and feature choices; prefer a professional, clear production-tool interface.
 

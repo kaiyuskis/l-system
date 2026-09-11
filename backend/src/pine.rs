@@ -97,7 +97,7 @@ fn axis(bud: Bud, p: &Plant) -> Vec<Ring> {
                 + side
                     * (bud.length
                         * ((t * PI * 2.2).sin() * bend * if trunk { 0.32 } else { 0.06 }
-                            + tilt * t))
+                            + tilt * t + crate::growth::wander(t, kink_phase) * p.branch_twist))
                 + DVec3::Y * (bud.length * vertical);
             let taper = if trunk {
                 mix(1., 0.075, t.powf(0.85))
