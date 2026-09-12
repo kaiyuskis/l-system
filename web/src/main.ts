@@ -215,24 +215,33 @@ async function regenerate(): Promise<boolean> {
     const height = new THREE.Box3()
       .setFromObject(nextTree)
       .getSize(new THREE.Vector3()).y;
-    scene.add(nextTree);
     const previousTree = tree;
     const previousParams = lastSuccessful;
+    const onlyAgeChanged = previousParams && previousParams.generations !== validated.generations &&
+      JSON.stringify({ ...previousParams, generations: 0 }) === JSON.stringify({ ...validated, generations: 0 });
+    const canMorph = previousTree && onlyAgeChanged && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (canMorph) {
+      nextTree.visible = false;
+    }
+    scene.add(nextTree);
     tree = nextTree;
     nextTree = null;
     lastSuccessful = cloneParams(validated);
-    fitEnvironment(tree);
-    if (needsFit) {
-      fitCamera(tree, view);
-      needsFit = false;
+    if (!playing) {
+      fitEnvironment(tree);
+      if (needsFit) {
+        fitCamera(tree, view);
+        needsFit = false;
+      }
     }
-    const onlyAgeChanged = previousParams && previousParams.generations !== validated.generations &&
-      JSON.stringify({ ...previousParams, generations: 0 }) === JSON.stringify({ ...validated, generations: 0 });
-    if (previousTree && onlyAgeChanged && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (canMorph) {
       const growing = validated.generations > previousParams!.generations;
-      const large = growing ? tree : previousTree;
-      const small = growing ? previousTree : tree;
+      const large = growing ? tree : previousTree!;
+      const small = growing ? previousTree! : tree;
       const morph = prepareGrowth(large, small);
+      morph.update(growing ? 0 : 1);
+      large.visible = true;
       small.visible = false;
       const playbackTransition = playing;
       const started = performance.now();
@@ -249,10 +258,9 @@ async function regenerate(): Promise<boolean> {
         finishGrowth = null;
         resolveGrowth();
         element("growth-status").hidden = true;
-        element("model-empty").hidden = current.children.length > 0;
+        if (!playing) element("model-empty").hidden = current.children.length > 0;
       };
       element("growth-status").hidden = false;
-      morph.update(growing ? 0 : 1);
       const animate = (now: number) => {
         const progress = Math.min(1, (now - started) / duration);
         morph.update(growing ? progress : 1 - progress, !playbackTransition);
@@ -337,7 +345,10 @@ function stopPlayback() {
   playing = false;
   clearTimeout(playbackTimer);
   ui?.playing(false);
-  if (wasPlaying) sync();
+  if (wasPlaying) {
+    sync();
+    if (tree) fitEnvironment(tree);
+  }
 }
 function togglePlayback() {
   if (playing) {
@@ -348,7 +359,9 @@ function togglePlayback() {
   remember();
   playing = true;
   ui.playing(true);
-  params.generations = params.generations >= generationLimit ? 0 : Math.min(generationLimit, params.generations + 1);
+  element("model-empty").hidden = true;
+  if (tree) fitEnvironment(tree);
+  params.generations = params.generations >= generationLimit ? 1 : Math.min(generationLimit, params.generations + 1);
   schedule(0);
 }
 function saveBlob(blob: Blob, name: string) {
