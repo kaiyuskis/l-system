@@ -125,3 +125,28 @@ test('playback interpolation keeps constant progress between generation boundari
   }
   morph.finish();
 });
+
+test('established organs whose positions shift due to branch thickening maintain non-zero continuity without zeroing out', () => {
+  const small = tree([[[0, 0, 0], [0, 1, 0]]]);
+  const smallLeaves = new THREE.InstancedMesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial(), 2);
+  smallLeaves.name = 'Leaves';
+  smallLeaves.setMatrixAt(0, new THREE.Matrix4().makeTranslation(0.1, 0.5, 0));
+  smallLeaves.setMatrixAt(1, new THREE.Matrix4().makeTranslation(0.1, 0.9, 0));
+  small.add(smallLeaves);
+
+  const large = tree([[[0, 0, 0], [0, 1.2, 0]]]);
+  const largeLeaves = new THREE.InstancedMesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial(), 3);
+  largeLeaves.name = 'Leaves';
+  largeLeaves.setMatrixAt(0, new THREE.Matrix4().makeTranslation(0.13, 0.51, 0));
+  largeLeaves.setMatrixAt(1, new THREE.Matrix4().makeTranslation(0.12, 1.0, 0));
+  largeLeaves.setMatrixAt(2, new THREE.Matrix4().makeTranslation(0.1, 1.2, 0));
+  large.add(largeLeaves);
+
+  const morph = prepareGrowth(large, small);
+  morph.update(0);
+  const arr = largeLeaves.instanceMatrix.array;
+  assert.ok(arr[0] > 0.5, 'first leaf scale must be preserved');
+  assert.ok(arr[16 + 0] > 0.5, 'second leaf scale must be preserved');
+  assert.equal(arr[32 + 0], 0, 'new leaf starts at scale 0');
+  morph.finish();
+});
