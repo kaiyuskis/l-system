@@ -30,11 +30,8 @@ import {
   defaultParams,
   cloneParams,
   validateParams,
-  readSavedPresets,
-  writeSavedPreset,
-  deleteSavedPreset,
-  loadDraft,
-  saveDraft,
+  readSavedPresets as readLegacyPresets,
+  loadDraft as loadLegacyDraft,
   type PlantParams,
 } from "./studio-state.ts";
 import {
@@ -46,6 +43,8 @@ import {
   setToggle,
   refreshRange,
 } from "./ui-setup.ts";
+import { readSavedPresets, writeSavedPreset, deleteSavedPreset, loadDraft, saveDraft } from "./database.ts";
+import { setupDisplay } from "./display-settings.ts";
 import { icon } from "./icons.ts";
 import { toast } from "./toast.ts";
 
@@ -53,19 +52,6 @@ let params = cloneParams(defaultParams);
 let selectedPreset: string | null = builtinPresets[0].id;
 let projectName = "";
 let draftWarning = "";
-try {
-  const draft = loadDraft();
-  if (draft) {
-    params = draft;
-    selectedPreset =
-      builtinPresets.find(
-        (preset) =>
-          JSON.stringify(validateParams(preset.params)) === JSON.stringify(validateParams(params)),
-      )?.id ?? null;
-  }
-} catch (error) {
-  draftWarning = message(error);
-}
 
 type Snapshot = { params: PlantParams; preset: string | null; name: string };
 const past: Snapshot[] = [];
@@ -161,7 +147,7 @@ function change(key: keyof PlantParams, value: PlantParams[keyof PlantParams]) {
     needsFit = true;
   }
   sync();
-  schedule(key === "rules" || key === "premise" ? 550 : 180);
+  schedule(key === "generations" ? 0 : key === "rules" || key === "premise" ? 550 : 180);
 }
 function schedule(delay = 180) {
   clearTimeout(generationTimer);
@@ -173,6 +159,7 @@ function schedule(delay = 180) {
 }
 function updateGenerationLimit() {
   const timeline = element<HTMLInputElement>("timeline-generation");
+  if (timeline.dataset.scrubbing || (playing && finishGrowth)) return;
   let estimate = document.getElementById("generation-estimate");
   if (!estimate) {
     estimate = document.createElement("small");
@@ -186,22 +173,13 @@ function updateGenerationLimit() {
   refreshRange(timeline);
   document.querySelector<HTMLElement>(".timeline-label .muted")!.textContent =
     `/ ${timeline.max}`;
-  document.querySelector<HTMLElement>(".timeline-ticks")!.innerHTML =
-    Array.from(
-      { length: Math.min(6, Number(timeline.max)) + 1 },
-      (_, index) => {
-        const value = Math.round(
-          (index * Number(timeline.max)) / Math.min(6, Number(timeline.max)),
-        );
-        return `<span style="left:${value / Number(timeline.max) * 100}%">${value === 0 ? "種" : value}</span>`;
-      },
-    ).join("");
+
 }
 async function regenerate(): Promise<boolean> {
   const run = ++activeRun;
   const thisRevision = revision;
   busy = true;
-  ui.busy(true);
+  if (!playing) ui.busy(true);
   ui.error("");
   // Give the browser a painted loading state before bounded CPU/GPU work.
   await new Promise<void>((resolve) =>
@@ -223,12 +201,16 @@ async function regenerate(): Promise<boolean> {
     geometryController = controller;
     const data = await requestGeometry(validated, controller.signal);
     if (thisRevision !== revision || run !== activeRun) return false;
+    nextTree = buildTree(data, validated);
     // Finish the visible extension before replacing its topology. Rapid slider
     // edits coalesce to the latest revision without jumping to a hidden endpoint.
     await growthSettled;
-    if (thisRevision !== revision || run !== activeRun) return false;
+    if (thisRevision !== revision || run !== activeRun) {
+      disposeTree(nextTree);
+      nextTree = null;
+      return false;
+    }
     generationLimit = data.meta.generationLimit;
-    nextTree = buildTree(data, validated);
     finishGrowth?.();
     const height = new THREE.Box3()
       .setFromObject(nextTree)
@@ -252,8 +234,9 @@ async function regenerate(): Promise<boolean> {
       const small = growing ? previousTree : tree;
       const morph = prepareGrowth(large, small);
       small.visible = false;
+      const playbackTransition = playing;
       const started = performance.now();
-      const duration = Math.min(1600, 650 + Math.abs(validated.generations - previousParams!.generations) * 80);
+      const duration = playbackTransition ? 1100 : Math.min(1600, 650 + Math.abs(validated.generations - previousParams!.generations) * 80);
       let frame = 0;
       const current = tree;
       let resolveGrowth!: () => void;
@@ -272,10 +255,16 @@ async function regenerate(): Promise<boolean> {
       morph.update(growing ? 0 : 1);
       const animate = (now: number) => {
         const progress = Math.min(1, (now - started) / duration);
-        morph.update(growing ? progress : 1 - progress);
-        const eased = THREE.MathUtils.smoothstep(progress, 0, 1);
+        morph.update(growing ? progress : 1 - progress, !playbackTransition);
+        const eased = playbackTransition ? progress : THREE.MathUtils.smoothstep(progress, 0, 1);
         const displayed = previousParams!.generations + (validated.generations - previousParams!.generations) * eased;
         element("growth-status").textContent = `表示 ${displayed.toFixed(1)} 世代`;
+        if (playing && !element<HTMLInputElement>("timeline-generation").dataset.scrubbing) {
+          const timeline = element<HTMLInputElement>("timeline-generation");
+          timeline.value = String(displayed);
+          refreshRange(timeline);
+          element("generation-value").textContent = displayed.toFixed(1);
+        }
         if (progress >= 1) finishGrowth?.();
         else frame = requestAnimationFrame(animate);
       };
@@ -293,9 +282,9 @@ async function regenerate(): Promise<boolean> {
     element("metric-organ-label").textContent = ["pine_needles", "spruce_needles"].includes(validated.leafTextureKey) ? "針葉" : "葉・花";
     updateGenerationLimit();
     try {
-      saveDraft(validated);
+      await saveDraft(validated);
       element("autosave-status").textContent =
-        "このブラウザーに作業内容を自動保存";
+        "データベースに作業内容を自動保存";
     } catch (error) {
       element("autosave-status").textContent =
         "自動保存できません。JSONで書き出せます";
@@ -308,13 +297,19 @@ async function regenerate(): Promise<boolean> {
     busy = false;
     ui.busy(false);
     if (playing) {
-      if (params.generations >= generationLimit) stopPlayback();
-      else
+      if (validated.generations >= generationLimit) {
+        void growthSettled.then(() => {
+          if (thisRevision === revision && playing) { stopPlayback(); sync(); }
+        });
+      } else {
+        // Fetch/build the next generation while the current one is extending.
+        // regenerate waits for growthSettled before swapping visible geometry.
         playbackTimer = window.setTimeout(() => {
-          params.generations++;
-          sync();
+          if (!playing) return;
+          params.generations = Math.min(generationLimit, validated.generations + 1);
           schedule(0);
-        }, 1100);
+        }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1100 : 0);
+      }
     }
     return true;
   } catch (error) {
@@ -332,21 +327,28 @@ async function regenerate(): Promise<boolean> {
   }
 }
 function stopPlayback() {
+  const wasPlaying = playing;
+  if (playing) {
+    revision++;
+    clearTimeout(generationTimer);
+    geometryController?.abort();
+    if (lastSuccessful) params.generations = lastSuccessful.generations;
+  }
   playing = false;
   clearTimeout(playbackTimer);
   ui?.playing(false);
+  if (wasPlaying) sync();
 }
 function togglePlayback() {
   if (playing) {
     stopPlayback();
     return;
   }
-  if (busy) return;
+  if (busy && !tree) return;
   remember();
   playing = true;
   ui.playing(true);
-  params.generations = 0;
-  sync();
+  params.generations = params.generations >= generationLimit ? 0 : Math.min(generationLimit, params.generations + 1);
   schedule(0);
 }
 function saveBlob(blob: Blob, name: string) {
@@ -380,7 +382,7 @@ async function ensureCurrentTree(): Promise<boolean> {
 function showSave() {
   openDialog(
     "この樹木に、名前を。",
-    `<p class="dialog-description">いまのルールと設定をマイライブラリに保存します。保存先は、このブラウザーの中です。</p><form id="save-form"><label class="dialog-field-label" for="save-name">作品名</label><input class="text-input" id="save-name" name="name" maxlength="80" required placeholder="例：風にゆれるシラカバ" value="${escapeHTML(projectName || `${builtinPresets.find((p) => p.id === selectedPreset)?.name || "樹木"}のスケッチ`)}"/><p id="save-feedback" class="control-help" role="status"></p><div class="dialog-actions"><button type="button" class="button button-quiet" id="save-cancel">キャンセル</button><button class="button button-dark" type="submit">${icon("save")}ライブラリに保存</button></div></form>`,
+    `<p class="dialog-description">いまのルールと設定をマイライブラリに保存します。保存先はサーバーのデータベースです。</p><form id="save-form"><label class="dialog-field-label" for="save-name">作品名</label><input class="text-input" id="save-name" name="name" maxlength="80" required placeholder="例：風にゆれるシラカバ" value="${escapeHTML(projectName || `${builtinPresets.find((p) => p.id === selectedPreset)?.name || "樹木"}のスケッチ`)}"/><p id="save-feedback" class="control-help" role="status"></p><div class="dialog-actions"><button type="button" class="button button-quiet" id="save-cancel">キャンセル</button><button class="button button-dark" type="submit">${icon("save")}ライブラリに保存</button></div></form>`,
     "SAVE YOUR SPECIMEN",
   );
   element("save-cancel").addEventListener("click", closeDialog);
@@ -396,7 +398,7 @@ function showSave() {
       if (!(await ensureCurrentTree()))
         throw new Error("生成ルールのエラーを修正してから保存してください。");
       if (
-        readSavedPresets().some((item) => item.name === name) &&
+        (await readSavedPresets()).some((item) => item.name === name) &&
         overwriteName !== name
       ) {
         overwriteName = name;
@@ -404,7 +406,7 @@ function showSave() {
           "同じ名前の作品があります。もう一度「保存」を押すと置き換えます。";
         return;
       }
-      writeSavedPreset(name, params);
+      await writeSavedPreset(name, params);
       projectName = name;
       sync();
       closeDialog();
@@ -414,14 +416,28 @@ function showSave() {
     }
   });
 }
-function showLibrary() {
+async function showLibrary() {
   try {
-    const saved = readSavedPresets();
+    const saved = await readSavedPresets();
     openDialog(
       "マイライブラリ",
-      `<p class="dialog-description">保存したモデルを開いて編集できます。ルールと設定から形状を再現します。</p><div class="library-list">${saved.length ? saved.map((item, index) => `<div class="library-item"><div><strong>${escapeHTML(item.name)}</strong><small>${new Date(item.savedAt).toLocaleDateString("ja-JP")} · ${item.data.generations} 世代 · seed ${item.data.seed}</small></div><button class="button" data-load="${index}">ひらく</button><button class="icon-button" data-delete="${index}" aria-label="${escapeHTML(item.name)}を削除">${icon("trash")}</button></div>`).join("") : `<div class="library-empty">${icon("sprout")}保存したモデルはありません。<br>モデルを保存すると、ここに表示されます。</div>`}</div><div class="dialog-actions"><button class="button button-quiet" id="library-import">${icon("upload")}JSONを読み込む</button><button class="button button-dark" id="library-save">${icon("save")}いまの樹木を保存</button></div>`,
+      `<p class="dialog-description">保存したモデルを開いて編集できます。ルールと設定から形状を再現します。</p><div class="library-list">${saved.length ? saved.map((item, index) => `<div class="library-item"><div><strong>${escapeHTML(item.name)}</strong><small>${new Date(item.savedAt).toLocaleDateString("ja-JP")} · ${item.data.generations} 世代 · seed ${item.data.seed}</small></div><button class="button" data-load="${index}">ひらく</button><button class="icon-button" data-delete="${index}" aria-label="${escapeHTML(item.name)}を削除">${icon("trash")}</button></div>`).join("") : `<div class="library-empty">${icon("sprout")}保存したモデルはありません。<br>モデルを保存すると、ここに表示されます。</div>`}</div><div class="dialog-actions"><button class="button button-quiet" id="library-migrate">旧ブラウザー保存を取り込む</button><button class="button button-quiet" id="library-import">${icon("upload")}JSONを読み込む</button><button class="button button-dark" id="library-save">${icon("save")}いまの樹木を保存</button></div>`,
       "YOUR COLLECTION",
     );
+    element("library-migrate").addEventListener("click", async () => {
+      const button = element<HTMLButtonElement>("library-migrate");
+      button.disabled = true;
+      try {
+        const existing = new Set((await readSavedPresets()).map(item => item.name));
+        let count = 0;
+        for (const item of readLegacyPresets()) {
+          if (existing.has(item.name)) continue;
+          await writeSavedPreset(item.name, item.data); count++;
+        }
+        await showLibrary();
+        toast(`${count}件を取り込みました。同名の作品と元データは保持されます。`, "success");
+      } catch (error) { toast(message(error), "error"); button.disabled = false; }
+    });
     element("library-import").addEventListener("click", () =>
       element<HTMLInputElement>("import-file").click(),
     );
@@ -449,7 +465,7 @@ function showLibrary() {
     document
       .querySelectorAll<HTMLButtonElement>("[data-delete]")
       .forEach((button) =>
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
           const item = saved[Number(button.dataset.delete)];
           if (button.dataset.confirm !== "true") {
             button.dataset.confirm = "true";
@@ -459,7 +475,7 @@ function showLibrary() {
             return;
           }
           try {
-            deleteSavedPreset(item.name);
+            await deleteSavedPreset(item.name);
             showLibrary();
             toast(`「${item.name}」を削除しました。`);
           } catch (error) {
@@ -571,12 +587,18 @@ async function exportFile(format: string, button: HTMLButtonElement) {
 function showHelp() {
   openDialog(
     "ルールから、自然を描く。",
-    `<p class="dialog-description">L-system は、文字を繰り返し置き換えることで、植物のような枝分かれをつくる仕組みです。ここでは自由な植物のスケッチを楽しめます。</p><ol class="help-steps"><li>「はじめの一粒」から植物を選びます。</li><li>「かたち」「質感」で表情を整えます。</li><li>下の再生ボタンで、世代ごとの成長を観察。</li><li>気に入った樹木は保存、または書き出し。</li></ol><h3 class="help-heading">ルールの基本</h3><div class="help-grid"><code>F / f</code><span>枝を描いて前進 / 描かずに前進</span><code>L K M</code><span>葉 / 花 / つぼみを配置</span><code>+ -</code><span>左右に回転</span><code>&amp; ^</code><span>前後に傾く</span><code>/ \\</code><span>枝の軸を中心に回転</span><code>[ ]</code><span>現在位置を保存 / その位置に戻る</span><code>! &quot;</code><span>太さ / 長さを減衰</span><code>|</code><span>180度向きを変える</span><code>F(2)</code><span>長さ2の枝。+(30) は30度回転。括弧内では四則演算も使えます。</span></div><p class="control-help">例：公理を A、ルールを A=F[+A][-A] にすると、二股の枝が繰り返し生まれます。文字を消すルール A= も使えます。# で始まる行はコメントです。</p><h3 class="help-heading">便利な操作</h3><p class="control-help">F：樹木全体を表示　Space：成長を再生 / 停止<br>Ctrl / ⌘ + Z：元に戻す　Shift を加えるとやり直し<br>Ctrl / ⌘ + S：保存　Ctrl / ⌘ + Enter：生成<br>スマートフォン：1本指で回転、2本指で移動・拡大</p><p class="control-help">保存データはこのブラウザー内に保管されます。バックアップにはJSON書き出しを使ってください。プリセットは樹木の形を楽しむための表現で、生物学的な成長を正確に再現するものではありません。</p>`,
+    `<p class="dialog-description">L-system は、文字を繰り返し置き換えることで、植物のような枝分かれをつくる仕組みです。ここでは自由な植物のスケッチを楽しめます。</p><ol class="help-steps"><li>「はじめの一粒」から植物を選びます。</li><li>「かたち」「質感」で表情を整えます。</li><li>下の再生ボタンで、世代ごとの成長を観察。</li><li>気に入った樹木は保存、または書き出し。</li></ol><h3 class="help-heading">ルールの基本</h3><div class="help-grid"><code>F / f</code><span>枝を描いて前進 / 描かずに前進</span><code>L K M</code><span>葉 / 花 / つぼみを配置</span><code>+ -</code><span>左右に回転</span><code>&amp; ^</code><span>前後に傾く</span><code>/ \\</code><span>枝の軸を中心に回転</span><code>[ ]</code><span>現在位置を保存 / その位置に戻る</span><code>! &quot;</code><span>太さ / 長さを減衰</span><code>|</code><span>180度向きを変える</span><code>F(2)</code><span>長さ2の枝。+(30) は30度回転。括弧内では四則演算も使えます。</span></div><p class="control-help">例：公理を A、ルールを A=F[+A][-A] にすると、二股の枝が繰り返し生まれます。文字を消すルール A= も使えます。# で始まる行はコメントです。</p><h3 class="help-heading">便利な操作</h3><p class="control-help">F：樹木全体を表示　Space：成長を再生 / 停止<br>Ctrl / ⌘ + Z：元に戻す　Shift を加えるとやり直し<br>Ctrl / ⌘ + S：保存　Ctrl / ⌘ + Enter：生成<br>スマートフォン：1本指で回転、2本指で移動・拡大</p><p class="control-help">保存データはサーバーのデータベースに保管され、同じサーバーに接続した端末間で共有されます。バックアップにはJSON書き出しを使ってください。プリセットは樹木の形を楽しむための表現で、生物学的な成長を正確に再現するものではありません。</p>`,
     "A LITTLE FIELD GUIDE",
   );
 }
 function action(name: string) {
   switch (name) {
+    case "scrub-generation":
+      stopPlayback();
+      clearTimeout(generationTimer);
+      revision++;
+      geometryController?.abort();
+      break;
     case "generate":
       stopPlayback();
       schedule(0);
@@ -767,8 +789,26 @@ window.addEventListener("keydown", (event) => {
     action("play-growth");
   } else if (event.key.toLowerCase() === "f") action("fit-camera");
 });
-if (draftWarning) toast(draftWarning, "error", 6500);
-schedule(0);
+setupDisplay();
+void (async () => {
+try {
+  const draft = await loadDraft() ?? loadLegacyDraft();
+  if (draft && revision === 0) {
+    params = draft;
+    selectedPreset =
+      builtinPresets.find(
+        (preset) =>
+          JSON.stringify(validateParams(preset.params)) === JSON.stringify(validateParams(params)),
+      )?.id ?? null;
+  }
+} catch (error) {
+  draftWarning = message(error);
+}
+
+ sync();
+ if (draftWarning) toast(draftWarning, "error", 6500);
+ schedule(0);
+})();
 if (import.meta.hot)
   import.meta.hot.dispose(() => {
 

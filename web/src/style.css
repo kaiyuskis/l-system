@@ -2190,3 +2190,121 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:3px soli
 input[type="range"]::-webkit-slider-thumb,
 input[type="range"]::-moz-range-thumb { box-sizing:border-box; width:12px; height:12px; }
 .environment-controls { background:rgba(229,234,238,.94); padding:8px; border:1px solid #a7b5bf; border-radius:10px; }
+
+/* A full-size canvas with translucent, independently collapsible controls. */
+:root {
+  color-scheme: light;
+  --ink: #20342c; --muted: #53685d; --green: #87e65b; --accent: #87e65b;
+  --line: #bbcbbd; --paper: #f3f8f2; --soft: #e4ede3;
+  --glass: rgba(245, 250, 244, .84); --field: rgba(255,255,255,.64);
+  --selected: #d9f6cb;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e3eee4; --muted: #acbdb0; --line: #4c6156;
+  --paper: #202e29; --soft: #314039; --glass: rgba(26, 39, 34, .86);
+  --field: rgba(49,66,57,.7); --selected: #354e2d;
+}
+body { overflow: hidden; color: var(--ink); }
+.studio { display: block; position: relative; height: 100dvh; min-height: 0; }
+.workspace { position: absolute; inset: 0; padding: 0; background: transparent; }
+.viewport-wrapper { position: absolute; inset: 0; border: 0; border-radius: 0; }
+.app-header { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 16px; right: 16px; height: 64px; padding: 0 16px; gap: 20px; border: 1px solid var(--line); border-radius: 14px; }
+.app-header, .editor, .growth-panel, .viewport-tools, .viewport-badge, .workspace-status, #fps-counter {
+  background: var(--glass); color: var(--ink); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 5px 24px #1025190d;
+}
+.app-header .brand, .app-header .brand strong, .app-header .icon-button, .app-header .button-quiet, .app-header .header-project { color: var(--ink); }
+.app-header .brand { width: auto; }
+.app-header .brand small, .app-header .local-label { color: var(--muted); }
+.brand-mark { background: var(--selected); color: var(--ink); border-color: var(--line); }
+.editor { position: absolute; right: 16px; top: 88px; bottom: 136px; width: 326px; max-width: calc(100% - 32px); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; z-index: 4; }
+.editor-scroll { padding: 16px; overscroll-behavior: contain; }
+.editor-footer { background: transparent; border-color: var(--line); }
+.editor-heading { margin: 18px 0; }
+.display-settings { border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.display-settings summary { cursor: pointer; font-size: 13px; font-weight: 600; padding: 10px 0; }
+.environment-controls { position: static; max-width: none; margin: 8px 0; padding: 0; background: none; border: 0; display: grid; grid-template-columns: 1fr; }
+.environment-controls .button, .environment-controls .button[aria-pressed="false"], .lighting-quality { background: var(--field); color: var(--ink); border-color: var(--line); font-size: 12px; min-height: 40px; padding: 8px 10px; justify-content: space-between; }
+.environment-controls .button[aria-pressed="true"] { background: var(--selected); color: var(--ink); border-color: var(--green); }
+.display-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; font-size: 12px; min-height: 44px; }
+.display-row select { width: auto; max-width: 205px; }
+input[type="checkbox"] { accent-color: var(--green); width: 18px; height: 18px; }
+.growth-panel { position: absolute; bottom: max(36px, env(safe-area-inset-bottom)); left: 16px; right: 16px; margin: 0; min-height: 88px; padding: 14px 20px; border: 1px solid var(--line); border-radius: 14px; gap: 20px; }
+.workspace-status { position: absolute; bottom: 0; left: 16px; right: 16px; min-height: 28px; height: 28px; background: transparent; box-shadow: none; }
+.specimen-heading { top: 100px; left: 28px; pointer-events: none; }
+.specimen-heading h2, .model-metrics strong, .control-label, .toggle-row, .color-row, .control-value, .number-input { color: var(--ink); }
+.specimen-heading p, .eyebrow, .control-help, .range-extents, .rule-help, .footer-note, .metric-time, .interaction-hint, .dialog-description, #growth-status, .generation-estimate { color: var(--muted); }
+.viewport-tools { transform: none; right: auto; left: 20px; top: 215px; border-color: var(--line); }
+.viewport-tools .icon-button { color: var(--ink); }
+.viewport-badge { top: 90px; right: 365px; border-color: var(--line); }
+body:not(.editor-open) .viewport-badge { right: 20px; }
+.canvas-caption, .orientation { display: none; }
+#fps-counter { position: absolute; left: 24px; bottom: 142px; padding: 6px 10px; border-radius: 6px; font: 12px ui-monospace, monospace; }
+.button, .text-input, select, textarea, .number-input, .lighting-quality select, .export-option, .result-string { background: var(--field); color: var(--ink); border-color: var(--line); }
+.button-dark, .app-header .button-dark, .generate-button, .play-button, .preset-check { background: var(--green); color: #183211; border-color: var(--green); }
+.button-dark:hover, .app-header .button-dark:hover, .generate-button:hover, .play-button:hover { background: #a4f47d; color: #183211; }
+.icon-button.active, .viewport-tools .icon-button.active { background: var(--selected); color: var(--ink); }
+.editor-tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--green); }
+.preset-section > summary, .preset-grid .preset-card { background: var(--field); color: var(--ink); border-color: var(--line); }
+.preset-grid .preset-card small { color: var(--muted); }
+.preset-grid .preset-card.selected { background: var(--selected); border-color: var(--green); box-shadow: inset 3px 0 var(--green); }
+input[type="range"] { background: linear-gradient(to right, var(--green) var(--range-progress), var(--line) var(--range-progress)); }
+input[type="range"]::-webkit-slider-thumb { background: var(--green); box-shadow: 0 0 0 1px var(--green); }
+input[type="range"]::-moz-range-thumb { background: var(--green); box-shadow: 0 0 0 1px var(--green); }
+.studio-dialog { background: var(--paper); color: var(--ink); border-color: var(--line); }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+.fullscreen-fallback .brand small, .fullscreen-fallback .header-project { display: none; }
+@media (max-width: 1000px) {
+  .header-project, .brand small { display: none; }
+  .brand strong { font-size: 20px; }
+  .header-actions { gap: 6px; }
+  .growth-title { display: none; }
+}
+@media (max-width: 760px) {
+  .app-header { top: max(8px, env(safe-area-inset-top)); left: 8px; right: 8px; height: 56px; padding: 0 8px; gap: 6px; }
+  .brand { display: none; }
+  .header-actions { width: 100%; justify-content: space-between; gap: 3px; }
+  .history-actions, #help { display: none; }
+  .header-actions .button { min-height: 40px; padding: 8px; font-size: 11px; }
+  .header-actions .button-label, #export > span:last-child { display: none; }
+  .editor { top: 74px; right: 8px; bottom: 132px; width: min(350px, calc(100% - 16px)); max-width: none; }
+  .editor-scroll { padding: 12px 16px; }
+  .editor-footer { padding: 8px 16px; }
+  .footer-note { display: none; }
+  .specimen-heading { top: 84px; left: 16px; }
+  .specimen-heading h2 { font-size: 19px; }
+  .viewport-badge { display: none; }
+  .viewport-tools { left: 12px; top: 180px; padding: 3px; }
+  .viewport-tools .icon-button { width: 40px; height: 40px; }
+  body.editor-open .viewport-tools { visibility: hidden; }
+  .growth-panel { bottom: max(28px, env(safe-area-inset-bottom)); left: 8px; right: 8px; min-height: 88px; padding: 10px 12px; gap: 12px; }
+  .timeline { min-width: 0; flex: 1; }
+  .wind-control { display: none; }
+  .play-button { width: 44px; height: 44px; min-width: 44px; }
+  .workspace-status { left: 12px; right: 12px; font-size: 10px; }
+  .interaction-hint, .metric-time, .metric-height { display: none; }
+  #fps-counter { bottom: 126px; left: 12px; }
+  .studio-dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 20px; }
+  .dialog-actions { flex-wrap: wrap; }
+  .icon-button, .library-item .button { min-width: 40px; min-height: 40px; }
+  input[type="range"] { min-height: 8px; margin-top: 16px; margin-bottom: 16px; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .editor { bottom: 12px; width: 310px; }
+  body.editor-open .growth-panel { right: 330px; }
+  .specimen-heading p, .specimen-heading .eyebrow, .generation-estimate { display: none; }
+  .viewport-tools { top: 128px; flex-direction: row; }
+}
+
+.display-settings .wind-control { display: flex; width: 100%; border: 0; padding: 10px 0; }
+/* Clear the former stacked mobile workspace sizing. */
+.workspace { height: 100%; min-height: 0; max-height: none; }
+.viewport-wrapper { height: 100%; min-height: 0; max-height: none; }
+.header-actions #save { display: inline-flex; }
+
+.camera-tools { position: absolute; top: 215px; left: 20px; }
+.camera-tools > summary { padding: 10px; cursor: pointer; background: var(--glass); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+.camera-tools .viewport-tools { position: static; transform: none; margin-top: 4px; }
+@media (max-width: 760px) { .camera-tools { top: 180px; left: 12px; } body.editor-open .camera-tools { visibility: hidden; } }
+@media (max-height: 520px) and (orientation: landscape) { .camera-tools { top: 128px; } }

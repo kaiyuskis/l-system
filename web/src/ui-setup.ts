@@ -151,14 +151,34 @@ export function setupUI(actions: UIActions) {
           .map((expression) => ({ expression })),
       ),
   );
-  element<HTMLInputElement>("timeline-generation").addEventListener(
-    "input",
-    (event) =>
-      actions.change(
-        "generations",
-        Number((event.target as HTMLInputElement).value),
-      ),
-  );
+  const timeline = element<HTMLInputElement>("timeline-generation");
+  const beginScrub = () => {
+    if (timeline.dataset.scrubbing) return;
+    timeline.dataset.scrubbing = "true";
+    actions.action("scrub-generation");
+  };
+  const commitScrub = () => {
+    if (!timeline.dataset.scrubbing) return;
+    delete timeline.dataset.scrubbing;
+    actions.change("generations", Number(timeline.value));
+  };
+  timeline.addEventListener("pointerdown", beginScrub);
+  timeline.addEventListener("input", () => {
+    beginScrub();
+    refreshRange(timeline);
+    element("generation-value").textContent = Number(timeline.value).toFixed(1);
+  });
+  timeline.addEventListener("change", commitScrub);
+  timeline.addEventListener("pointerup", commitScrub);
+  timeline.addEventListener("pointercancel", commitScrub);
+  timeline.addEventListener("blur", commitScrub);
+  timeline.addEventListener("keydown", event => {
+    const direction = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[event.key];
+    if (!direction) return;
+    event.preventDefault();
+    delete timeline.dataset.scrubbing;
+    actions.change("generations", Math.max(Number(timeline.min), Math.min(Number(timeline.max), Number(timeline.value) + direction)));
+  });
   [
     "undo",
     "redo",
@@ -253,10 +273,14 @@ export function setupUI(actions: UIActions) {
       if (document.activeElement !== rules)
         rules.value = params.rules.map((rule) => rule.expression).join("\n");
       const timeline = element<HTMLInputElement>("timeline-generation");
-      timeline.max = String(params.growthModel === "lsystem" ? Math.max(10, params.generations) : 16);
-      timeline.value = String(params.generations);
-      refreshRange(timeline);
-      element("generation-value").textContent = String(params.generations);
+      timeline.step = native ? "0.01" : "1";
+      timeline.title = native ? "0.01世代刻みで選び、離すと生成します。" : "自由なL-systemは整数世代で生成します。";
+      if (!timeline.dataset.scrubbing) {
+        timeline.max = String(params.growthModel === "lsystem" ? Math.max(10, params.generations) : 16);
+        timeline.value = String(params.generations);
+        refreshRange(timeline);
+        element("generation-value").textContent = String(params.generations);
+      }
     },
     selection(id: string | null, customName?: string) {
       const index = builtinPresets.findIndex((preset) => preset.id === id);

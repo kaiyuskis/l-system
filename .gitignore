@@ -247,3 +247,6 @@ output/revision2/
 
 # Generated model exports stay local
 /output/*.glb
+
+# SQLite application data
+/data/

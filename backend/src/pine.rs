@@ -247,10 +247,10 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
     p.validate()?;
     let mut geometry = Geometry::default();
     let mut surface = Surface::default();
-    if p.generations > crate::growth::LIMIT {
+    if p.generations > crate::growth::LIMIT as f64 {
         return Err("松の成長世代は0〜16で指定してください。".into());
     }
-    if p.generations == 0 {
+    if p.generations == 0. {
         geometry.surface = Some(surface);
         return Ok((b"B(0)".to_vec(), geometry, crate::growth::LIMIT));
     }

@@ -25,7 +25,7 @@ pub struct Plant {
     pub max_thickness: f64,
     pub init_length: f64,
     pub init_thickness: f64,
-    pub generations: u32,
+    pub generations: f64,
     pub angle: f64,
     pub angle_variance: f64,
     pub seed: u32,
@@ -82,9 +82,10 @@ impl Plant {
         ] {
             range(value, min, max, label)?;
         }
-        if self.generations > if self.growth_model == "lsystem" { 12 } else { crate::growth::LIMIT } {
+        if !self.generations.is_finite() || self.generations < 0. || self.generations > if self.growth_model == "lsystem" { 12. } else { crate::growth::LIMIT as f64 } {
             return Err("世代がモデルの上限を超えています。".into());
         }
+        if self.growth_model == "lsystem" && self.generations.fract() != 0. { return Err("自由なL-systemの世代は整数にしてください。".into()); }
         if [
             &self.branch_color,
             &self.leaf_color,

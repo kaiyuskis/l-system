@@ -76,7 +76,7 @@ fn all_species_are_seeded_and_maximum_default_detail_fits_the_protocol() {
             a.surface.as_ref().unwrap().position,
             c.surface.as_ref().unwrap().position
         );
-        p.generations = 16;
+        p.generations = 16 as f64;
         let (_, fine, _) = engine::generate(&p).unwrap();
         assert!(
             fine.surface.as_ref().unwrap().index.len() <= 5_000_000,
@@ -96,7 +96,7 @@ fn density_zero_removes_foliage_and_generation_zero_is_empty() {
         let (_, bare, _) = engine::generate(&p).unwrap();
         assert!(bare.leaves.is_empty() && bare.flowers.is_empty());
         assert!(!bare.branches.is_empty());
-        p.generations = 0;
+        p.generations = 0 as f64;
         let (_, empty, _) = engine::generate(&p).unwrap();
         assert!(empty.branches.is_empty());
     }

@@ -90,7 +90,7 @@ test("import validation rejects non-finite, out-of-range and wrong-type values",
     { generations: NaN },
     { generations: Infinity },
     { generations: -1 },
-    { generations: 2.5 },
+    { growthModel: "lsystem", generations: 2.5 },
     { maxThickness: 0 },
     { maxLength: 6 },
     { scale: "0.8" },
@@ -285,3 +285,7 @@ test("storage permission and quota failures produce actionable errors without de
   assert.throws(loadDraft, /保存領域/);
 });
 
+
+test("native growth accepts fractional generations", () => {
+ assert.equal(validateParams({...defaultParams, growthModel: "birch", generations: 2.37}).generations, 2.37);
+});

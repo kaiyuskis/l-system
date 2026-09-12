@@ -152,7 +152,7 @@ export function validateParams(value: unknown): PlantParams {
     initLength: numberField(value.initLength, "現在の枝の長さ", 0, 5),
     maxThickness: numberField(value.maxThickness, "幹の太さ", 0.005, 2),
     initThickness: numberField(value.initThickness, "現在の幹の太さ", 0, 2),
-    generations: numberField(value.generations, "世代", 0, value.growthModel && value.growthModel !== "lsystem" ? 16 : 12, true),
+    generations: numberField(value.generations, "世代", 0, value.growthModel && value.growthModel !== "lsystem" ? 16 : 12, !value.growthModel || value.growthModel === "lsystem"),
     angle: numberField(value.angle, "枝分かれの角度", 0, 180),
     angleVariance: numberField(value.angleVariance, "角度のゆらぎ", 0, 45),
     seed: numberField(value.seed, "シード", 0, 4294967295, true),

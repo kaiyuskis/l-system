@@ -108,11 +108,11 @@ fn pine_controls_change_structure_and_can_remove_foliage() {
     };
     assert!(extent(&wide) > extent(&base) * 1.3);
     q = p.clone();
-    q.generations = 0;
+    q.generations = 0 as f64;
     let (_, empty, _) = engine::generate(&q).unwrap();
     assert!(empty.branches.is_empty() && empty.leaves.is_empty());
     q = p.clone();
-    q.generations = 3;
+    q.generations = 3 as f64;
     let (_, young, _) = engine::generate(&q).unwrap();
     assert!(young.branches.len() < base.branches.len());
 }

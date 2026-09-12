@@ -52,7 +52,7 @@ struct Axis {
 }
 impl Axis {
     fn progress(self, p: &Plant) -> f64 {
-        if p.generations == 0 { return 0.; }
+        if p.generations == 0. { return 0.; }
         if !p.growth_mode {
             return if p.generations as f64 > self.onset { 1. } else { 0. };
         }

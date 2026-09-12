@@ -114,3 +114,14 @@ test('a curved juvenile first segment matches its mature trunk without collapsin
     small.children[0].geometry.getAttribute('position').array.slice(0,30));
   morph.finish();
 });
+
+
+test('playback interpolation keeps constant progress between generation boundaries', () => {
+  const large = tree([[[0,0,0],[0,4,0]]]);
+  const morph = prepareGrowth(large, tree([]));
+  for (const t of [.1,.25,.5,.75,.9]) {
+    morph.update(t, false);
+    assert.ok(Math.abs(large.children[0].geometry.getAttribute('position').getY(5) - 4*t) < 1e-6);
+  }
+  morph.finish();
+});

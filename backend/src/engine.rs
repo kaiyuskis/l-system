@@ -440,7 +440,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32)> {
     if crate::species::supports(&p.growth_model) { return crate::species::generate(p); }
     if p.growth_model != "lsystem" { return crate::botanical::generate(p); }
     let rules = parse_rules(&p.rules)?;
-    let s = expand(&p.premise, &rules, p.generations)?;
+    let s = expand(&p.premise, &rules, p.generations.floor() as u32)?;
     let data = geometry(&s, p)?;
     let limit = generation_limit(&p.premise, &rules);
     Ok((s, data, limit))

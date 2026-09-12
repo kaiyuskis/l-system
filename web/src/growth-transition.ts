@@ -199,5 +199,5 @@ export function prepareGrowth(large: THREE.Group, small: THREE.Group) {
       restores.push(() => { attribute.array = originalArray; attribute.needsUpdate = true; });
     }
   });
-  return { update(t: number) { updates.forEach(update => update(THREE.MathUtils.smoothstep(t, 0, 1))); }, finish() { restores.forEach(restore => restore()); } };
+  return { update(t: number, ease = true) { updates.forEach(update => update(ease ? THREE.MathUtils.smoothstep(t, 0, 1) : THREE.MathUtils.clamp(t, 0, 1))); }, finish() { restores.forEach(restore => restore()); } };
 }

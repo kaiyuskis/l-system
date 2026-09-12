@@ -16,7 +16,7 @@ pub fn juvenile_radial(p: &Plant) -> f64 {
 pub fn order(p: &Plant) -> u32 {
     [1, 2, 4, 6, 9, 13]
         .iter()
-        .filter(|&&g| g <= p.generations)
+        .filter(|&&g| g as f64 <= p.generations)
         .count()
         .saturating_sub(1) as u32
 }
@@ -86,7 +86,7 @@ impl Schedule {
     }
 
     pub fn progress(self, p: &Plant) -> f64 {
-        if p.generations == 0 { return 0.; }
+        if p.generations == 0. { return 0.; }
         if !p.growth_mode { return 1.; }
         extension((p.generations as f64 - self.onset) / self.duration, self.identity)
     }

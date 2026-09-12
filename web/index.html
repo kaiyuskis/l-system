@@ -27,7 +27,7 @@
           ><span class="local-label">ローカル</span>
         </div>
         <nav class="header-actions" aria-label="作品の操作">
-          <div class="history-actions">
+          <button class="button" id="toggle-editor" aria-controls="editor" aria-expanded="true">設定</button><button class="button" id="fullscreen" aria-pressed="false" title="全画面表示">全画面</button><div class="history-actions">
             <button
               class="icon-button"
               id="undo"
@@ -63,19 +63,20 @@
           <button class="button button-quiet" id="save" aria-label="保存">
             <span data-icon="save"></span><span class="button-label">保存</span>
           </button>
-          <button class="button button-dark" id="export">
+          <button class="button button-dark" id="export" aria-label="書き出す">
             <span data-icon="download"></span><span>書き出す</span>
           </button>
         </nav>
       </header>
-      <aside class="editor" aria-label="樹木の設定">
+      <aside id="editor" class="editor" aria-label="樹木の設定">
         <div class="editor-scroll">
+<details class="display-settings"><summary>表示設定</summary>          <div class="environment-controls"><button id="toggle-environment" aria-pressed="true" class="button active" title="地面に落ちる影と奥行きの霧を表示">影を表示 <span class="toggle-state">オン</span></button><button data-action="toggle-grid" aria-pressed="true" class="button active" title="床の基準線を表示">グリッドを表示 <span class="toggle-state">オン</span></button><button id="toggle-antialias" aria-pressed="true" class="button active" title="枝や葉の輪郭のギザギザを滑らかにします">アンチエイリアス <span class="toggle-state">オン</span></button><label class="lighting-quality">描画品質<select id="lighting-quality" aria-label="影・照明の品質" title="低：軽量／中：標準／高：精細な影と補助照明"><option value="low">低・軽量</option><option value="medium" selected>中・標準</option><option value="high">高・精細</option></select></label></div><label class="display-row">テーマ<select id="theme-mode"><option value="auto">自動（端末に合わせる）</option><option value="light">ライト</option><option value="dark">ダーク</option></select></label><label class="display-row">FPSを表示<input id="show-fps" type="checkbox"/></label></details>
           <div class="editor-heading">
             <div>
               <span class="eyebrow">MODEL SETTINGS</span>
               <h1>モデルを編集</h1>
             </div>
-            <span class="heading-icon" data-icon="sliders"></span>
+            <button id="close-editor" class="icon-button" aria-label="設定を閉じる">×</button>
           </div>
           <details id="preset-library" class="preset-section" open><summary>プリセットを選択 <strong id="preset-current"></strong></summary>
             <div class="section-label">
@@ -162,11 +163,11 @@
             <h2 id="specimen-name">広葉樹</h2>
             <p id="specimen-latin">A study in branching</p>
           </div>
-          <div class="viewport-badge">
+          <output id="fps-counter" hidden>— FPS</output><div class="viewport-badge">
             <span class="status-dot"></span
             ><span id="render-status">プレビューを準備中</span>
           </div>
-          <div class="viewport-tools" aria-label="表示の操作">
+          <details class="camera-tools" open><summary>視点</summary><div class="viewport-tools" aria-label="表示の操作">
             <button class="icon-button" id="zoom-in" title="拡大" aria-label="拡大">＋</button>
             <button class="icon-button" id="zoom-out" title="縮小" aria-label="縮小">−</button>
             <button
@@ -220,7 +221,7 @@
               data-icon="orbit"
             ></button>
           </div>
-          <div class="environment-controls"><button id="toggle-environment" aria-pressed="true" class="button active" title="地面に落ちる影と奥行きの霧を表示">影を表示 <span class="toggle-state">オン</span></button><button data-action="toggle-grid" aria-pressed="true" class="button active" title="床の基準線を表示">グリッドを表示 <span class="toggle-state">オン</span></button><button id="toggle-antialias" aria-pressed="true" class="button active" title="枝や葉の輪郭のギザギザを滑らかにします">アンチエイリアス <span class="toggle-state">オン</span></button><label class="lighting-quality">描画品質<select id="lighting-quality" aria-label="影・照明の品質" title="低：軽量／中：標準／高：精細な影と補助照明"><option value="low">低・軽量</option><option value="medium" selected>中・標準</option><option value="high">高・精細</option></select></label></div><div class="canvas-caption">
+<div class="canvas-caption">
             <span class="caption-line"></span
             ><span>ドラッグで回転 · スクロールでズーム</span>
           </div>
@@ -269,14 +270,12 @@
               id="timeline-generation"
               min="0"
               max="10"
-              step="1"
+              step="0.01"
+              title="0.01世代刻みで選び、離すと生成します。矢印キーで1世代ずつ変更できます。"
               value="5"
               aria-label="成長の世代"
             />
-            <div class="timeline-ticks" aria-hidden="true">
-              <span>種</span><span>2</span><span>4</span><span>6</span
-              ><span>8</span><span>10</span>
-            </div>
+
           </div>
           <div class="wind-control">
             <button

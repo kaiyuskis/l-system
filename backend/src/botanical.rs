@@ -365,12 +365,12 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
     if p.growth_model == "fern" {
         return fern(p);
     }
-    if p.generations > crate::growth::LIMIT {
+    if p.generations > crate::growth::LIMIT as f64 {
         return Err("樹種別の成長世代は0〜16で指定してください。".into());
     }
     let mut g = Geometry::default();
     let mut s = Surface::default();
-    if p.generations == 0 {
+    if p.generations == 0. {
         g.surface = Some(s);
         return Ok((b"B(0)".to_vec(), g, crate::growth::LIMIT));
     }
@@ -460,12 +460,12 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
 }
 
 fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
-    if p.generations > crate::growth::LIMIT {
+    if p.generations > crate::growth::LIMIT as f64 {
         return Err("シダの成長世代は0〜16で指定してください。".into());
     }
     let mut g = Geometry::default();
     let mut s = Surface::default();
-    if p.generations == 0 {
+    if p.generations == 0. {
         g.surface = Some(s);
         return Ok((b"R(0)".to_vec(), g, crate::growth::LIMIT));
     }

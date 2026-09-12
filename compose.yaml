@@ -3,9 +3,16 @@ services:
     build: .
     ports:
       - "127.0.0.1:${APP_PORT:-5173}:5173"
+    environment:
+      DATABASE_PATH: /app/data/komorebi.sqlite3
+    volumes:
+      - komorebi-data:/app/data
     init: true
     read_only: true
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
+
+volumes:
+  komorebi-data:

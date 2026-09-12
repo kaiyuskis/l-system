@@ -279,12 +279,19 @@ export function renderFrame(): void {
   else renderer.render(scene, camera);
 }
 
+let fpsFrames = 0, fpsSince = performance.now();
+const fpsCounter = document.getElementById("fps-counter");
 let frameId = 0;
 let lastFrame = performance.now();
 function animate(now: number): void {
   frameId = requestAnimationFrame(animate);
   const delta = Math.min(Math.max((now - lastFrame) / 1000, 0), 0.05);
   lastFrame = now;
+  fpsFrames++;
+  if (now - fpsSince >= 500) {
+    if (fpsCounter && !fpsCounter.hidden) fpsCounter.textContent = `${Math.round(fpsFrames * 1000 / (now - fpsSince))} FPS`;
+    fpsFrames = 0; fpsSince = now;
+  }
   if (!windPaused)
     windUniforms.time.value += delta * Math.max(0, windUniforms.speed.value);
   controls.update(delta);

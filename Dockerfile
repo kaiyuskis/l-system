@@ -18,6 +18,7 @@ WORKDIR /app
 COPY --from=rust-build /src/backend/target/release/komorebi /usr/local/bin/komorebi
 COPY --from=web-build /src/web/dist/ /app/web/dist/
 ENV HOST=0.0.0.0 PORT=5173 STATIC_DIR=/app/web/dist
+RUN mkdir -p /app/data && chown 10001:10001 /app/data
 USER 10001:10001
 EXPOSE 5173
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 CMD ["komorebi", "--healthcheck"]

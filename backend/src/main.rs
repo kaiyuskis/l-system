@@ -19,12 +19,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if port == 0 {
         return Err("PORT must be between 1 and 65535".into());
     }
+    let db_path = env::var("DATABASE_PATH").unwrap_or("data/komorebi.sqlite3".into());
+    if let Some(parent) = std::path::Path::new(&db_path).parent().filter(|p| !p.as_os_str().is_empty()) { std::fs::create_dir_all(parent)?; }
+    let state = AppState::with_database(&db_path)?;
     let listener = tokio::net::TcpListener::bind(format!("{host}:{port}")).await?;
     println!("Komorebi Rust: http://{host}:{port}");
     axum::serve(
         listener,
         app(
-            AppState::new(),
+            state,
             &env::var("STATIC_DIR").unwrap_or("web/dist".into()),
         ),
     )

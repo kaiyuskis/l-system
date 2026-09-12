@@ -1,5 +1,6 @@
 
 pub mod botanical;
+pub mod storage;
 pub mod engine;
 pub mod growth;
 pub mod mesh;
@@ -67,12 +68,17 @@ impl IntoResponse for ApiError {
 type Cache = VecDeque<(String, Bytes)>;
 #[derive(Clone)]
 pub struct AppState {
+    db: Arc<Mutex<rusqlite::Connection>>,
     compute: Arc<Semaphore>,
     cache: Arc<Mutex<Cache>>,
 }
 impl AppState {
+    pub fn with_database(path: &str) -> Result<Self, rusqlite::Error> {
+        Ok(Self { db: Arc::new(Mutex::new(storage::open(path)?)), ..Self::new() })
+    }
     pub fn new() -> Self {
         Self {
+            db: Arc::new(Mutex::new(storage::open(":memory:").expect("in-memory database"))),
             compute: Arc::new(Semaphore::new(2)),
             cache: Arc::new(Mutex::new(VecDeque::new())),
         }
@@ -210,6 +216,9 @@ pub fn app(state: AppState, static_dir: &str) -> Router {
             "/api/health",
             get(|| async { Json(json!({"ok":true,"engine":"rust","protocol":2})) }),
         )
+        .route("/api/library", get(storage::list).post(storage::save))
+        .route("/api/library/delete", post(storage::delete))
+        .route("/api/draft", get(storage::load_draft).post(storage::save_draft))
         .route("/api/tree/generate", post(generate_tree))
         .route("/api/tree/export", post(export_tree))
         .fallback_service(ServeDir::new(static_dir))

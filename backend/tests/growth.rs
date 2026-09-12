@@ -9,12 +9,12 @@ fn young_trunks_are_slender_and_thicken_without_losing_mature_size() {
     for name in ["birch", "maple", "sakura", "pine", "oak", "willow", "spruce", "ginkgo"] {
         let preset = all.as_array().unwrap().iter().find(|p| p["id"] == name).unwrap();
         let mut p: Plant = serde_json::from_value(preset["params"].clone()).unwrap();
-        p.generations = 16;
+        p.generations = 16 as f64;
         let (_, mature, _) = engine::generate(&p).unwrap();
         let mature_radius = mature.branches[0].radius_bottom;
         let mut previous = 0.;
         for generation in 1..=16 {
-            p.generations = generation;
+            p.generations = generation as f64;
             let (_, g, _) = engine::generate(&p).unwrap();
             let trunk = &g.branches[0];
             assert!(trunk.radius_bottom >= previous, "{name}: thickness decreased");
@@ -26,7 +26,7 @@ fn young_trunks_are_slender_and_thicken_without_losing_mature_size() {
             }
         }
         assert_eq!(komorebi::growth::juvenile_radial(&p), 1.);
-        p.generations = 1;
+        p.generations = 1 as f64;
         p.growth_mode = false;
         assert_eq!(komorebi::growth::juvenile_radial(&p), 1.);
     }
@@ -41,7 +41,7 @@ fn generations_grow_every_species_and_maximum_fits() {
         }
         let mut previous_height = 0.;
         for generation in 1..=16 {
-            p.generations = generation;
+            p.generations = generation as f64;
             let (_, g, limit) = engine::generate(&p).unwrap();
             assert_eq!(limit, 16);
             let s = g.surface.as_ref().unwrap();
@@ -64,9 +64,9 @@ fn established_branch_origins_stay_fixed_while_new_branches_appear() {
         let all = presets();
         let preset = all.as_array().unwrap().iter().find(|p| p["id"] == name).unwrap();
         let mut p: Plant = serde_json::from_value(preset["params"].clone()).unwrap();
-        p.generations = 8;
+        p.generations = 8 as f64;
         let (_, early, _) = engine::generate(&p).unwrap();
-        p.generations = 12;
+        p.generations = 12 as f64;
         let (_, later, _) = engine::generate(&p).unwrap();
         assert!(later.branches.len() > early.branches.len(), "{name}");
         for branch in &early.branches {
@@ -90,7 +90,7 @@ fn buds_wake_asynchronously_and_growth_is_not_a_uniform_scale() {
     let mut p: Plant = serde_json::from_value(presets()[0]["params"].clone()).unwrap();
     let mut stages = vec![];
     for generation in 3..=5 {
-        p.generations = generation;
+        p.generations = generation as f64;
         let (_, geometry, _) = engine::generate(&p).unwrap();
         let trunk = &geometry.branches[0];
         let norm = glam::DVec3::from_array(trunk.end).distance(glam::DVec3::from_array(trunk.start));
@@ -98,7 +98,7 @@ fn buds_wake_asynchronously_and_growth_is_not_a_uniform_scale() {
     }
     assert_ne!(stages[0], stages[1]);
     assert_ne!(stages[1], stages[2]);
-    p.generations = 4;
+    p.generations = 4 as f64;
     let rates: Vec<_> = (0..100).map(|id| komorebi::growth::development(&p, 2, id)).collect();
     assert!(rates.iter().any(|&x| x == 0.));
     assert!(rates.iter().any(|&x| x > 0.));

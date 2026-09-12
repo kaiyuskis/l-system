@@ -6,7 +6,7 @@ use serde_json::Value;
 fn plant() -> Plant {
     let mut p: Plant = serde_json::from_value(presets()[0]["params"].clone()).unwrap();
     p.growth_model = "lsystem".into(); // These tests exercise the editable string grammar.
-    p.generations = 4;
+    p.generations = 4 as f64;
     p.growth_mode = false;
     p
 }
@@ -66,7 +66,7 @@ fn rejects_unsafe_syntax_and_excessive_work() {
     p.rules = vec![Rule {
         expression: "F=FFFFFFFFFF".into(),
     }];
-    p.generations = 12;
+    p.generations = 12 as f64;
     assert!(engine::generate(&p).is_err());
     p.rules.clear();
     p.premise = "F(100000)F(100000)".into();
