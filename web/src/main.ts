@@ -1,6 +1,7 @@
 import "./style.css";
 import { bakeInstances } from "./export-model.ts";
 import { generationEstimate } from "./generation-estimate.ts";
+import { PlaybackClock } from "./playback-clock.ts";
 import { prepareGrowth } from "./growth-transition.ts";
 
 import * as THREE from "three";
@@ -14,6 +15,7 @@ import {
   setGridVisible,
   setEnvironmentVisible,
   setLightingQuality,
+  setAdaptiveQuality,
   setAntialias,
   type LightingQuality,
   setAutoRotate,
@@ -43,7 +45,8 @@ import {
   setToggle,
   refreshRange,
 } from "./ui-setup.ts";
-import { readSavedPresets, writeSavedPreset, deleteSavedPreset, loadDraft, saveDraft } from "./database.ts";
+import { listProjects, getProject, createProject, updateProject, projectHistory, type Project } from "./database.ts";
+import { ProjectSession } from "./project-session.ts";
 import { setupDisplay } from "./display-settings.ts";
 import { icon } from "./icons.ts";
 import { toast } from "./toast.ts";
@@ -51,7 +54,6 @@ import { toast } from "./toast.ts";
 let params = cloneParams(defaultParams);
 let selectedPreset: string | null = builtinPresets[0].id;
 let projectName = "";
-let draftWarning = "";
 
 type Snapshot = { params: PlantParams; preset: string | null; name: string };
 const past: Snapshot[] = [];
@@ -77,6 +79,9 @@ let lastSuccessful: PlantParams | null = null;
 let finishGrowth: (() => void) | null = null;
 let growthSettled: Promise<void> = Promise.resolve();
 let antialias = true;
+let pauseGrowth: (() => number) | null = null;
+let resumeGrowth: (() => void) | null = null;
+let playbackSpeed = 1;
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -150,6 +155,7 @@ function change(key: keyof PlantParams, value: PlantParams[keyof PlantParams]) {
   schedule(key === "generations" ? 0 : key === "rules" || key === "premise" ? 550 : 180);
 }
 function schedule(delay = 180) {
+  if (!playing && resumeGrowth) finishGrowth?.();
   clearTimeout(generationTimer);
   revision++;
   geometryController?.abort();
@@ -196,6 +202,7 @@ async function regenerate(): Promise<boolean> {
   try {
     const start = performance.now();
     const validated = validateParams(params);
+    const saveEpoch = projectSession.version;
     geometryController?.abort();
     const controller = new AbortController();
     geometryController = controller;
@@ -235,6 +242,10 @@ async function regenerate(): Promise<boolean> {
         needsFit = false;
       }
     }
+    const saveRendered = () => {
+      if (projectSession.version === saveEpoch && (playing || JSON.stringify(validateParams(params)) === JSON.stringify(validated)))
+        projectSession.enqueue(validated, captureThumbnail(), projectName || filename());
+    };
     if (canMorph) {
       const growing = validated.generations > previousParams!.generations;
       const large = growing ? tree : previousTree!;
@@ -244,8 +255,10 @@ async function regenerate(): Promise<boolean> {
       large.visible = true;
       small.visible = false;
       const playbackTransition = playing;
-      const started = performance.now();
+
       const duration = playbackTransition ? 1100 : Math.min(1600, 650 + Math.abs(validated.generations - previousParams!.generations) * 80);
+      const clock = new PlaybackClock(performance.now(), duration);
+      let displayedAge = previousParams!.generations;
       let frame = 0;
       const current = tree;
       let resolveGrowth!: () => void;
@@ -256,26 +269,32 @@ async function regenerate(): Promise<boolean> {
         current.visible = true;
         disposeTree(previousTree);
         finishGrowth = null;
+        pauseGrowth = null; resumeGrowth = null;
         resolveGrowth();
         element("growth-status").hidden = true;
         if (!playing) element("model-empty").hidden = current.children.length > 0;
+        saveRendered();
       };
       element("growth-status").hidden = false;
       const animate = (now: number) => {
-        const progress = Math.min(1, (now - started) / duration);
+        const progress = clock.advance(now, playbackTransition ? playbackSpeed : 1);
         morph.update(growing ? progress : 1 - progress, !playbackTransition);
         const eased = playbackTransition ? progress : THREE.MathUtils.smoothstep(progress, 0, 1);
         const displayed = previousParams!.generations + (validated.generations - previousParams!.generations) * eased;
-        element("growth-status").textContent = `表示 ${displayed.toFixed(1)} 世代`;
+        displayedAge = displayed;
+        element("growth-status").textContent = `表示 ${displayed.toFixed(2)} 世代`;
         if (playing && !element<HTMLInputElement>("timeline-generation").dataset.scrubbing) {
           const timeline = element<HTMLInputElement>("timeline-generation");
           timeline.value = String(displayed);
           refreshRange(timeline);
-          element("generation-value").textContent = displayed.toFixed(1);
+          element("generation-value").textContent = displayed.toFixed(2);
+          element<HTMLInputElement>("generation-number").value = displayed.toFixed(2);
         }
         if (progress >= 1) finishGrowth?.();
         else frame = requestAnimationFrame(animate);
       };
+      pauseGrowth = () => { clock.pause(); cancelAnimationFrame(frame); return displayedAge; };
+      resumeGrowth = () => { clock.resume(performance.now()); frame = requestAnimationFrame(animate); };
       frame = requestAnimationFrame(animate);
     } else if (previousTree) disposeTree(previousTree);
     ui.metrics(
@@ -289,18 +308,7 @@ async function regenerate(): Promise<boolean> {
     if (finishGrowth) element("model-empty").hidden = true;
     element("metric-organ-label").textContent = ["pine_needles", "spruce_needles"].includes(validated.leafTextureKey) ? "針葉" : "葉・花";
     updateGenerationLimit();
-    try {
-      await saveDraft(validated);
-      element("autosave-status").textContent =
-        "データベースに作業内容を自動保存";
-    } catch (error) {
-      element("autosave-status").textContent =
-        "自動保存できません。JSONで書き出せます";
-      if (!draftWarning) {
-        draftWarning = message(error);
-        toast(draftWarning, "error", 5500);
-      }
-    }
+    if (!canMorph) saveRendered();
     editBatch = false;
     busy = false;
     ui.busy(false);
@@ -316,7 +324,7 @@ async function regenerate(): Promise<boolean> {
           if (!playing) return;
           params.generations = Math.min(generationLimit, validated.generations + 1);
           schedule(0);
-        }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1100 : 0);
+        }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1100 / playbackSpeed : 0);
       }
     }
     return true;
@@ -340,12 +348,15 @@ function stopPlayback() {
     revision++;
     clearTimeout(generationTimer);
     geometryController?.abort();
-    if (lastSuccessful) params.generations = lastSuccessful.generations;
+    activeRun++; busy = false; ui.busy(false);
+    if (pauseGrowth) {const age=pauseGrowth();params.generations = params.growthModel === "lsystem" ? (lastSuccessful?.generations ?? params.generations) : age;}
+    else if (lastSuccessful) params.generations = lastSuccessful.generations;
   }
   playing = false;
   clearTimeout(playbackTimer);
   ui?.playing(false);
   if (wasPlaying) {
+    projectSession.enqueue(validateParams(params),captureThumbnail(),projectName || filename());
     sync();
     if (tree) fitEnvironment(tree);
   }
@@ -361,6 +372,13 @@ function togglePlayback() {
   ui.playing(true);
   element("model-empty").hidden = true;
   if (tree) fitEnvironment(tree);
+  if (resumeGrowth) {
+    resumeGrowth();
+    const endpoint = lastSuccessful!.generations;
+    if (endpoint >= generationLimit) { void growthSettled.then(() => { if (playing) stopPlayback(); }); }
+    else { params.generations = Math.min(generationLimit, endpoint + 1); schedule(0); }
+    return;
+  }
   params.generations = params.generations >= generationLimit ? 1 : Math.min(generationLimit, params.generations + 1);
   schedule(0);
 }
@@ -382,6 +400,7 @@ function filename() {
   ).replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
 }
 async function ensureCurrentTree(): Promise<boolean> {
+  if (!playing && resumeGrowth) finishGrowth?.();
   clearTimeout(generationTimer);
   while (busy)
     await new Promise<void>((resolve) => window.setTimeout(resolve, 20));
@@ -392,113 +411,97 @@ async function ensureCurrentTree(): Promise<boolean> {
   finishGrowth?.();
   return current;
 }
-function showSave() {
-  openDialog(
-    "この樹木に、名前を。",
-    `<p class="dialog-description">いまのルールと設定をマイライブラリに保存します。保存先はサーバーのデータベースです。</p><form id="save-form"><label class="dialog-field-label" for="save-name">作品名</label><input class="text-input" id="save-name" name="name" maxlength="80" required placeholder="例：風にゆれるシラカバ" value="${escapeHTML(projectName || `${builtinPresets.find((p) => p.id === selectedPreset)?.name || "樹木"}のスケッチ`)}"/><p id="save-feedback" class="control-help" role="status"></p><div class="dialog-actions"><button type="button" class="button button-quiet" id="save-cancel">キャンセル</button><button class="button button-dark" type="submit">${icon("save")}ライブラリに保存</button></div></form>`,
-    "SAVE YOUR SPECIMEN",
-  );
-  element("save-cancel").addEventListener("click", closeDialog);
-  element<HTMLInputElement>("save-name").focus();
-  element<HTMLInputElement>("save-name").select();
-  let overwriteName = "";
-  element("save-form").addEventListener("submit", async (event) => {
+function captureThumbnail(): string {
+  if (!tree) return "";
+  renderFrame();
+  const canvas = document.createElement("canvas");
+  canvas.width = 192; canvas.height = 144;
+  const context = canvas.getContext("2d");
+  if (!context) return "";
+  context.drawImage(renderer.domElement, 0, 0, 192, 144);
+  const thumbnail = canvas.toDataURL("image/png");
+  return thumbnail.length <= 100_000 ? thumbnail : "";
+}
+function showSave(copy = false) {
+  openDialog(copy ? "別作品として保存" : "作品を保存", `<form id="save-form"><label for="save-name">作品名</label><input id="save-name" class="text-input" maxlength="80" required value="${escapeHTML(projectName || filename())}"/><p id="save-feedback" role="status"></p><div class="dialog-actions"><button class="button" type="submit">保存</button><button class="button" type="button" id="save-copy">別作品として保存</button></div></form>`);
+  element("save-copy").addEventListener("click", () => showSave(true));
+  element("save-form").addEventListener("submit", async event => {
     event.preventDefault();
-    const name = element<HTMLInputElement>("save-name").value.trim();
     try {
-      validateParams(params);
       stopPlayback();
-      if (!(await ensureCurrentTree()))
-        throw new Error("生成ルールのエラーを修正してから保存してください。");
-      if (
-        (await readSavedPresets()).some((item) => item.name === name) &&
-        overwriteName !== name
-      ) {
-        overwriteName = name;
-        element("save-feedback").textContent =
-          "同じ名前の作品があります。もう一度「保存」を押すと置き換えます。";
-        return;
+      if (!(await ensureCurrentTree())) throw new Error("生成エラーを修正してください。");
+      const name = element<HTMLInputElement>("save-name").value.trim();
+      let saved: Project;
+      if (copy) saved = await createProject(name, validateParams(params), captureThumbnail());
+      else {
+        const current = await projectSession.flush();
+        saved = current ? await updateProject(current.id, {expectedRevision: current.revision, name, data: validateParams(params), thumbnail: captureThumbnail()}) : await createProject(name, validateParams(params), captureThumbnail());
       }
-      await writeSavedPreset(name, params);
-      projectName = name;
-      sync();
-      closeDialog();
-      toast(`「${name}」を保存しました。`, "success");
-    } catch (error) {
-      element("save-feedback").textContent = message(error);
-    }
+      if (saved.id !== projectSession.project?.id) { past.length = 0; future.length = 0; }
+      projectSession.open(saved); projectName = saved.name; sync(); closeDialog(); toast("保存しました。", "success");
+    } catch (error) { element("save-feedback").textContent = message(error); }
   });
 }
-async function showLibrary() {
+async function openProject(project: Project) {
+  stopPlayback();
+  projectSession.open(project);
+  past.length = 0; future.length = 0; restore({params: validateParams(project.data), preset: null, name: project.name});
+  closeDialog();
+}
+async function showHistory(project: Project) {
   try {
-    const saved = await readSavedPresets();
-    openDialog(
-      "マイライブラリ",
-      `<p class="dialog-description">保存したモデルを開いて編集できます。ルールと設定から形状を再現します。</p><div class="library-list">${saved.length ? saved.map((item, index) => `<div class="library-item"><div><strong>${escapeHTML(item.name)}</strong><small>${new Date(item.savedAt).toLocaleDateString("ja-JP")} · ${item.data.generations} 世代 · seed ${item.data.seed}</small></div><button class="button" data-load="${index}">ひらく</button><button class="icon-button" data-delete="${index}" aria-label="${escapeHTML(item.name)}を削除">${icon("trash")}</button></div>`).join("") : `<div class="library-empty">${icon("sprout")}保存したモデルはありません。<br>モデルを保存すると、ここに表示されます。</div>`}</div><div class="dialog-actions"><button class="button button-quiet" id="library-migrate">旧ブラウザー保存を取り込む</button><button class="button button-quiet" id="library-import">${icon("upload")}JSONを読み込む</button><button class="button button-dark" id="library-save">${icon("save")}いまの樹木を保存</button></div>`,
-      "YOUR COLLECTION",
-    );
-    element("library-migrate").addEventListener("click", async () => {
-      const button = element<HTMLButtonElement>("library-migrate");
-      button.disabled = true;
+    const history = await projectHistory(project.id);
+    openDialog("作品の履歴", `<p class="dialog-description">復元前の状態も履歴に残ります。</p><div class="library-list">${history.map(item => `<div class="library-item"><span>版 ${item.revision} · ${new Date(item.savedAt).toLocaleString("ja-JP")} · ${Number(item.data.generations.toFixed(2))} 世代</span><button class="button" data-revision="${item.revision}">復元</button></div>`).join("")}</div><p id="history-feedback" role="status"></p>`);
+    document.querySelectorAll<HTMLButtonElement>("[data-revision]").forEach(button => button.addEventListener("click", async () => {
       try {
-        const existing = new Set((await readSavedPresets()).map(item => item.name));
-        let count = 0;
-        for (const item of readLegacyPresets()) {
-          if (existing.has(item.name)) continue;
-          await writeSavedPreset(item.name, item.data); count++;
-        }
-        await showLibrary();
-        toast(`${count}件を取り込みました。同名の作品と元データは保持されます。`, "success");
-      } catch (error) { toast(message(error), "error"); button.disabled = false; }
+        const restored = await updateProject(project.id, {expectedRevision: project.revision, restoreRevision: Number(button.dataset.revision), deleted: false});
+        await openProject(restored); toast("履歴から復元しました。", "success");
+      } catch (error) { element("history-feedback").textContent = message(error); }
+    }));
+  } catch (error) { toast(message(error), "error"); }
+}
+async function showLibrary() {
+  stopPlayback();
+  try {
+    await projectSession.flush().catch(() => null);
+    const saved = await listProjects();
+    openDialog("マイライブラリ", `<div class="library-filters"><input class="text-input" id="library-search" type="search" placeholder="作品名・樹種を検索" aria-label="作品を検索"/><label><input id="library-trash" type="checkbox"/>ごみ箱</label></div><div id="library-items" class="library-list"></div><p id="library-feedback" role="status"></p><div class="dialog-actions"><button class="button" id="library-new">新しい作品</button><button class="button" id="library-migrate">旧ブラウザー保存を取り込む</button><button class="button" id="library-import">JSONを読み込む</button></div>`);
+    const render = () => {
+      const query = element<HTMLInputElement>("library-search").value.toLowerCase();
+      const trash = element<HTMLInputElement>("library-trash").checked;
+      const filtered = saved.filter(item => item.deleted === trash && `${item.name} ${item.data.growthModel} ${builtinPresets.find(preset => preset.params.growthModel === item.data.growthModel)?.name ?? ""}`.toLowerCase().includes(query));
+      element("library-items").innerHTML = filtered.map((item, index) => `<article class="library-item project-card">${item.thumbnail ? `<img src="${escapeHTML(item.thumbnail)}" alt="${escapeHTML(item.name)}のプレビュー" width="96" height="72"/>` : ""}<div><strong>${escapeHTML(item.name)}</strong><small>${Number(item.data.generations.toFixed(2))} 世代 · 版 ${item.revision}</small><div class="project-actions">${trash ? `<button class="button" data-operation="restore" data-index="${index}">削除を取り消す</button>` : `<button class="button" data-operation="open" data-index="${index}">ひらく</button><button class="button" data-operation="copy" data-index="${index}">複製</button><button class="button" data-operation="rename" data-index="${index}">名前変更</button><button class="button" data-operation="history" data-index="${index}">履歴</button><button class="button" data-operation="delete" data-index="${index}">ごみ箱へ</button>`}</div></div></article>`).join("") || '<p>作品がありません。</p>';
+      document.querySelectorAll<HTMLButtonElement>("[data-operation]").forEach(button => button.addEventListener("click", async () => {
+        const item = filtered[Number(button.dataset.index)];
+        try {
+          switch (button.dataset.operation) {
+            case "open": await openProject(await getProject(item.id)); return;
+            case "copy": await createProject(`${item.name.slice(0,75)} コピー`, item.data, item.thumbnail); break;
+            case "history": await showHistory(item); return;
+            case "rename": {
+              openDialog("作品名を変更", `<form id="rename-form"><input id="rename-name" aria-label="作品名" class="text-input" required maxlength="80" value="${escapeHTML(item.name)}"/><button class="button">変更</button><p id="rename-feedback" role="status"></p></form>`);
+              element("rename-form").addEventListener("submit", async event => {
+                event.preventDefault();
+                try { const updated = await updateProject(item.id, {expectedRevision:item.revision, name:element<HTMLInputElement>("rename-name").value}); if (projectSession.project?.id === item.id) {projectSession.open(updated);projectName=updated.name;sync();} await showLibrary(); }
+                catch(error) {element("rename-feedback").textContent=message(error);}
+              }); return;
+            }
+            default: {
+              const updated = await updateProject(item.id, {expectedRevision:item.revision, deleted:button.dataset.operation === "delete"});
+              if (projectSession.project?.id === item.id) { if (updated.deleted) projectSession.block(new Error("この作品はごみ箱にあります。復元するか別作品として保存してください。")); else projectSession.open(updated); }
+            }
+          }
+          await showLibrary();
+        } catch(error) { element("library-feedback").textContent = message(error); }
+      }));
+    };
+    element("library-search").addEventListener("input",render); element("library-trash").addEventListener("change",render); render();
+    element("library-new").addEventListener("click",() => {stopPlayback();projectSession.open(null);past.length=0;future.length=0;restore({params:cloneParams(defaultParams),preset:builtinPresets[0].id,name:""});closeDialog();});
+    element("library-import").addEventListener("click",()=>element<HTMLInputElement>("import-file").click());
+    element("library-migrate").addEventListener("click",async()=> {
+      try {let count=0;for(const item of readLegacyPresets()) {if(saved.some(p=>p.name===item.name))continue;await createProject(item.name,item.data);count++;}await showLibrary();toast(`${count}件を取り込みました。`);}catch(error){toast(message(error),"error");}
     });
-    element("library-import").addEventListener("click", () =>
-      element<HTMLInputElement>("import-file").click(),
-    );
-    element("library-save").addEventListener("click", showSave);
-    document
-      .querySelectorAll<HTMLButtonElement>("[data-load]")
-      .forEach((button) =>
-        button.addEventListener("click", () => {
-          const item = saved[Number(button.dataset.load)];
-          remember();
-          restore({
-            params: item.data,
-            preset:
-              builtinPresets.find(
-                (p) =>
-                  JSON.stringify(validateParams(p.params)) ===
-                  JSON.stringify(validateParams(item.data)),
-              )?.id ?? null,
-            name: item.name,
-          });
-          closeDialog();
-          toast(`「${item.name}」を読み込みました。`, "success");
-        }),
-      );
-    document
-      .querySelectorAll<HTMLButtonElement>("[data-delete]")
-      .forEach((button) =>
-        button.addEventListener("click", async () => {
-          const item = saved[Number(button.dataset.delete)];
-          if (button.dataset.confirm !== "true") {
-            button.dataset.confirm = "true";
-            button.innerHTML = icon("check");
-            button.title = "もう一度押すと削除します";
-            toast("もう一度チェックを押すと、この作品を削除します。");
-            return;
-          }
-          try {
-            await deleteSavedPreset(item.name);
-            showLibrary();
-            toast(`「${item.name}」を削除しました。`);
-          } catch (error) {
-            toast(message(error), "error");
-          }
-        }),
-      );
-  } catch (error) {
-    toast(message(error), "error", 6000);
-  }
+  } catch(error) {toast(message(error),"error");}
 }
 function showExport() {
   openDialog(
@@ -703,6 +706,7 @@ function action(name: string) {
   }
 }
 const ui = setupUI({ change, preset: selectPreset, action });
+element<HTMLSelectElement>("playback-speed").addEventListener("change", event => {playbackSpeed=Number((event.target as HTMLSelectElement).value);});
 try { antialias = localStorage.getItem("komorebi_antialias") !== "false"; } catch { /* Session only. */ }
 setAntialias(antialias);
 setToggle("toggle-antialias", antialias);
@@ -711,11 +715,13 @@ setToggle("toggle-grid", grid);
 const qualityControl = element<HTMLSelectElement>("lighting-quality");
 try {
   const saved = localStorage.getItem("komorebi_lighting_quality");
-  if (saved === "low" || saved === "medium" || saved === "high") qualityControl.value = saved;
+  if (saved === "auto" || saved === "low" || saved === "medium" || saved === "high") qualityControl.value = saved;
 } catch { /* Rendering remains available without browser storage. */ }
-setLightingQuality(qualityControl.value as LightingQuality);
+setAdaptiveQuality(qualityControl.value === "auto");
+  if(qualityControl.value !== "auto") setLightingQuality(qualityControl.value as LightingQuality);
 qualityControl.addEventListener("change", () => {
-  setLightingQuality(qualityControl.value as LightingQuality);
+  setAdaptiveQuality(qualityControl.value === "auto");
+  if(qualityControl.value !== "auto") setLightingQuality(qualityControl.value as LightingQuality);
   try { localStorage.setItem("komorebi_lighting_quality", qualityControl.value); } catch { /* Session only. */ }
 });
 
@@ -758,7 +764,9 @@ element<HTMLInputElement>("import-file").addEventListener(
       }
       const imported = validateParams(data);
       await requestGeometry(imported);
-      remember();
+      stopPlayback();
+      past.length = 0; future.length = 0;
+      projectSession.open(null);
       restore({ params: imported, preset: null, name });
       closeDialog();
       toast("設定ファイルを読み込みました。", "success");
@@ -803,25 +811,43 @@ window.addEventListener("keydown", (event) => {
   } else if (event.key.toLowerCase() === "f") action("fit-camera");
 });
 setupDisplay();
-void (async () => {
-try {
-  const draft = await loadDraft() ?? loadLegacyDraft();
-  if (draft && revision === 0) {
-    params = draft;
-    selectedPreset =
-      builtinPresets.find(
-        (preset) =>
-          JSON.stringify(validateParams(preset.params)) === JSON.stringify(validateParams(params)),
-      )?.id ?? null;
+const projectSession = new ProjectSession(session => {
+  const status = element("autosave-status");
+  if (session.failure) {
+    status.textContent = message(session.failure);
+    element("retry-project").hidden = false;
+  } else {
+    status.textContent = session.project ? `作品に自動保存 · 版 ${session.project.revision}` : "新しい作品";
+    element("retry-project").hidden = true;
+    if (session.project) {
+      projectName = session.project.name;
+      try {localStorage.setItem("komorebi_project_id",session.project.id);}catch{/* Pointer only. */}
+    } else {try {localStorage.removeItem("komorebi_project_id");}catch{/* Pointer only. */}}
   }
-} catch (error) {
-  draftWarning = message(error);
+});
+const retry = document.createElement("button");retry.id="retry-project";retry.className="button";retry.textContent="保存先を再読み込み";retry.hidden=true;element("autosave-status").after(retry);
+async function initializeProject() {
+  const loadRevision=revision;
+  projectSession.ready = false;
+  try {
+    let id: string|null=null;try{id=localStorage.getItem("komorebi_project_id");}catch{/* No pointer. */}
+    const saved = id ? await getProject(id) : (await listProjects()).find(p=>p.id === "legacy-draft" && !p.deleted) ?? null;
+    if(revision !== loadRevision) throw new Error("読み込み中に編集されました。編集内容は別作品として保存できます。保存先の再読み込みで最新版を開きます。");
+    if(saved?.deleted) throw new Error("この作品はごみ箱にあります。ライブラリから復元できます。");
+    projectSession.open(saved);
+    past.length = 0; future.length = 0;
+    if(saved){params=validateParams(saved.data);projectName=saved.name;selectedPreset=null;}
+    else {const legacy=loadLegacyDraft();if(legacy)params=legacy;}
+    sync();schedule(0);
+  } catch(error) {projectSession.block(error);toast(message(error),"error");sync();schedule(0);}
 }
-
- sync();
- if (draftWarning) toast(draftWarning, "error", 6500);
- schedule(0);
-})();
+retry.addEventListener("click", () => {
+  stopPlayback();
+  openDialog("保存先を再読み込み", '<p class="dialog-description">最新版を開くと、現在の編集内容を置き換えます。手元の編集を残す場合は、別作品として保存してください。</p><div class="dialog-actions"><button class="button" id="reload-latest">最新版を開く</button><button class="button" id="recover-copy">別作品として保存</button></div>');
+  element("reload-latest").addEventListener("click", () => { closeDialog(); void initializeProject(); });
+  element("recover-copy").addEventListener("click", () => showSave(true));
+});
+void initializeProject();
 if (import.meta.hot)
   import.meta.hot.dispose(() => {
 

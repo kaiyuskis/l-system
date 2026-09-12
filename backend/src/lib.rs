@@ -1,6 +1,7 @@
 
 pub mod botanical;
 pub mod storage;
+pub mod projects;
 pub mod engine;
 pub mod growth;
 pub mod mesh;
@@ -216,6 +217,9 @@ pub fn app(state: AppState, static_dir: &str) -> Router {
             "/api/health",
             get(|| async { Json(json!({"ok":true,"engine":"rust","protocol":2})) }),
         )
+        .route("/api/projects", get(projects::list).post(projects::create).layer(DefaultBodyLimit::max(262144)))
+        .route("/api/projects/{id}", get(projects::load).post(projects::update).layer(DefaultBodyLimit::max(262144)))
+        .route("/api/projects/{id}/history", get(projects::revisions))
         .route("/api/library", get(storage::list).post(storage::save))
         .route("/api/library/delete", post(storage::delete))
         .route("/api/draft", get(storage::load_draft).post(storage::save_draft))

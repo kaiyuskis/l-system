@@ -238,6 +238,28 @@ pub fn expand(premise: &str, rules: &Rules, generations: u32) -> Result<Vec<u8>>
     validate(&s)?;
     Ok(s)
 }
+// Symbol ancestry survives insertion before an established branch or organ.
+fn expand_lineage(premise: &str, rules: &Rules, generations: u32) -> Result<(Vec<u8>, Vec<u64>)> {
+    validate(premise.as_bytes())?;
+    let mut s=premise.as_bytes().to_vec();
+    let mut ids:Vec<u64>=(0..s.len()).map(|i|i as u64+1).collect();
+    for _ in 0..generations {
+        let next=rewrite(&s,rules)?;
+        if next==s {break;}
+        let mut next_ids=Vec::with_capacity(next.len());let mut i=0;
+        while i<s.len() {
+            let c=s[i];let replacement=rules.get(c as usize).and_then(Option::as_ref).map(Vec::as_slice).unwrap_or(&s[i..i+1]);
+            let end=if COMMANDS.contains(&c){parameter(&s,i)?.1}else{i+1};
+            for (k,&symbol) in replacement.iter().enumerate() {
+                next_ids.push(if k==0 && symbol==c {ids[i]} else {ids[i].wrapping_mul(6364136223846793005).wrapping_add((k as u64+1)*257+symbol as u64)});
+            }
+            if !replacement.is_empty(){next_ids.extend_from_slice(&ids[i+1..end]);}
+            i=end;
+        }
+        s=next;ids=next_ids;
+    }
+    validate(&s)?;Ok((s,ids))
+}
 // One incremental pass; no repeated expansion from generation zero.
 pub fn generation_limit(premise: &str, rules: &Rules) -> u32 {
     let mut s = premise.as_bytes().to_vec();
@@ -264,6 +286,8 @@ pub fn generation_limit(premise: &str, rules: &Rules) -> u32 {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Branch {
+    #[serde(skip)]
+    pub identity: String,
     pub start: [f64; 3],
     pub end: [f64; 3],
     pub rotation: [f64; 4],
@@ -272,6 +296,8 @@ pub struct Branch {
 }
 #[derive(Clone, Serialize)]
 pub struct Organ {
+    #[serde(skip)]
+    pub identity: String,
     pub position: [f64; 3],
     pub rotation: [f64; 4],
     pub scale: f64,
@@ -317,7 +343,8 @@ pub fn unit_rotation(from: DVec3, to: DVec3) -> DQuat {
         DQuat::from_xyzw(c.x, c.y, c.z, r).normalize()
     }
 }
-pub fn geometry(s: &[u8], p: &Plant) -> Result<Geometry> {
+pub fn geometry(s: &[u8], p: &Plant) -> Result<Geometry> { geometry_with_ids(s,p,None) }
+fn geometry_with_ids(s: &[u8], p: &Plant, identities: Option<&[u64]>) -> Result<Geometry> {
     validate(s)?;
     let ratio = if p.growth_mode {
         (p.generations as f64 / 10.).min(1.)
@@ -338,6 +365,7 @@ pub fn geometry(s: &[u8], p: &Plant) -> Result<Geometry> {
     let mut i = 0;
     while i < s.len() {
         let c = s[i];
+        let identity = format!("{:016x}",identities.map(|ids|ids[i]).unwrap_or(i as u64+1));
         let (explicit, next) = if COMMANDS.contains(&c) {
             parameter(s, i)?
         } else {
@@ -378,6 +406,7 @@ pub fn geometry(s: &[u8], p: &Plant) -> Result<Geometry> {
                             return Err("枝が20,000本を超えます。".into());
                         }
                         data.branches.push(Branch {
+                            identity: identity.clone(),
                             start: start.to_array(),
                             end: t.position.to_array(),
                             rotation: t.rotation.to_array(),
@@ -398,6 +427,7 @@ pub fn geometry(s: &[u8], p: &Plant) -> Result<Geometry> {
                     return Err("器官が30,000個を超えます。".into());
                 }
                 let v = Organ {
+                    identity: identity.clone(),
                     position: t.position.to_array(),
                     rotation: t.rotation.to_array(),
                     scale: value,
@@ -440,8 +470,8 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32)> {
     if crate::species::supports(&p.growth_model) { return crate::species::generate(p); }
     if p.growth_model != "lsystem" { return crate::botanical::generate(p); }
     let rules = parse_rules(&p.rules)?;
-    let s = expand(&p.premise, &rules, p.generations.floor() as u32)?;
-    let data = geometry(&s, p)?;
+    let (s,ids) = expand_lineage(&p.premise, &rules, p.generations.floor() as u32)?;
+    let data = geometry_with_ids(&s, p, Some(&ids))?;
     let limit = generation_limit(&p.premise, &rules);
     Ok((s, data, limit))
 }

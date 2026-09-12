@@ -70,7 +70,7 @@
       </header>
       <aside id="editor" class="editor" aria-label="樹木の設定">
         <div class="editor-scroll">
-<details class="display-settings"><summary>表示設定</summary>          <div class="environment-controls"><button id="toggle-environment" aria-pressed="true" class="button active" title="地面に落ちる影と奥行きの霧を表示">影を表示 <span class="toggle-state">オン</span></button><button data-action="toggle-grid" aria-pressed="true" class="button active" title="床の基準線を表示">グリッドを表示 <span class="toggle-state">オン</span></button><button id="toggle-antialias" aria-pressed="true" class="button active" title="枝や葉の輪郭のギザギザを滑らかにします">アンチエイリアス <span class="toggle-state">オン</span></button><label class="lighting-quality">描画品質<select id="lighting-quality" aria-label="影・照明の品質" title="低：軽量／中：標準／高：精細な影と補助照明"><option value="low">低・軽量</option><option value="medium" selected>中・標準</option><option value="high">高・精細</option></select></label></div><label class="display-row">テーマ<select id="theme-mode"><option value="auto">自動（端末に合わせる）</option><option value="light">ライト</option><option value="dark">ダーク</option></select></label><label class="display-row">FPSを表示<input id="show-fps" type="checkbox"/></label></details>
+<details class="display-settings"><summary>表示設定</summary>          <div class="environment-controls"><button id="toggle-environment" aria-pressed="true" class="button active" title="地面に落ちる影と奥行きの霧を表示">影を表示 <span class="toggle-state">オン</span></button><button data-action="toggle-grid" aria-pressed="true" class="button active" title="床の基準線を表示">グリッドを表示 <span class="toggle-state">オン</span></button><button id="toggle-antialias" aria-pressed="true" class="button active" title="枝や葉の輪郭のギザギザを滑らかにします">アンチエイリアス <span class="toggle-state">オン</span></button><label class="lighting-quality">描画品質<select id="lighting-quality" aria-label="影・照明の品質" title="低：軽量／中：標準／高：精細な影と補助照明"><option value="auto" selected>自動・端末に合わせる</option><option value="low">低・軽量</option><option value="medium">中・標準</option><option value="high">高・精細</option></select></label><small id="quality-status" aria-live="polite"></small></div><label class="display-row">テーマ<select id="theme-mode"><option value="auto">自動（端末に合わせる）</option><option value="light">ライト</option><option value="dark">ダーク</option></select></label><label class="display-row">FPSを表示<input id="show-fps" type="checkbox"/></label></details>
           <div class="editor-heading">
             <div>
               <span class="eyebrow">MODEL SETTINGS</span>
@@ -259,7 +259,7 @@
           ></button>
           <div class="timeline">
             <div class="timeline-label">
-              <label for="timeline-generation">世代</label><small id="growth-status" hidden>成長中</small
+              <label for="timeline-generation">世代</label><input id="generation-number" aria-label="世代の数値" class="number-input" type="number" min="0" max="16" step="0.01" value="12"/><label class="playback-speed">速度<select id="playback-speed" aria-label="再生速度"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label><small id="growth-status" hidden>成長中</small
               ><span
                 ><strong id="generation-value">5</strong>
                 <span class="muted">/ 10</span></span

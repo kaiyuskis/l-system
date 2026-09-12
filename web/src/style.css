@@ -2308,3 +2308,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .camera-tools .viewport-tools { position: static; transform: none; margin-top: 4px; }
 @media (max-width: 760px) { .camera-tools { top: 180px; left: 12px; } body.editor-open .camera-tools { visibility: hidden; } }
 @media (max-height: 520px) and (orientation: landscape) { .camera-tools { top: 128px; } }
+.library-filters { display:flex; gap:12px; align-items:center; margin-bottom:16px; }
+.library-filters input[type="search"] { flex:1; min-width:0; }
+.project-card { align-items:flex-start; gap:12px; }
+.project-card img { object-fit:cover; border-radius:8px; }
+.project-actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.project-actions .button { font-size:11px; padding:6px 8px; }
+#retry-project { margin-top:8px; }
+#generation-number { width:64px; min-height:30px; }
+.playback-speed { display:flex; align-items:center; gap:5px; font-size:11px; }
+.playback-speed select { width:65px; padding:4px; }
+.timeline-label { gap:8px; }

@@ -33,11 +33,12 @@ export class PointIndex {
 }
 type Node = { id: number; axis: number; left: Node | null; right: Node | null };
 
-type Axis = { start: number; end: number; width: number; rings: number };
+type Axis = { id?: string; start: number; end: number; width: number; rings: number };
 /** The native sweep emits independent, contiguous axes, each ending in two caps.
  * Read connected index runs rather than assuming axes retain their array index.
  */
 function axes(geometry: THREE.BufferGeometry): Axis[] {
+  if (geometry.userData.growthAxes?.length) return geometry.userData.growthAxes as Axis[];
   const indices = geometry.index?.array;
   if (!indices?.length) return [];
   const result: Axis[] = [];
@@ -64,6 +65,7 @@ function sweptStart(large: THREE.Mesh, small: THREE.Mesh | undefined) {
   const target = large.geometry.getAttribute("position").array;
   const previous = small?.geometry.getAttribute("position").array;
   const targetAxes = axes(large.geometry), oldAxes = small ? axes(small.geometry) : [];
+  const oldById = new Map(oldAxes.filter(axis=>axis.id).map(axis=>[axis.id,axis]));
   const origins = new Float32Array(oldAxes.length * 3);
   oldAxes.forEach((axis, i) => origins.set(previous!.slice((axis.end - 2) * 3, (axis.end - 1) * 3), i * 3));
   const originIndex = new PointIndex(origins);
@@ -93,9 +95,9 @@ function sweptStart(large: THREE.Mesh, small: THREE.Mesh | undefined) {
   const targetAnchors: number[] = [], sourceAnchors: number[] = [];
   for (const axis of targetAxes) {
     const origin = Array.from(target.slice((axis.end - 2) * 3, (axis.end - 1) * 3));
-    const match = originIndex.nearest(origin[0], origin[1], origin[2]);
-    let old: Axis | undefined;
-    if (match >= 0 && Math.hypot(...origin.map((v, k) => v - origins[match * 3 + k])) < 0.05) {
+    const match = axis.id ? -1 : originIndex.nearest(origin[0], origin[1], origin[2]);
+    let old: Axis | undefined = axis.id ? oldById.get(axis.id) : undefined;
+    if (!axis.id && match >= 0 && Math.hypot(...origin.map((v, k) => v - origins[match * 3 + k])) < 0.05) {
       const candidates = originGroups.get(Array.from(origins.slice(match * 3, match * 3 + 3)).join(","))!;
       const direction = heading(axis, target);
       // A clipped first internode and the completed curve can have
@@ -181,7 +183,12 @@ export function prepareGrowth(large: THREE.Group, small: THREE.Group) {
       const claimedPrev = new Uint8Array(prevCount);
       const claimedTarget = new Uint8Array(currCount);
 
-      if (prevCount > 0 && currCount > 0) {
+      const ids = object.userData.growthIds as string[] | undefined;
+      const oldIds = previous?.userData.growthIds as string[] | undefined;
+      if (ids && oldIds) {
+        const byId = new Map(oldIds.map((id,i)=>[id,i]));
+        for(let i=0;i<currCount;i++) matchedPrevForTarget[i]=byId.get(ids[i]) ?? -1;
+      } else if (prevCount > 0 && currCount > 0) {
         const prevIndex = new PointIndex(prevAnchors);
         for (let i = 0; i < currCount; i++) {
           const x = currAnchors[i * 3], y = currAnchors[i * 3 + 1], z = currAnchors[i * 3 + 2];
@@ -211,24 +218,7 @@ export function prepareGrowth(large: THREE.Group, small: THREE.Group) {
           }
         }
 
-        for (let j = 0; j < prevCount; j++) {
-          if (claimedPrev[j]) continue;
-          const px = prevAnchors[j * 3], py = prevAnchors[j * 3 + 1], pz = prevAnchors[j * 3 + 2];
-          let bestI = -1, bestDist = Infinity;
-          for (let i = 0; i < currCount; i++) {
-            if (claimedTarget[i]) continue;
-            const d = Math.hypot(px - currAnchors[i * 3], py - currAnchors[i * 3 + 1], pz - currAnchors[i * 3 + 2]);
-            if (d < bestDist) {
-              bestDist = d;
-              bestI = i;
-            }
-          }
-          if (bestI >= 0) {
-            matchedPrevForTarget[bestI] = j;
-            claimedTarget[bestI] = 1;
-            claimedPrev[j] = 1;
-          }
-        }
+
       }
 
       for (let i = 0; i < currCount; i++) {

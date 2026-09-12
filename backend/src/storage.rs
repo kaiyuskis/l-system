@@ -9,6 +9,7 @@ pub fn open(path: &str) -> rusqlite::Result<Connection> {
     let db = Connection::open(path)?;
     db.busy_timeout(std::time::Duration::from_secs(5))?;
     db.execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS specimens (name TEXT PRIMARY KEY, data TEXT NOT NULL, saved_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS draft (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL);")?;
+    crate::projects::migrate(&db)?;
     Ok(db)
 }
 async fn run<T: Send + 'static>(state: AppState, operation: impl FnOnce(&Connection) -> rusqlite::Result<T> + Send + 'static) -> Result<Json<T>, ApiError> {

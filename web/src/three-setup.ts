@@ -1,3 +1,4 @@
+import { AdaptiveQuality } from "./adaptive-quality.ts";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -69,6 +70,11 @@ rimLight.visible = false;
 scene.add(rimLight);
 export type LightingQuality = "low" | "medium" | "high";
 let lightingQuality: LightingQuality = "medium";
+let adaptive: AdaptiveQuality | null = null;
+export function setAdaptiveQuality(enabled: boolean) {
+  adaptive = enabled ? new AdaptiveQuality(matchMedia("(max-width: 760px)").matches ? "medium" : "high") : null;
+  if(adaptive) setLightingQuality(adaptive.quality(performance.now()));
+}
 const qualitySettings = {
   low: { shadowSize: 1024, pixelRatio: 1, soft: false, fill: false, rim: false },
   medium: { shadowSize: 2048, pixelRatio: 1.5, soft: true, fill: true, rim: false },
@@ -76,6 +82,10 @@ const qualitySettings = {
 };
 
 export function setLightingQuality(quality: LightingQuality): void {
+  const status = document.querySelector("#quality-status");
+  const label = `${adaptive ? "自動" : "固定"}：${{low:"低",medium:"中",high:"高"}[quality]}`;
+  if (status && status.textContent !== label) status.textContent = label;
+  if (lightingQuality === quality) return;
   lightingQuality = quality;
   const settings = qualitySettings[quality];
   directionalLight.shadow.map?.dispose();
@@ -127,6 +137,8 @@ controls.maxPolarAngle = Math.PI / 2 - 0.015;
 controls.minDistance = 0.05;
 controls.maxDistance = 300;
 controls.update();
+controls.addEventListener("start", () => adaptive?.interaction(true,performance.now()));
+controls.addEventListener("end", () => adaptive?.interaction(false,performance.now()));
 
 export const windUniforms = {
   time: { value: 0 },
@@ -280,6 +292,7 @@ export function renderFrame(): void {
 }
 
 let fpsFrames = 0, fpsSince = performance.now();
+let qualityFrames = 0, qualitySince = performance.now();
 const fpsCounter = document.getElementById("fps-counter");
 let frameId = 0;
 let lastFrame = performance.now();
@@ -288,6 +301,14 @@ function animate(now: number): void {
   const delta = Math.min(Math.max((now - lastFrame) / 1000, 0), 0.05);
   lastFrame = now;
   fpsFrames++;
+  if (!document.hidden && adaptive) {
+    qualityFrames++;
+    if(now-qualitySince >= 1200) {
+      adaptive.sample(qualityFrames*1000/(now-qualitySince),now);
+      qualityFrames=0;qualitySince=now;
+    }
+    setLightingQuality(adaptive.quality(now));
+  } else {qualityFrames=0;qualitySince=now;}
   if (now - fpsSince >= 500) {
     if (fpsCounter && !fpsCounter.hidden) fpsCounter.textContent = `${Math.round(fpsFrames * 1000 / (now - fpsSince))} FPS`;
     fpsFrames = 0; fpsSince = now;

@@ -19,6 +19,8 @@ fn template() -> &'static Template {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Meta {
+    #[serde(default)]
+    pub identities: Option<Identities>,
     pub version: u32,
     pub vertices: usize,
     pub indices: usize,
@@ -31,6 +33,11 @@ pub struct Meta {
     pub preview: String,
     pub generation_limit: u32,
     pub engine_ms: f64,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Identities { pub axes: Vec<crate::sweep::AxisIdentity>, pub branches: Vec<String>, #[serde(default)] pub instances: Vec<String>, pub leaves: Vec<String>, pub flowers: Vec<String>, pub buds: Vec<String> }
+fn identities(data: &Geometry) -> Option<Identities> {
+    Some(Identities {instances: Vec::new(), axes:data.surface.as_ref().map(|s|s.identities.clone()).unwrap_or_default(),branches:data.branches.iter().map(|b|b.identity.clone()).collect(),leaves:data.leaves.iter().map(|p|p.identity.clone()).collect(),flowers:data.flowers.iter().map(|p|p.identity.clone()).collect(),buds:data.buds.iter().map(|p|p.identity.clone()).collect()})
 }
 fn floats(out: &mut Vec<u8>, values: impl IntoIterator<Item = f64>) {
     for value in values {
@@ -78,7 +85,7 @@ pub fn encode(s: &[u8], data: &Geometry, limit: u32, started: std::time::Instant
             widths.push(radius);
         }
     }
-    let meta = Meta {
+    let meta = Meta { identities: identities(data),
         version: 2,
         instances: 0,
         vertices: valid.len() * per,
@@ -183,7 +190,9 @@ pub fn encode_preview(
         }
         floats(&mut packed, organs.iter().map(|p| p.thickness));
     }
-    let meta = Meta {
+    let mut ids = identities(data);
+    if let Some(ids) = &mut ids { ids.instances = valid.iter().map(|b| b.identity.clone()).collect(); }
+    let meta = Meta { identities: ids,
         version: 2,
         vertices: 0,
         indices: 0,
@@ -211,7 +220,7 @@ pub fn encode_preview(
 /// Detailed continuous surfaces use the same portable layout as baked exports.
 /// Preview and GLB consequently share the exact same woody vertices and normals.
 fn encode_surface(s: &[u8], data: &Geometry, surface: &crate::sweep::Surface, limit: u32, started: std::time::Instant) -> Vec<u8> {
-    let meta = Meta {version:2,instances:0,vertices:surface.position.len()/3,indices:surface.index.len(),
+    let meta = Meta { identities: identities(data),version:2,instances:0,vertices:surface.position.len()/3,indices:surface.index.len(),
         branches:data.branches.len(),leaves:data.leaves.len(),flowers:data.flowers.len(),buds:data.buds.len(),
         symbol_count:s.len(),preview:String::from_utf8_lossy(&s[..s.len().min(1000)]).into_owned(),
         generation_limit:limit,engine_ms:started.elapsed().as_secs_f64()*1000.};

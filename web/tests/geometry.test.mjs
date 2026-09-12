@@ -58,3 +58,10 @@ test("appearance changes reuse geometry but shape changes do not", () => {
     geometryKey({ ...defaultParams, angle: 45 }),
   );
 });
+test("stable IDs distinguish rendered branches from filtered tiny branches", () => {
+  const identities = {axes:[],branches:['tiny','visible'],instances:['visible'],leaves:[],flowers:[],buds:[]};
+  const data = decodeGeometry(packet({branches:2,instances:1,identities},Array(19).fill(0)));
+  assert.deepEqual(data.branchInstances.ids,['visible']);
+  assert.throws(()=>decodeGeometry(packet({branches:2,instances:1,identities:{...identities,instances:['tiny','visible']}},Array(19).fill(0))));
+  assert.throws(()=>decodeGeometry(packet({branches:2,instances:1,identities:{...identities,branches:['same','same']}},Array(19).fill(0))));
+});

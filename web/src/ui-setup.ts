@@ -152,6 +152,15 @@ export function setupUI(actions: UIActions) {
       ),
   );
   const timeline = element<HTMLInputElement>("timeline-generation");
+  const generationInput = element<HTMLInputElement>("generation-number");
+  const commitGeneration = () => {
+    if (generationInput.checkValidity()) actions.change("generations", Number(generationInput.value));
+    else generationInput.reportValidity();
+  };
+  generationInput.addEventListener("change", commitGeneration);
+  generationInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") { event.preventDefault(); commitGeneration(); }
+  });
   const beginScrub = () => {
     if (timeline.dataset.scrubbing) return;
     timeline.dataset.scrubbing = "true";
@@ -274,12 +283,15 @@ export function setupUI(actions: UIActions) {
         rules.value = params.rules.map((rule) => rule.expression).join("\n");
       const timeline = element<HTMLInputElement>("timeline-generation");
       timeline.step = native ? "0.01" : "1";
+      const generationNumber=element<HTMLInputElement>("generation-number");
+      generationNumber.step=timeline.step;generationNumber.max=native ? "16" : "12";
+      if(document.activeElement !== generationNumber) generationNumber.value=String(Number(params.generations.toFixed(2)));
       timeline.title = native ? "0.01世代刻みで選び、離すと生成します。" : "自由なL-systemは整数世代で生成します。";
       if (!timeline.dataset.scrubbing) {
         timeline.max = String(params.growthModel === "lsystem" ? Math.max(10, params.generations) : 16);
         timeline.value = String(params.generations);
         refreshRange(timeline);
-        element("generation-value").textContent = String(params.generations);
+        element("generation-value").textContent = String(Number(params.generations.toFixed(2)));
       }
     },
     selection(id: string | null, customName?: string) {

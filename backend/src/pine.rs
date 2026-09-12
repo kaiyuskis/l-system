@@ -227,6 +227,7 @@ fn foliage(bud: Bud, rings: &[Ring], progress: f64, radial_scale: f64, p: &Plant
         let scale = p.leaf_size * mix(0.78, 1.2, rng.unit());
         if progress < t { continue; }
         geometry.leaves.push(Organ {
+            identity: format!("{:016x}/leaf/{i}",bud.identity),
             position: origin.to_array(),
             rotation: (unit_rotation(DVec3::Y, heading) * DQuat::from_rotation_y(spin)).to_array(),
             scale,
@@ -234,6 +235,7 @@ fn foliage(bud: Bud, rings: &[Ring], progress: f64, radial_scale: f64, p: &Plant
         });
         if p.bud_size > 0. && i == count - 1 {
             geometry.buds.push(Organ {
+                identity: format!("{:016x}/bud/{i}",bud.identity),
                 position: (origin + heading * scale * 0.16).to_array(),
                 rotation: unit_rotation(DVec3::Y, heading).to_array(),
                 scale: p.bud_size * 0.11,
@@ -298,7 +300,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
             } else {
                 8
             };
-            surface.axis(
+            surface.axis_identified(format!("{:016x}",bud.identity),
                 &rings,
                 sides,
                 bud.phase,
@@ -306,6 +308,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
             );
             // One branch record per woody axis; tessellation does not inflate metrics.
             geometry.branches.push(Branch {
+                identity: format!("{:016x}",bud.identity),
                 start: bud.origin.to_array(),
                 end: rings.last().unwrap().center.to_array(),
                 rotation: unit_rotation(DVec3::Y, bud.heading).to_array(),
@@ -326,6 +329,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
                 if bud.order < 3 && development < 0.95 && p.foliage_density > 0. && p.leaf_size > 0. {
                     let (origin, heading, thickness) = sample(&rings, 0.98);
                     geometry.leaves.push(Organ {
+                        identity: format!("{:016x}/tip",bud.identity),
                         position: origin.to_array(),
                         rotation: (unit_rotation(DVec3::Y, heading) * DQuat::from_rotation_y(bud.phase)).to_array(),
                         scale: p.leaf_size * 0.8,
@@ -359,7 +363,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
             });
         }
         let visible = crate::growth::clip_axis(&rings, (trunk.schedule.progress(p) * 2.4).min(1.), root_radial);
-        if visible.len() >= 2 { surface.axis(&visible, 12, azimuth, 1.); }
+        if visible.len() >= 2 { surface.axis_identified(format!("root-{i}"), &visible, 12, azimuth, 1.); }
     }
     surface.normals();
     geometry.surface = Some(surface);

@@ -161,10 +161,10 @@ fn visible_axis(rings: &[Ring], progress: f64, radial: f64) -> Vec<Ring> {
 }
 fn record(g: &mut Geometry, surface: &mut Surface, rings: &[Ring], a: Axis) {
     let phase = (a.identity >> 11) as f64 / (1u64 << 53) as f64 * TAU;
-    surface.axis(rings, if a.order == 0 { 14 } else if a.order == 1 { 9 } else { 6 }, phase, if a.order < 2 { 0.8 } else { 0.15 });
+    surface.axis_identified(format!("{:016x}",a.identity), rings, if a.order == 0 { 14 } else if a.order == 1 { 9 } else { 6 }, phase, if a.order < 2 { 0.8 } else { 0.15 });
     let first = rings.first().unwrap();
     let last = rings.last().unwrap();
-    g.branches.push(Branch { start: first.center.to_array(), end: last.center.to_array(),
+    g.branches.push(Branch { identity: format!("{:016x}",a.identity), start: first.center.to_array(), end: last.center.to_array(),
         rotation: unit_rotation(DVec3::Y, (last.center - first.center).normalize()).to_array(),
         radius_bottom: first.radius, radius_top: last.radius });
 }
@@ -176,6 +176,7 @@ fn foliage(a: Axis, rings: &[Ring], progress: f64, p: &Plant, g: &mut Geometry) 
     if a.order <= 1 && progress < 0.99 {
         let (position, tangent, radius) = sample(rings, progress.min(0.999));
         g.leaves.push(Organ {
+            identity: format!("{:016x}/tip",a.identity),
             position: position.to_array(), rotation: unit_rotation(DVec3::Y, tangent).to_array(),
             scale: p.leaf_size * (0.35 + progress * 0.4), thickness: radius * a.radial(p),
         });
@@ -204,12 +205,12 @@ fn foliage(a: Axis, rings: &[Ring], progress: f64, p: &Plant, g: &mut Geometry) 
             // Ginkgo short shoots carry small fan-leaf rosettes; the long shoots
             // keep separated leaves. Rosettes are explicit organs, not sprites.
             for leaf in 0..3 {
-                g.leaves.push(Organ { position: position.to_array(),
+                g.leaves.push(Organ { identity: format!("{:016x}/leaf/{i}/{leaf}",a.identity), position: position.to_array(),
                     rotation: (rotation * DQuat::from_rotation_y(leaf as f64 * 2.1)).to_array(),
                     scale: size, thickness: radius * a.radial(p) });
             }
         } else {
-            g.leaves.push(Organ { position: position.to_array(), rotation: rotation.to_array(),
+            g.leaves.push(Organ { identity: format!("{:016x}/leaf/{i}",a.identity), position: position.to_array(), rotation: rotation.to_array(),
                 scale: size, thickness: radius * a.radial(p) });
         }
     }

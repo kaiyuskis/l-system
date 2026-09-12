@@ -4,6 +4,7 @@ use glam::DVec3;
 
 #[derive(Clone, Default)]
 pub struct Surface {
+    pub identities: Vec<AxisIdentity>,
     pub position: Vec<f64>,
     pub normal: Vec<f64>,
     pub uv: Vec<f64>,
@@ -11,6 +12,8 @@ pub struct Surface {
     pub index: Vec<u32>,
     seams: Vec<(usize, usize)>,
 }
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct AxisIdentity { pub id: String, pub start: usize, pub end: usize, pub width: usize, pub rings: usize }
 #[derive(Clone, Copy)]
 pub struct Ring {
     pub center: DVec3,
@@ -19,11 +22,15 @@ pub struct Ring {
 
 impl Surface {
     pub fn axis(&mut self, rings: &[Ring], sides: usize, phase: f64, old_bark: f64) {
+        self.axis_identified(format!("legacy-{}",self.identities.len()), rings,sides,phase,old_bark);
+    }
+    pub fn axis_identified(&mut self, id: String, rings: &[Ring], sides: usize, phase: f64, old_bark: f64) {
         if rings.len() < 2 {
             return;
         }
         let offset = self.position.len() / 3;
         let width = sides + 1;
+        self.identities.push(AxisIdentity{id,start:offset,end:offset+rings.len()*width+2,width,rings:rings.len()});
         let mut frame = DVec3::X;
         let mut distance = 0.;
         for (i, ring) in rings.iter().enumerate() {

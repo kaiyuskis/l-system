@@ -140,3 +140,57 @@ async fn fractional_native_generation_returns_distinct_geometry() {
     assert_ne!(results[0], results[1]);
     assert_ne!(results[1], results[2]);
 }
+
+#[tokio::test]
+async fn project_versions_conflicts_history_and_trash() {
+    let app=router();let p=presets()[0]["params"].clone();
+    let first=value(app.clone().oneshot(request("/api/projects",json!({"name":"A","data":p}))).await.unwrap()).await;
+    let second=value(app.clone().oneshot(request("/api/projects",json!({"name":"B","data":p}))).await.unwrap()).await;
+    let path=format!("/api/projects/{}",first["id"].as_str().unwrap());
+    let changed=value(app.clone().oneshot(request(&path,json!({"expectedRevision":1,"name":"Renamed"}))).await.unwrap()).await;
+    assert_eq!(changed["revision"],2);
+    assert_eq!(app.clone().oneshot(request(&path,json!({"expectedRevision":1,"name":"Stale"}))).await.unwrap().status(),409);
+    let trash=value(app.clone().oneshot(request(&path,json!({"expectedRevision":2,"deleted":true}))).await.unwrap()).await;
+    assert_eq!(trash["deleted"],true);
+    let restored=value(app.clone().oneshot(request(&path,json!({"expectedRevision":3,"restoreRevision":1,"deleted":false}))).await.unwrap()).await;
+    assert_eq!(restored["name"],"A");assert_eq!(restored["revision"],4);assert_eq!(restored["deleted"],false);
+    let history=value(app.clone().oneshot(Request::get(format!("{path}/history")).body(Body::empty()).unwrap()).await.unwrap()).await;
+    assert_eq!(history.as_array().unwrap().len(),4);assert_eq!(history[0]["revision"],4);
+    let other=value(app.oneshot(Request::get(format!("/api/projects/{}",second["id"].as_str().unwrap())).body(Body::empty()).unwrap()).await.unwrap()).await;
+    assert_eq!(other["revision"],1);assert_eq!(other["name"],"B");
+}
+
+#[tokio::test]
+async fn project_migration_survives_restarts_and_competing_writers() {
+    let path = std::env::temp_dir().join(format!("komorebi-project-migration-{}.sqlite3", std::process::id()));
+    let p = presets()[0]["params"].clone();
+    {
+        let app = app(AppState::with_database(path.to_str().unwrap()).unwrap(), "../web/dist");
+        assert_eq!(app.clone().oneshot(request("/api/draft", p.clone())).await.unwrap().status(), 200);
+        assert_eq!(app.oneshot(request("/api/library", json!({"name":"Legacy","data":p}))).await.unwrap().status(), 200);
+    }
+    {
+        let app = app(AppState::with_database(path.to_str().unwrap()).unwrap(), "../web/dist");
+        let projects = value(app.clone().oneshot(Request::get("/api/projects").body(Body::empty()).unwrap()).await.unwrap()).await;
+        assert_eq!(projects.as_array().unwrap().len(), 2);
+        let (a, b) = tokio::join!(
+            app.clone().oneshot(request("/api/projects/legacy-draft", json!({"expectedRevision":1,"name":"First"}))),
+            app.clone().oneshot(request("/api/projects/legacy-draft", json!({"expectedRevision":1,"name":"Second"})))
+        );
+        let mut statuses = [a.unwrap().status().as_u16(), b.unwrap().status().as_u16()];
+        statuses.sort();
+        assert_eq!(statuses, [200, 409]);
+    }
+    {
+        let app = app(AppState::with_database(path.to_str().unwrap()).unwrap(), "../web/dist");
+        let projects = value(app.clone().oneshot(Request::get("/api/projects").body(Body::empty()).unwrap()).await.unwrap()).await;
+        assert_eq!(projects.as_array().unwrap().len(), 2, "migration is idempotent");
+        let history = value(app.clone().oneshot(Request::get("/api/projects/legacy-draft/history").body(Body::empty()).unwrap()).await.unwrap()).await;
+        assert_eq!(history.as_array().unwrap().len(), 2);
+        assert_eq!(history[0]["revision"], 2);
+        let restored = value(app.oneshot(request("/api/projects/legacy-draft", json!({"expectedRevision":2,"restoreRevision":1}))).await.unwrap()).await;
+        assert_eq!(restored["name"], "以前の作業");
+        assert_eq!(restored["revision"], 3);
+    }
+    std::fs::remove_file(path).unwrap();
+}

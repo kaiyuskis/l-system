@@ -54,11 +54,13 @@ fn record(
     sides: usize,
     phase: f64,
     bark: f64,
+    identity: String,
 ) {
-    surface.axis(rings, sides, phase, bark);
+    surface.axis_identified(identity.clone(), rings, sides, phase, bark);
     let first = &rings[0];
     let last = rings.last().unwrap();
     g.branches.push(Branch {
+        identity,
         start: first.center.to_array(),
         end: last.center.to_array(),
         rotation: unit_rotation(DVec3::Y, (last.center - first.center).normalize()).to_array(),
@@ -296,6 +298,7 @@ fn woody_foliage(b: Bud, rings: &[Ring], progress: f64, radial_scale: f64, p: &P
             let rotation =
                 unit_rotation(DVec3::Y, heading) * DQuat::from_rotation_y(rng.signed() * PI);
             g.leaves.push(Organ {
+                identity: format!("{:016x}/leaf/{i}",b.identity),
                 position: origin.to_array(),
                 rotation: rotation.to_array(),
                 scale: p.leaf_size * mix(0.75, 1.2, rng.unit()),
@@ -310,6 +313,7 @@ fn woody_foliage(b: Bud, rings: &[Ring], progress: f64, radial_scale: f64, p: &P
                 .normalize();
                 let flower_origin = origin + tangent * (f as f64 * 0.008);
                 g.flowers.push(Organ {
+                    identity: format!("{:016x}/flower/{i}/{f}",b.identity),
                     position: flower_origin.to_array(),
                     rotation: (unit_rotation(DVec3::Y, flower_heading)
                         * DQuat::from_rotation_y(rng.unit() * TAU))
@@ -325,6 +329,7 @@ fn woody_foliage(b: Bud, rings: &[Ring], progress: f64, radial_scale: f64, p: &P
     if count > 0 && progress < 0.30 && p.leaf_size > 0. {
         let (origin, tangent, width) = sample(rings, progress);
         g.leaves.push(Organ {
+            identity: format!("{:016x}/tip",b.identity),
             position: origin.to_array(),
             rotation: unit_rotation(DVec3::Y, tangent).to_array(),
             scale: p.leaf_size * (0.15 + progress * 1.1),
@@ -334,6 +339,7 @@ fn woody_foliage(b: Bud, rings: &[Ring], progress: f64, radial_scale: f64, p: &P
     if p.bud_size > 0. && count > 0 {
         let (origin, tangent, width) = sample(rings, progress.min(0.995));
         g.buds.push(Organ {
+            identity: format!("{:016x}/bud",b.identity),
             position: origin.to_array(),
             rotation: unit_rotation(DVec3::Y, tangent).to_array(),
             scale: p.bud_size * 0.12,
@@ -357,7 +363,7 @@ fn roots(p: &Plant, g: &mut Geometry, s: &mut Surface, progress: f64, radial_sca
             })
             .collect::<Vec<_>>();
         let visible = clip_axis(&rings, progress, radial_scale);
-        if visible.len() >= 2 { record(g, s, &visible, 12, azimuth, 0.3); }
+        if visible.len() >= 2 { record(g, s, &visible, 12, azimuth, 0.3, format!("root-{i}")); }
     }
 }
 pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
@@ -428,6 +434,7 @@ pub fn generate(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
                 },
                 b.identity as f64 * 0.001,
                 if b.order < 2 { 0.4 } else { 0.15 },
+                format!("{:016x}", b.identity),
             );
             if derived.len() < 850 {
                 derived.push_str(&format!("B({},{:.2},{:.3}) ", b.order, b.length * progress, b.radius * radial_scale));
@@ -505,7 +512,7 @@ fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
             .collect::<Vec<_>>();
         let visible = clip_axis(&rings, unfolding, 0.35 + unfolding.sqrt() * 0.65);
         if visible.len() < 2 { continue; }
-        record(&mut g, &mut s, &visible, 8, phase, 0.);
+        record(&mut g, &mut s, &visible, 8, phase, 0., format!("frond-{identity:016x}"));
         let pinnae = if p.growth_mode { 20 } else { (4 + p.generations as usize).min(20) };
         for pair in 0..pinnae {
             let t = mix(0.24, 0.97, pair as f64 / (pinnae - 1) as f64);
@@ -542,7 +549,7 @@ fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
                     .collect::<Vec<_>>();
                 let visible_pinna = clip_axis(&pinna, pinna_progress, 0.35 + pinna_progress.sqrt() * 0.65);
                 if visible_pinna.len() < 2 { continue; }
-                record(&mut g, &mut s, &visible_pinna, 6, phase, 0.);
+                record(&mut g, &mut s, &visible_pinna, 6, phase, 0., format!("pinna-{pinna_identity:016x}"));
                 let leaflets = (mix(5., 11., envelope) * p.foliage_density).round() as usize;
                 for k in 0..leaflets {
                     let u = mix(0.08, 0.97, (k as f64 + 0.5) / leaflets as f64);
@@ -558,6 +565,7 @@ fn fern(p: &Plant) -> Result<(Vec<u8>, Geometry, u32), String> {
                             DQuat::from_mat3(&glam::DMat3::from_cols(x, leaf_heading, z));
                         if p.leaf_size > 0. {
                             g.leaves.push(Organ {
+                                identity: format!("{pinna_identity:016x}/leaf/{k}/{}", usize::from(margin > 0.)),
                                 position: base.to_array(),
                                 rotation: rotation.to_array(),
                                 scale: p.leaf_size * mix(0.9, 0.35, u) * envelope.max(0.25) * size

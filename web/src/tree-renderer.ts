@@ -222,6 +222,7 @@ function organs(
 ): THREE.InstancedMesh {
   const mesh = new THREE.InstancedMesh(geometry, material, points.count);
   mesh.name = name;
+  mesh.userData.growthIds = points.ids;
   mesh.instanceMatrix = new THREE.InstancedBufferAttribute(points.matrices, 16);
   // Each population owns its geometry so its instance attributes cannot collide.
   geometry.setAttribute(
@@ -301,6 +302,8 @@ export function buildTree(
         }
       }
       mesh.name = "Branches";
+      mesh.userData.growthIds = data.branchInstances.ids;
+      mesh.geometry.userData.growthAxes = data.meta.identities?.axes;
       addShadows(mesh, material, false, data.branchInstances.count > 0);
       group.add(mesh);
     }

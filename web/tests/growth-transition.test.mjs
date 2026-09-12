@@ -150,3 +150,21 @@ test('established organs whose positions shift due to branch thickening maintain
   assert.equal(arr[32 + 0], 0, 'new leaf starts at scale 0');
   morph.finish();
 });
+
+test('stable organ IDs survive reordering and large movement without matching new organs', () => {
+  const small = tree([]), large = tree([]);
+  const leaves = (ids, positions) => {
+    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial(), ids.length);
+    mesh.name = 'Leaves'; mesh.userData.growthIds = ids;
+    positions.forEach((x,i) => mesh.setMatrixAt(i,new THREE.Matrix4().makeTranslation(x,1,0)));
+    return mesh;
+  };
+  small.add(leaves(['a','b'],[1,2]));
+  const target = leaves(['b','new','a'],[20,1,10]); large.add(target);
+  const morph = prepareGrowth(large,small); morph.update(0);
+  assert.equal(target.instanceMatrix.array[12],2);
+  assert.equal(target.instanceMatrix.array[0],1);
+  assert.equal(target.instanceMatrix.array[16],0);
+  assert.equal(target.instanceMatrix.array[44],1);
+  morph.finish();
+});

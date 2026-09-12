@@ -1,6 +1,7 @@
 import type { PlantParams } from "./studio-state.ts";
 
 export interface Population {
+  ids?: string[];
   count: number;
   matrices: Float32Array;
   thickness: Float32Array;
@@ -18,6 +19,7 @@ export interface NativeGeometry {
   flowers: Population;
   buds: Population;
   meta: {
+    identities?: {axes: {id: string; start: number; end: number; width: number; rings: number}[]; branches: string[]; instances?: string[]; leaves: string[]; flowers: string[]; buds: string[]};
     version: number;
     vertices: number;
     indices: number;
@@ -37,7 +39,7 @@ export function decodeGeometry(buffer: ArrayBuffer): NativeGeometry {
   if (buffer.byteLength < 8 || view.getUint32(0, true) !== 0x32524d4b)
     throw new Error("計算結果の形式が不正です。");
   const length = view.getUint32(4, true);
-  if (length % 4 || length > 16384 || 8 + length > buffer.byteLength)
+  if (length % 4 || length > 4_000_000 || 8 + length > buffer.byteLength)
     throw new Error("計算結果のヘッダーが不正です。");
   const meta: NativeGeometry["meta"] = JSON.parse(
     new TextDecoder().decode(new Uint8Array(buffer, 8, length)),
@@ -67,6 +69,16 @@ export function decodeGeometry(buffer: ArrayBuffer): NativeGeometry {
     !Number.isFinite(meta.engineMs)
   )
     throw new Error("計算結果が上限を超えています。");
+  if(meta.identities) {
+    for(const [key,count] of [["branches",meta.branches],["leaves",meta.leaves],["flowers",meta.flowers],["buds",meta.buds]] as const) {
+      const ids=meta.identities[key];
+      if(!Array.isArray(ids) || ids.length !== count || ids.some(id=>typeof id !== "string" || id.length>128) || new Set(ids).size !== ids.length) throw new Error("形状IDが不正です。");
+    }
+    const instanceIds = meta.identities.instances;
+    if (instanceIds && (instanceIds.length !== meta.instances || instanceIds.some(id => typeof id !== "string" || !id || id.length > 128) || new Set(instanceIds).size !== instanceIds.length)) throw new Error("枝インスタンスIDが不正です。");
+    const axes=meta.identities.axes;
+    if(!Array.isArray(axes) || axes.length>20006 || new Set(axes.map(a=>a.id)).size!==axes.length || axes.some(a=>typeof a.id!=="string" || a.id.length>128 || ![a.start,a.end,a.width,a.rings].every(Number.isSafeInteger) || a.start<0 || a.end>meta.vertices || a.width<4 || a.rings<2 || a.end-a.start!==a.rings*a.width+2)) throw new Error("枝IDが不正です。");
+  }
   const expected =
     8 +
     length +
@@ -92,12 +104,14 @@ export function decodeGeometry(buffer: ArrayBuffer): NativeGeometry {
   };
   offset += meta.indices * 4;
   const branchInstances = {
+    ids: meta.identities?.instances ?? meta.identities?.branches,
     count: meta.instances,
     matrices: floats(meta.instances * 16),
     shape: floats(meta.instances * 2),
     thickness: floats(meta.instances),
   };
-  const population = (count: number) => ({
+  const population = (count: number, ids?: string[]) => ({
+    ids,
     count,
     matrices: floats(count * 16),
     thickness: floats(count),
@@ -106,9 +120,9 @@ export function decodeGeometry(buffer: ArrayBuffer): NativeGeometry {
     meta,
     branchMesh,
     branchInstances,
-    leaves: population(meta.leaves),
-    flowers: population(meta.flowers),
-    buds: population(meta.buds),
+    leaves: population(meta.leaves,meta.identities?.leaves),
+    flowers: population(meta.flowers,meta.identities?.flowers),
+    buds: population(meta.buds,meta.identities?.buds),
   };
 }
 export function geometryKey(params: PlantParams): string {
