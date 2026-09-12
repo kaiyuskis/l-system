@@ -1,0 +1,62 @@
+
+> test:web
+> node scripts/run.mjs test:web
+
+
+> l-system@0.0.0 test
+> node --test tests/*.test.mjs
+
+✔ botanical organs are folded meshes with attached petioles and finite normals (9.4281ms)
+✔ simultaneous rewriting supports zero generations, identity and empty productions (2.3123ms)
+✔ rule parser accepts supported input forms and ignores blank/comment lines (0.308ms)
+✔ invalid, duplicate, and ambiguous productions are rejected (0.6711ms)
+✔ rewriting ignores inherited properties and keeps exponent notation intact (0.3411ms)
+✔ exponential rules and invalid generations fail before oversized allocation (21.1682ms)
+✔ balanced branches and depth are checked even with zero generations (0.6769ms)
+✔ arithmetic arguments have precedence, nested parentheses and scientific notation (0.6605ms)
+✔ command arguments never execute code and reject non-finite/negative geometry (0.3657ms)
+✔ too-long and too-deep expressions are rejected (0.2852ms)
+✔ branch stack restores position, rotation, length and thickness (0.5707ms)
+✔ all three rotation axes and full turns produce finite normalized geometry (0.3475ms)
+✔ f moves without drawing or thinning, and organ scales are independent (0.2783ms)
+✔ zero-size geometry is omitted and cannot create degenerate meshes (0.1718ms)
+✔ geometry count, coordinate and multiplication bounds prevent huge models (46.5066ms)
+✔ invalid or missing global geometry parameters are rejected (0.2409ms)
+✔ all finite seeds produce repeatable values in [0,1) (1.6948ms)
+✔ same seed exactly reproduces geometry; a different seed changes it (0.9279ms)
+✔ Blender baking preserves instance position and color without instancing extensions (6.7306ms)
+✔ native protocol decodes zero-copy instanced matrices (3.1056ms)
+✔ native protocol rejects truncated, wrong-version and oversized data (0.6938ms)
+✔ appearance changes reuse geometry but shape changes do not (0.3206ms)
+✔ paired needles have a closed cross-section, finite normals and no alpha-card texture (14.86ms)
+✔ pine settings survive JSON round trips; invalid dimensions are rejected (4.2987ms)
+✔ old saved trees receive compatible defaults without changing their grammar (0.3131ms)
+✔ each built-in is independently editable and produces a complete finite specimen (2.6658ms)
+✔ import validation rejects non-finite, out-of-range and wrong-type values (1.5158ms)
+✔ validation preserves legitimate zero-generation legacy settings and normalizes short colors (0.4865ms)
+✔ rule validation rejects malformed and duplicate productions but accepts legacy blank rows (1.3939ms)
+✔ legacy collections remain readable and keep every original record when another is saved (1.1914ms)
+✔ prototype-property names are saved and removed as ordinary collection names (11.0603ms)
+✔ invalid names or settings never alter an existing collection (0.4921ms)
+✔ malformed collections cannot be silently replaced by saving or deleting (0.742ms)
+✔ draft roundtrips are isolated from presets and from caller mutations (1.5293ms)
+✔ malformed or newer-version drafts survive automatic-save attempts unchanged (0.4634ms)
+✔ storage permission and quota failures produce actionable errors without deleting data (0.3727ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 301.7667
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.0.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+npm notice To update run: npm install -g npm@12.0.2
+npm notice
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.0.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+npm notice To update run: npm install -g npm@12.0.2
+npm notice

@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#202a34" />
+    <meta
+      name="description"
+      content="ひとつのルールから、あなただけの樹木を。L-systemで植物を育てる、ブラウザーの3D制作スタジオ。"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>こもれび — L-system botanical studio</title>
+  </head>
+  <body>
+    <div id="app" class="studio">
+      <header class="app-header">
+        <a class="brand" href="./" aria-label="こもれび ホーム"
+          ><span class="brand-mark" data-icon="sprout"></span
+          ><span
+            ><strong>こもれび<span class="brand-period">.</span></strong
+            ><small>TREE MODELING STUDIO</small></span
+          ></a
+        >
+        <div class="header-project">
+          <span class="project-dot"></span
+          ><span id="project-name">新しい樹木</span
+          ><span class="local-label">ローカル</span>
+        </div>
+        <nav class="header-actions" aria-label="作品の操作">
+          <button class="button" id="toggle-editor" aria-controls="editor" aria-expanded="true">設定</button><button class="button" id="fullscreen" aria-pressed="false" title="全画面表示">全画面</button><div class="history-actions">
+            <button
+              class="icon-button"
+              id="undo"
+              title="元に戻す (Ctrl+Z)"
+              aria-label="元に戻す"
+              data-icon="undo"
+              disabled
+            ></button
+            ><button
+              class="icon-button"
+              id="redo"
+              title="やり直す (Ctrl+Shift+Z)"
+              aria-label="やり直す"
+              data-icon="redo"
+              disabled
+            ></button>
+          </div>
+          <button
+            class="icon-button"
+            id="help"
+            title="使い方"
+            aria-label="使い方"
+            data-icon="help"
+          ></button>
+          <button
+            class="button button-quiet"
+            id="open-library"
+            aria-label="マイライブラリ"
+          >
+            <span data-icon="folder"></span
+            ><span class="button-label">マイライブラリ</span>
+          </button>
+          <button class="button button-quiet" id="save" aria-label="保存">
+            <span data-icon="save"></span><span class="button-label">保存</span>
+          </button>
+          <button class="button button-dark" id="export" aria-label="書き出す">
+            <span data-icon="download"></span><span>書き出す</span>
+          </button>
+        </nav>
+      </header>
+      <aside id="editor" class="editor" aria-label="樹木の設定">
+        <div class="editor-scroll">
+<details class="display-settings"><summary>表示設定</summary>          <div class="environment-controls"><button id="toggle-environment" aria-pressed="true" class="button active" title="地面に落ちる影と奥行きの霧を表示">影を表示 <span class="toggle-state">オン</span></button><button data-action="toggle-grid" aria-pressed="true" class="button active" title="床の基準線を表示">グリッドを表示 <span class="toggle-state">オン</span></button><button id="toggle-antialias" aria-pressed="true" class="button active" title="枝や葉の輪郭のギザギザを滑らかにします">アンチエイリアス <span class="toggle-state">オン</span></button><label class="lighting-quality">描画品質<select id="lighting-quality" aria-label="影・照明の品質" title="低：軽量／中：標準／高：精細な影と補助照明"><option value="low">低・軽量</option><option value="medium" selected>中・標準</option><option value="high">高・精細</option></select></label></div><label class="display-row">テーマ<select id="theme-mode"><option value="auto">自動（端末に合わせる）</option><option value="light">ライト</option><option value="dark">ダーク</option></select></label><label class="display-row">FPSを表示<input id="show-fps" type="checkbox"/></label></details>
+          <div class="editor-heading">
+            <div>
+              <span class="eyebrow">MODEL SETTINGS</span>
+              <h1>モデルを編集</h1>
+            </div>
+            <button id="close-editor" class="icon-button" aria-label="設定を閉じる">×</button>
+          </div>
+          <details id="preset-library" class="preset-section" open><summary>プリセットを選択 <strong id="preset-current"></strong></summary>
+            <div class="section-label">
+              <h2>樹種を選択</h2>
+              <span>プリセット</span>
+            </div>
+            <label for="preset-search">プリセットを検索</label><input id="preset-search" class="text-input" type="search" placeholder="樹種・季節・樹形"/><select id="preset-category" aria-label="樹種で絞り込む"><option value="">すべての樹種</option><option value="birch">シラカバ</option><option value="maple">モミジ</option><option value="sakura">サクラ</option><option value="pine">松</option><option value="fern">シダ</option><option value="oak">ヨーロッパナラ</option><option value="willow">シダレヤナギ</option><option value="spruce">ヨーロッパトウヒ</option><option value="ginkgo">イチョウ</option></select><p id="preset-count" role="status"></p><div id="preset-grid" class="preset-grid"></div>
+          </details>
+          <div class="editor-tabs" role="tablist" aria-label="設定の種類">
+            <button
+              role="tab"
+              id="tab-shape"
+              aria-controls="panel-shape"
+              aria-selected="true"
+              data-tab="shape"
+            >
+              <span data-icon="sliders"></span>かたち</button
+            ><button
+              role="tab"
+              id="tab-appearance"
+              aria-controls="panel-appearance"
+              aria-selected="false"
+              tabindex="-1"
+              data-tab="appearance"
+            >
+              <span data-icon="palette"></span>質感</button
+            ><button
+              role="tab"
+              id="tab-rules"
+              aria-controls="panel-rules"
+              aria-selected="false"
+              tabindex="-1"
+              data-tab="rules"
+            >
+              <span data-icon="code"></span>ルール
+            </button>
+          </div>
+          <div
+            id="panel-shape"
+            class="editor-panel"
+            role="tabpanel"
+            aria-labelledby="tab-shape"
+          ></div>
+          <div
+            id="panel-appearance"
+            class="editor-panel"
+            role="tabpanel"
+            aria-labelledby="tab-appearance"
+            hidden
+          ></div>
+          <div
+            id="panel-rules"
+            class="editor-panel"
+            role="tabpanel"
+            aria-labelledby="tab-rules"
+            hidden
+          ></div>
+        </div>
+        <div class="editor-footer">
+          <p id="generation-error" role="alert" hidden></p>
+          <button class="button generate-button" id="generate">
+            <span data-icon="sprout"></span
+            ><span id="generate-label">樹木を生成する</span
+            ><span class="generate-shortcut">↵</span>
+          </button>
+          <div class="footer-note">
+            <span class="status-dot"></span
+            ><span id="autosave-status">変更は自動でプレビューに反映</span>
+          </div>
+        </div>
+      </aside>
+      <main class="workspace" aria-label="3Dプレビュー">
+        <div class="viewport-wrapper">
+          <div
+            id="viewport"
+            aria-label="ドラッグで回転、スクロールで拡大できる樹木の3Dプレビュー"
+          ></div>
+          <div class="specimen-heading">
+            <div class="eyebrow">
+              <span class="live-dot"></span>3D VIEWPORT
+              <span class="specimen-divider">/</span>
+              <span id="specimen-number">01</span>
+            </div>
+            <h2 id="specimen-name">広葉樹</h2>
+            <p id="specimen-latin">A study in branching</p>
+          </div>
+          <output id="fps-counter" hidden>— FPS</output><div class="viewport-badge">
+            <span class="status-dot"></span
+            ><span id="render-status">プレビューを準備中</span>
+          </div>
+          <details class="camera-tools" open><summary>視点</summary><div class="viewport-tools" aria-label="表示の操作">
+            <button class="icon-button" id="zoom-in" title="拡大" aria-label="拡大">＋</button>
+            <button class="icon-button" id="zoom-out" title="縮小" aria-label="縮小">−</button>
+            <button
+              class="icon-button"
+              id="fit-camera"
+              title="樹木全体を表示 (F)"
+              aria-label="樹木全体を表示"
+              data-icon="focus"
+            ></button>
+            <div class="tool-divider"></div>
+            <button
+              class="icon-button active"
+              id="view-perspective"
+              title="立体で見る"
+              aria-label="立体で見る"
+              aria-pressed="true"
+              data-icon="cube"
+            ></button
+            ><button
+              class="icon-button view-letter"
+              id="view-front"
+              title="正面から見る"
+              aria-label="正面から見る"
+              aria-pressed="false"
+            >
+              前</button
+            ><button
+              class="icon-button view-letter"
+              id="view-top"
+              title="真上から見る"
+              aria-label="真上から見る"
+              aria-pressed="false"
+            >
+              上
+            </button>
+            <div class="tool-divider"></div>
+            <button
+              class="icon-button active"
+              id="toggle-grid"
+              title="グリッドの表示"
+              aria-label="グリッドの表示"
+              aria-pressed="true"
+              data-icon="grid"
+            ></button
+            ><button
+              class="icon-button"
+              id="toggle-rotate"
+              title="自動回転"
+              aria-label="自動回転"
+              aria-pressed="false"
+              data-icon="orbit"
+            ></button>
+          </div>
+<div class="canvas-caption">
+            <span class="caption-line"></span
+            ><span>ドラッグで回転 · スクロールでズーム</span>
+          </div>
+          <div class="orientation" aria-hidden="true">
+            <svg viewBox="0 0 70 65">
+              <path d="M32 38V9" stroke="#869978" />
+              <path d="m32 38 26 12" stroke="#b28c75" />
+              <path d="m32 38-24 12" stroke="#90a9b3" />
+              <text x="29" y="8">Y</text>
+              <text x="60" y="56">X</text>
+              <text x="1" y="58">Z</text>
+              <circle cx="32" cy="38" r="3" fill="#202a34" stroke="#aab4a5" />
+            </svg>
+          </div>
+          <div class="model-empty" id="model-empty" hidden>
+            <span data-icon="sprout"></span
+            ><strong>表示できる形状がありません。</strong>
+            <p>世代を進めるか、F を含むルールを設定しましょう。</p>
+          </div>
+          <div class="busy-indicator" id="busy-indicator" hidden>
+            <span class="spinner"></span>モデルを生成しています…
+          </div>
+        </div>
+        <section class="growth-panel" aria-label="成長のタイムライン">
+          <div class="growth-title">
+            <span class="eyebrow">GROWTH</span>
+            <h2>成長タイムライン</h2>
+          </div>
+          <button
+            class="play-button"
+            id="play-growth"
+            title="成長を再生"
+            aria-label="成長を再生"
+            data-icon="play"
+          ></button>
+          <div class="timeline">
+            <div class="timeline-label">
+              <label for="timeline-generation">世代</label><small id="growth-status" hidden>成長中</small
+              ><span
+                ><strong id="generation-value">5</strong>
+                <span class="muted">/ 10</span></span
+              >
+            </div>
+            <input
+              type="range"
+              id="timeline-generation"
+              min="0"
+              max="10"
+              step="0.01"
+              title="0.01世代刻みで選び、離すと生成します。矢印キーで1世代ずつ変更できます。"
+              value="5"
+              aria-label="成長の世代"
+            />
+
+          </div>
+          <div class="wind-control">
+            <button
+              class="icon-button active"
+              id="toggle-wind"
+              title="風のオン・オフ"
+              aria-label="風のオン・オフ"
+              aria-pressed="true"
+              data-icon="wind"
+            ></button>
+            <div>
+              <label for="wind-strength">風の強さ</label
+              ><input
+                id="wind-strength"
+                type="range"
+                min="0"
+                max="5"
+                step="0.1"
+                value="0.8"
+                aria-label="風の強さ"
+              />
+            </div>
+          </div>
+        </section>
+        <footer class="workspace-status">
+          <div class="model-metrics">
+            <span
+              ><i class="metric-dot"></i
+              ><strong id="metric-branches">—</strong> 枝</span
+            ><span><strong id="metric-organs">—</strong> <span id="metric-organ-label">葉・花</span></span
+            ><span class="metric-height"
+              >高さ <strong id="metric-height">—</strong></span
+            ><span class="metric-time" id="metric-time">—</span>
+          </div>
+          <span class="interaction-hint"
+            >ドラッグで回転 <b>·</b> スクロールでズーム
+            <b>·</b> 右ドラッグで移動</span
+          >
+        </footer>
+      </main>
+    </div>
+    <dialog id="studio-dialog" class="studio-dialog">
+      <div class="dialog-heading">
+        <div>
+          <span class="eyebrow" id="dialog-eyebrow">BOTANICAL STUDIO</span>
+          <h2 id="dialog-title"></h2>
+        </div>
+        <button
+          class="icon-button"
+          id="close-dialog"
+          aria-label="閉じる"
+          data-icon="close"
+        ></button>
+      </div>
+      <div id="dialog-content"></div>
+    </dialog>
+    <input
+      id="import-file"
+      type="file"
+      accept="application/json,.json"
+      hidden
+    />
+    <script type="module" src="/src/bootstrap.ts"></script>
+  </body>
+</html>

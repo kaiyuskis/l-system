@@ -1,0 +1,2066 @@
+[
+  {
+    "id": "birch",
+    "name": "シラカバ",
+    "latinName": "Betula platyphylla",
+    "description": "光を受けて広がる、軽やかな緑の樹冠。はじめての植物づくりに。",
+    "tag": "広葉樹",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.22,
+      "initLength": 0.9,
+      "initThickness": 0.22,
+      "generations": 12,
+      "angle": 44,
+      "angleVariance": 7,
+      "seed": 42,
+      "gravity": 0.15,
+      "branchColor": "#f1f0e8",
+      "scale": 0.76,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#759441",
+      "leafTextureKey": "leaf_birch",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(55)L][/(120)&(55)L]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]"
+        }
+      ],
+      "growthModel": "birch",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "maple",
+    "name": "イロハモミジ",
+    "latinName": "Acer palmatum",
+    "description": "横へ伸びる枝と深い紅葉。角度を変えると、樹形の表情も変わります。",
+    "tag": "紅葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.82,
+      "maxThickness": 0.3,
+      "initLength": 0.82,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 9,
+      "seed": 1729,
+      "gravity": 0.25,
+      "branchColor": "#d8d4cc",
+      "scale": 0.79,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#bc4c3e",
+      "leafTextureKey": "leaf_maple",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[+(65)L][-(65)L]F[!\"+A]/(110)[!\"&A]/(125)[!\"-A]/(125)[!\"^A]"
+        }
+      ],
+      "growthModel": "maple",
+      "crownSpread": 1.1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "sakura",
+    "name": "サクラ",
+    "latinName": "Prunus serrulata",
+    "description": "淡い桜色の花が枝先を包む春の木。花の大きさで咲き方を調整できます。",
+    "tag": "花木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.3,
+      "initLength": 0.9,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 42,
+      "angleVariance": 8,
+      "seed": 31415,
+      "gravity": 0.15,
+      "branchColor": "#d8d2cb",
+      "scale": 0.78,
+      "widthDecay": 0.87,
+      "flowerColor": "#ffe8ee",
+      "flowerSize": 1.6,
+      "leafColor": "#a1ad63",
+      "leafTextureKey": "leaf_cherry",
+      "leafSize": 0.7,
+      "budColor": "#de8eae",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(65)K][^(50)K][/(90)+(50)K]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]M"
+        }
+      ],
+      "growthModel": "sakura",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "fern",
+    "name": "シダ",
+    "latinName": "Dryopteris erythrosora",
+    "description": "繰り返す枝分かれが描く繊細な葉。規則から生まれる自然の形を観察します。",
+    "tag": "草本",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.5,
+      "maxThickness": 0.04,
+      "initLength": 0.5,
+      "initThickness": 0.04,
+      "generations": 12,
+      "angle": 54,
+      "angleVariance": 3,
+      "seed": 2718,
+      "gravity": 0.1,
+      "branchColor": "#678343",
+      "scale": 0.73,
+      "widthDecay": 0.9,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#507b43",
+      "leafTextureKey": "fern_pinnule",
+      "leafSize": 1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
+      "rules": [
+        {
+          "expression": "A=F[!\"+B][!\"-B]\"^(4)A"
+        },
+        {
+          "expression": "B=F[+(35)L][-(35)L]\"B"
+        }
+      ],
+      "growthModel": "fern",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "pine",
+    "name": "クロマツ",
+    "latinName": "Pinus thunbergii",
+    "description": "曲がりながら広がる古枝と、枝先に集まる立体的な二葉の針葉。松専用の成長規則で細部まで生成します。",
+    "tag": "精密・針葉樹",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1,
+      "maxThickness": 0.34,
+      "initLength": 1,
+      "initThickness": 0.34,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 14,
+      "seed": 7182,
+      "gravity": 0.2,
+      "branchColor": "#eeede8",
+      "scale": 0.84,
+      "widthDecay": 0.8,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#426436",
+      "leafTextureKey": "pine_needles",
+      "leafSize": 1.3,
+      "budColor": "#c5b799",
+      "budSize": 0.16,
+      "premise": "B",
+      "rules": [
+        {
+          "expression": "# 松のパラメトリック生成。樹形は専用コントロールで調整します。"
+        }
+      ],
+      "growthModel": "pine",
+      "crownSpread": 1.1,
+      "branchTwist": 1.1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "birch-0",
+    "name": "シラカバ・若木",
+    "latinName": "Betula platyphylla",
+    "description": "シラカバをもとにした若木の樹形バリエーション。",
+    "tag": "若木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.12,
+      "initLength": 0.9,
+      "initThickness": 0.22,
+      "generations": 5,
+      "angle": 44,
+      "angleVariance": 7,
+      "seed": 433,
+      "gravity": 0.15,
+      "branchColor": "#f1f0e8",
+      "scale": 0.76,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#759441",
+      "leafTextureKey": "leaf_birch",
+      "leafSize": 0.7,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(55)L][/(120)&(55)L]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]"
+        }
+      ],
+      "growthModel": "birch",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "birch-1",
+    "name": "シラカバ・老木",
+    "latinName": "Betula platyphylla",
+    "description": "シラカバをもとにした老木の樹形バリエーション。",
+    "tag": "老木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.38,
+      "initLength": 0.9,
+      "initThickness": 0.22,
+      "generations": 16,
+      "angle": 44,
+      "angleVariance": 7,
+      "seed": 824,
+      "gravity": 0.15,
+      "branchColor": "#f1f0e8",
+      "scale": 0.76,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#759441",
+      "leafTextureKey": "leaf_birch",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(55)L][/(120)&(55)L]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]"
+        }
+      ],
+      "growthModel": "birch",
+      "crownSpread": 1,
+      "branchTwist": 1.7,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "birch-2",
+    "name": "シラカバ・風に曲がる",
+    "latinName": "Betula platyphylla",
+    "description": "シラカバをもとにした風に曲がるの樹形バリエーション。",
+    "tag": "風に曲がる",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.22,
+      "initLength": 0.9,
+      "initThickness": 0.22,
+      "generations": 12,
+      "angle": 44,
+      "angleVariance": 28,
+      "seed": 1215,
+      "gravity": 0.15,
+      "branchColor": "#f1f0e8",
+      "scale": 0.76,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#759441",
+      "leafTextureKey": "leaf_birch",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(55)L][/(120)&(55)L]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]"
+        }
+      ],
+      "growthModel": "birch",
+      "crownSpread": 1.3,
+      "branchTwist": 2,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "birch-3",
+    "name": "シラカバ・広がる樹冠",
+    "latinName": "Betula platyphylla",
+    "description": "シラカバをもとにした広がる樹冠の樹形バリエーション。",
+    "tag": "広がる樹冠",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.75,
+      "maxThickness": 0.22,
+      "initLength": 0.9,
+      "initThickness": 0.22,
+      "generations": 12,
+      "angle": 65,
+      "angleVariance": 7,
+      "seed": 1606,
+      "gravity": 0.15,
+      "branchColor": "#f1f0e8",
+      "scale": 0.76,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#759441",
+      "leafTextureKey": "leaf_birch",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(55)L][/(120)&(55)L]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]"
+        }
+      ],
+      "growthModel": "birch",
+      "crownSpread": 1.6,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "birch-4",
+    "name": "シラカバ・細身",
+    "latinName": "Betula platyphylla",
+    "description": "シラカバをもとにした細身の樹形バリエーション。",
+    "tag": "細身",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.15,
+      "maxThickness": 0.22,
+      "initLength": 0.9,
+      "initThickness": 0.22,
+      "generations": 12,
+      "angle": 44,
+      "angleVariance": 7,
+      "seed": 1997,
+      "gravity": 0.15,
+      "branchColor": "#f1f0e8",
+      "scale": 0.76,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#759441",
+      "leafTextureKey": "leaf_birch",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(55)L][/(120)&(55)L]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]"
+        }
+      ],
+      "growthModel": "birch",
+      "crownSpread": 0.55,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "birch-5",
+    "name": "シラカバ・疎らな葉",
+    "latinName": "Betula platyphylla",
+    "description": "シラカバをもとにした疎らな葉の樹形バリエーション。",
+    "tag": "疎らな葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.22,
+      "initLength": 0.9,
+      "initThickness": 0.22,
+      "generations": 12,
+      "angle": 44,
+      "angleVariance": 7,
+      "seed": 2388,
+      "gravity": 0.15,
+      "branchColor": "#f1f0e8",
+      "scale": 0.76,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#759441",
+      "leafTextureKey": "leaf_birch",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(55)L][/(120)&(55)L]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]"
+        }
+      ],
+      "growthModel": "birch",
+      "crownSpread": 1,
+      "branchTwist": 1.5,
+      "foliageDensity": 0.4,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "birch-6",
+    "name": "シラカバ・黄葉",
+    "latinName": "Betula platyphylla",
+    "description": "シラカバをもとにした黄葉の樹形バリエーション。",
+    "tag": "黄葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.22,
+      "initLength": 0.9,
+      "initThickness": 0.22,
+      "generations": 12,
+      "angle": 44,
+      "angleVariance": 7,
+      "seed": 2779,
+      "gravity": 0.15,
+      "branchColor": "#f1f0e8",
+      "scale": 0.76,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#c8a331",
+      "leafTextureKey": "leaf_birch",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(55)L][/(120)&(55)L]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]"
+        }
+      ],
+      "growthModel": "birch",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 0.8,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "maple-0",
+    "name": "イロハモミジ・若木",
+    "latinName": "Acer palmatum",
+    "description": "イロハモミジをもとにした若木の樹形バリエーション。",
+    "tag": "若木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.82,
+      "maxThickness": 0.12,
+      "initLength": 0.82,
+      "initThickness": 0.3,
+      "generations": 5,
+      "angle": 48,
+      "angleVariance": 9,
+      "seed": 2120,
+      "gravity": 0.25,
+      "branchColor": "#d8d4cc",
+      "scale": 0.79,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#bc4c3e",
+      "leafTextureKey": "leaf_maple",
+      "leafSize": 0.7,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[+(65)L][-(65)L]F[!\"+A]/(110)[!\"&A]/(125)[!\"-A]/(125)[!\"^A]"
+        }
+      ],
+      "growthModel": "maple",
+      "crownSpread": 1.1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "maple-1",
+    "name": "イロハモミジ・老木",
+    "latinName": "Acer palmatum",
+    "description": "イロハモミジをもとにした老木の樹形バリエーション。",
+    "tag": "老木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.82,
+      "maxThickness": 0.38,
+      "initLength": 0.82,
+      "initThickness": 0.3,
+      "generations": 16,
+      "angle": 48,
+      "angleVariance": 9,
+      "seed": 2511,
+      "gravity": 0.25,
+      "branchColor": "#d8d4cc",
+      "scale": 0.79,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#bc4c3e",
+      "leafTextureKey": "leaf_maple",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[+(65)L][-(65)L]F[!\"+A]/(110)[!\"&A]/(125)[!\"-A]/(125)[!\"^A]"
+        }
+      ],
+      "growthModel": "maple",
+      "crownSpread": 1.1,
+      "branchTwist": 1.7,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "maple-2",
+    "name": "イロハモミジ・風に曲がる",
+    "latinName": "Acer palmatum",
+    "description": "イロハモミジをもとにした風に曲がるの樹形バリエーション。",
+    "tag": "風に曲がる",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.82,
+      "maxThickness": 0.3,
+      "initLength": 0.82,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 28,
+      "seed": 2902,
+      "gravity": 0.25,
+      "branchColor": "#d8d4cc",
+      "scale": 0.79,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#bc4c3e",
+      "leafTextureKey": "leaf_maple",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[+(65)L][-(65)L]F[!\"+A]/(110)[!\"&A]/(125)[!\"-A]/(125)[!\"^A]"
+        }
+      ],
+      "growthModel": "maple",
+      "crownSpread": 1.3,
+      "branchTwist": 2,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "maple-3",
+    "name": "イロハモミジ・広がる樹冠",
+    "latinName": "Acer palmatum",
+    "description": "イロハモミジをもとにした広がる樹冠の樹形バリエーション。",
+    "tag": "広がる樹冠",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.75,
+      "maxThickness": 0.3,
+      "initLength": 0.82,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 65,
+      "angleVariance": 9,
+      "seed": 3293,
+      "gravity": 0.25,
+      "branchColor": "#d8d4cc",
+      "scale": 0.79,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#bc4c3e",
+      "leafTextureKey": "leaf_maple",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[+(65)L][-(65)L]F[!\"+A]/(110)[!\"&A]/(125)[!\"-A]/(125)[!\"^A]"
+        }
+      ],
+      "growthModel": "maple",
+      "crownSpread": 1.6,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "maple-4",
+    "name": "イロハモミジ・細身",
+    "latinName": "Acer palmatum",
+    "description": "イロハモミジをもとにした細身の樹形バリエーション。",
+    "tag": "細身",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.15,
+      "maxThickness": 0.3,
+      "initLength": 0.82,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 9,
+      "seed": 3684,
+      "gravity": 0.25,
+      "branchColor": "#d8d4cc",
+      "scale": 0.79,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#bc4c3e",
+      "leafTextureKey": "leaf_maple",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[+(65)L][-(65)L]F[!\"+A]/(110)[!\"&A]/(125)[!\"-A]/(125)[!\"^A]"
+        }
+      ],
+      "growthModel": "maple",
+      "crownSpread": 0.55,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "maple-5",
+    "name": "イロハモミジ・疎らな葉",
+    "latinName": "Acer palmatum",
+    "description": "イロハモミジをもとにした疎らな葉の樹形バリエーション。",
+    "tag": "疎らな葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.82,
+      "maxThickness": 0.3,
+      "initLength": 0.82,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 9,
+      "seed": 4075,
+      "gravity": 0.25,
+      "branchColor": "#d8d4cc",
+      "scale": 0.79,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#bc4c3e",
+      "leafTextureKey": "leaf_maple",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[+(65)L][-(65)L]F[!\"+A]/(110)[!\"&A]/(125)[!\"-A]/(125)[!\"^A]"
+        }
+      ],
+      "growthModel": "maple",
+      "crownSpread": 1.1,
+      "branchTwist": 1.5,
+      "foliageDensity": 0.4,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "maple-6",
+    "name": "イロハモミジ・黄葉",
+    "latinName": "Acer palmatum",
+    "description": "イロハモミジをもとにした黄葉の樹形バリエーション。",
+    "tag": "黄葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.82,
+      "maxThickness": 0.3,
+      "initLength": 0.82,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 9,
+      "seed": 4466,
+      "gravity": 0.25,
+      "branchColor": "#d8d4cc",
+      "scale": 0.79,
+      "widthDecay": 0.87,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#c8a331",
+      "leafTextureKey": "leaf_maple",
+      "leafSize": 1.1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[+(65)L][-(65)L]F[!\"+A]/(110)[!\"&A]/(125)[!\"-A]/(125)[!\"^A]"
+        }
+      ],
+      "growthModel": "maple",
+      "crownSpread": 1.1,
+      "branchTwist": 1,
+      "foliageDensity": 0.8,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "sakura-0",
+    "name": "サクラ・若木",
+    "latinName": "Prunus serrulata",
+    "description": "サクラをもとにした若木の樹形バリエーション。",
+    "tag": "若木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.12,
+      "initLength": 0.9,
+      "initThickness": 0.3,
+      "generations": 5,
+      "angle": 42,
+      "angleVariance": 8,
+      "seed": 31806,
+      "gravity": 0.15,
+      "branchColor": "#d8d2cb",
+      "scale": 0.78,
+      "widthDecay": 0.87,
+      "flowerColor": "#ffe8ee",
+      "flowerSize": 1.6,
+      "leafColor": "#a1ad63",
+      "leafTextureKey": "leaf_cherry",
+      "leafSize": 0.7,
+      "budColor": "#de8eae",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(65)K][^(50)K][/(90)+(50)K]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]M"
+        }
+      ],
+      "growthModel": "sakura",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "sakura-1",
+    "name": "サクラ・老木",
+    "latinName": "Prunus serrulata",
+    "description": "サクラをもとにした老木の樹形バリエーション。",
+    "tag": "老木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.38,
+      "initLength": 0.9,
+      "initThickness": 0.3,
+      "generations": 16,
+      "angle": 42,
+      "angleVariance": 8,
+      "seed": 32197,
+      "gravity": 0.15,
+      "branchColor": "#d8d2cb",
+      "scale": 0.78,
+      "widthDecay": 0.87,
+      "flowerColor": "#ffe8ee",
+      "flowerSize": 1.6,
+      "leafColor": "#a1ad63",
+      "leafTextureKey": "leaf_cherry",
+      "leafSize": 0.7,
+      "budColor": "#de8eae",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(65)K][^(50)K][/(90)+(50)K]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]M"
+        }
+      ],
+      "growthModel": "sakura",
+      "crownSpread": 1,
+      "branchTwist": 1.7,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "sakura-2",
+    "name": "サクラ・風に曲がる",
+    "latinName": "Prunus serrulata",
+    "description": "サクラをもとにした風に曲がるの樹形バリエーション。",
+    "tag": "風に曲がる",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.3,
+      "initLength": 0.9,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 42,
+      "angleVariance": 28,
+      "seed": 32588,
+      "gravity": 0.15,
+      "branchColor": "#d8d2cb",
+      "scale": 0.78,
+      "widthDecay": 0.87,
+      "flowerColor": "#ffe8ee",
+      "flowerSize": 1.6,
+      "leafColor": "#a1ad63",
+      "leafTextureKey": "leaf_cherry",
+      "leafSize": 0.7,
+      "budColor": "#de8eae",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(65)K][^(50)K][/(90)+(50)K]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]M"
+        }
+      ],
+      "growthModel": "sakura",
+      "crownSpread": 1.3,
+      "branchTwist": 2,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "sakura-3",
+    "name": "サクラ・広がる樹冠",
+    "latinName": "Prunus serrulata",
+    "description": "サクラをもとにした広がる樹冠の樹形バリエーション。",
+    "tag": "広がる樹冠",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.75,
+      "maxThickness": 0.3,
+      "initLength": 0.9,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 65,
+      "angleVariance": 8,
+      "seed": 32979,
+      "gravity": 0.15,
+      "branchColor": "#d8d2cb",
+      "scale": 0.78,
+      "widthDecay": 0.87,
+      "flowerColor": "#ffe8ee",
+      "flowerSize": 1.6,
+      "leafColor": "#a1ad63",
+      "leafTextureKey": "leaf_cherry",
+      "leafSize": 0.7,
+      "budColor": "#de8eae",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(65)K][^(50)K][/(90)+(50)K]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]M"
+        }
+      ],
+      "growthModel": "sakura",
+      "crownSpread": 1.6,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "sakura-4",
+    "name": "サクラ・細身",
+    "latinName": "Prunus serrulata",
+    "description": "サクラをもとにした細身の樹形バリエーション。",
+    "tag": "細身",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.15,
+      "maxThickness": 0.3,
+      "initLength": 0.9,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 42,
+      "angleVariance": 8,
+      "seed": 33370,
+      "gravity": 0.15,
+      "branchColor": "#d8d2cb",
+      "scale": 0.78,
+      "widthDecay": 0.87,
+      "flowerColor": "#ffe8ee",
+      "flowerSize": 1.6,
+      "leafColor": "#a1ad63",
+      "leafTextureKey": "leaf_cherry",
+      "leafSize": 0.7,
+      "budColor": "#de8eae",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(65)K][^(50)K][/(90)+(50)K]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]M"
+        }
+      ],
+      "growthModel": "sakura",
+      "crownSpread": 0.55,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "sakura-5",
+    "name": "サクラ・疎らな葉",
+    "latinName": "Prunus serrulata",
+    "description": "サクラをもとにした疎らな葉の樹形バリエーション。",
+    "tag": "疎らな葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.3,
+      "initLength": 0.9,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 42,
+      "angleVariance": 8,
+      "seed": 33761,
+      "gravity": 0.15,
+      "branchColor": "#d8d2cb",
+      "scale": 0.78,
+      "widthDecay": 0.87,
+      "flowerColor": "#ffe8ee",
+      "flowerSize": 1.6,
+      "leafColor": "#a1ad63",
+      "leafTextureKey": "leaf_cherry",
+      "leafSize": 0.7,
+      "budColor": "#de8eae",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(65)K][^(50)K][/(90)+(50)K]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]M"
+        }
+      ],
+      "growthModel": "sakura",
+      "crownSpread": 1,
+      "branchTwist": 1.5,
+      "foliageDensity": 0.4,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "sakura-6",
+    "name": "サクラ・黄葉",
+    "latinName": "Prunus serrulata",
+    "description": "サクラをもとにした黄葉の樹形バリエーション。",
+    "tag": "黄葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.3,
+      "initLength": 0.9,
+      "initThickness": 0.3,
+      "generations": 12,
+      "angle": 42,
+      "angleVariance": 8,
+      "seed": 34152,
+      "gravity": 0.15,
+      "branchColor": "#d8d2cb",
+      "scale": 0.78,
+      "widthDecay": 0.87,
+      "flowerColor": "#ffe8ee",
+      "flowerSize": 1.6,
+      "leafColor": "#c8a331",
+      "leafTextureKey": "leaf_cherry",
+      "leafSize": 0.7,
+      "budColor": "#de8eae",
+      "budSize": 0.08,
+      "premise": "FFA",
+      "rules": [
+        {
+          "expression": "A=F[&(65)K][^(50)K][/(90)+(50)K]F[!\"+A]/(120)[!\"&A]/(120)[!\"-A]/(120)[!\"^A]M"
+        }
+      ],
+      "growthModel": "sakura",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 0.8,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "fern-0",
+    "name": "シダ・若木",
+    "latinName": "Dryopteris erythrosora",
+    "description": "シダをもとにした若木の樹形バリエーション。",
+    "tag": "若木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.5,
+      "maxThickness": 0.12,
+      "initLength": 0.5,
+      "initThickness": 0.04,
+      "generations": 5,
+      "angle": 54,
+      "angleVariance": 3,
+      "seed": 3109,
+      "gravity": 0.1,
+      "branchColor": "#678343",
+      "scale": 0.73,
+      "widthDecay": 0.9,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#507b43",
+      "leafTextureKey": "fern_pinnule",
+      "leafSize": 0.7,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
+      "rules": [
+        {
+          "expression": "A=F[!\"+B][!\"-B]\"^(4)A"
+        },
+        {
+          "expression": "B=F[+(35)L][-(35)L]\"B"
+        }
+      ],
+      "growthModel": "fern",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "fern-1",
+    "name": "シダ・老木",
+    "latinName": "Dryopteris erythrosora",
+    "description": "シダをもとにした老木の樹形バリエーション。",
+    "tag": "老木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.5,
+      "maxThickness": 0.38,
+      "initLength": 0.5,
+      "initThickness": 0.04,
+      "generations": 16,
+      "angle": 54,
+      "angleVariance": 3,
+      "seed": 3500,
+      "gravity": 0.1,
+      "branchColor": "#678343",
+      "scale": 0.73,
+      "widthDecay": 0.9,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#507b43",
+      "leafTextureKey": "fern_pinnule",
+      "leafSize": 1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
+      "rules": [
+        {
+          "expression": "A=F[!\"+B][!\"-B]\"^(4)A"
+        },
+        {
+          "expression": "B=F[+(35)L][-(35)L]\"B"
+        }
+      ],
+      "growthModel": "fern",
+      "crownSpread": 1,
+      "branchTwist": 1.7,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "fern-2",
+    "name": "シダ・風に曲がる",
+    "latinName": "Dryopteris erythrosora",
+    "description": "シダをもとにした風に曲がるの樹形バリエーション。",
+    "tag": "風に曲がる",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.5,
+      "maxThickness": 0.04,
+      "initLength": 0.5,
+      "initThickness": 0.04,
+      "generations": 12,
+      "angle": 54,
+      "angleVariance": 28,
+      "seed": 3891,
+      "gravity": 0.1,
+      "branchColor": "#678343",
+      "scale": 0.73,
+      "widthDecay": 0.9,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#507b43",
+      "leafTextureKey": "fern_pinnule",
+      "leafSize": 1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
+      "rules": [
+        {
+          "expression": "A=F[!\"+B][!\"-B]\"^(4)A"
+        },
+        {
+          "expression": "B=F[+(35)L][-(35)L]\"B"
+        }
+      ],
+      "growthModel": "fern",
+      "crownSpread": 1.3,
+      "branchTwist": 2,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "fern-3",
+    "name": "シダ・広がる樹冠",
+    "latinName": "Dryopteris erythrosora",
+    "description": "シダをもとにした広がる樹冠の樹形バリエーション。",
+    "tag": "広がる樹冠",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.75,
+      "maxThickness": 0.04,
+      "initLength": 0.5,
+      "initThickness": 0.04,
+      "generations": 12,
+      "angle": 65,
+      "angleVariance": 3,
+      "seed": 4282,
+      "gravity": 0.1,
+      "branchColor": "#678343",
+      "scale": 0.73,
+      "widthDecay": 0.9,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#507b43",
+      "leafTextureKey": "fern_pinnule",
+      "leafSize": 1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
+      "rules": [
+        {
+          "expression": "A=F[!\"+B][!\"-B]\"^(4)A"
+        },
+        {
+          "expression": "B=F[+(35)L][-(35)L]\"B"
+        }
+      ],
+      "growthModel": "fern",
+      "crownSpread": 1.6,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "fern-4",
+    "name": "シダ・細身",
+    "latinName": "Dryopteris erythrosora",
+    "description": "シダをもとにした細身の樹形バリエーション。",
+    "tag": "細身",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.15,
+      "maxThickness": 0.04,
+      "initLength": 0.5,
+      "initThickness": 0.04,
+      "generations": 12,
+      "angle": 54,
+      "angleVariance": 3,
+      "seed": 4673,
+      "gravity": 0.1,
+      "branchColor": "#678343",
+      "scale": 0.73,
+      "widthDecay": 0.9,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#507b43",
+      "leafTextureKey": "fern_pinnule",
+      "leafSize": 1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
+      "rules": [
+        {
+          "expression": "A=F[!\"+B][!\"-B]\"^(4)A"
+        },
+        {
+          "expression": "B=F[+(35)L][-(35)L]\"B"
+        }
+      ],
+      "growthModel": "fern",
+      "crownSpread": 0.55,
+      "branchTwist": 1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "fern-5",
+    "name": "シダ・疎らな葉",
+    "latinName": "Dryopteris erythrosora",
+    "description": "シダをもとにした疎らな葉の樹形バリエーション。",
+    "tag": "疎らな葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.5,
+      "maxThickness": 0.04,
+      "initLength": 0.5,
+      "initThickness": 0.04,
+      "generations": 12,
+      "angle": 54,
+      "angleVariance": 3,
+      "seed": 5064,
+      "gravity": 0.1,
+      "branchColor": "#678343",
+      "scale": 0.73,
+      "widthDecay": 0.9,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#507b43",
+      "leafTextureKey": "fern_pinnule",
+      "leafSize": 1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
+      "rules": [
+        {
+          "expression": "A=F[!\"+B][!\"-B]\"^(4)A"
+        },
+        {
+          "expression": "B=F[+(35)L][-(35)L]\"B"
+        }
+      ],
+      "growthModel": "fern",
+      "crownSpread": 1,
+      "branchTwist": 1.5,
+      "foliageDensity": 0.4,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "fern-6",
+    "name": "シダ・黄葉",
+    "latinName": "Dryopteris erythrosora",
+    "description": "シダをもとにした黄葉の樹形バリエーション。",
+    "tag": "黄葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.5,
+      "maxThickness": 0.04,
+      "initLength": 0.5,
+      "initThickness": 0.04,
+      "generations": 12,
+      "angle": 54,
+      "angleVariance": 3,
+      "seed": 5455,
+      "gravity": 0.1,
+      "branchColor": "#678343",
+      "scale": 0.73,
+      "widthDecay": 0.9,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#c8a331",
+      "leafTextureKey": "fern_pinnule",
+      "leafSize": 1,
+      "budColor": "#adc76d",
+      "budSize": 0.08,
+      "premise": "[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]/(72)[&(24)A]",
+      "rules": [
+        {
+          "expression": "A=F[!\"+B][!\"-B]\"^(4)A"
+        },
+        {
+          "expression": "B=F[+(35)L][-(35)L]\"B"
+        }
+      ],
+      "growthModel": "fern",
+      "crownSpread": 1,
+      "branchTwist": 1,
+      "foliageDensity": 0.8,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "pine-0",
+    "name": "クロマツ・若木",
+    "latinName": "Pinus thunbergii",
+    "description": "クロマツをもとにした若木の樹形バリエーション。",
+    "tag": "若木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1,
+      "maxThickness": 0.12,
+      "initLength": 1,
+      "initThickness": 0.34,
+      "generations": 5,
+      "angle": 48,
+      "angleVariance": 14,
+      "seed": 7573,
+      "gravity": 0.2,
+      "branchColor": "#eeede8",
+      "scale": 0.84,
+      "widthDecay": 0.8,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#52773d",
+      "leafTextureKey": "pine_needles",
+      "leafSize": 0.7,
+      "budColor": "#c5b799",
+      "budSize": 0.16,
+      "premise": "B",
+      "rules": [
+        {
+          "expression": "# 松のパラメトリック生成。樹形は専用コントロールで調整します。"
+        }
+      ],
+      "growthModel": "pine",
+      "crownSpread": 1.1,
+      "branchTwist": 1.1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "pine-1",
+    "name": "クロマツ・老木",
+    "latinName": "Pinus thunbergii",
+    "description": "クロマツをもとにした老木の樹形バリエーション。",
+    "tag": "老木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1,
+      "maxThickness": 0.38,
+      "initLength": 1,
+      "initThickness": 0.34,
+      "generations": 16,
+      "angle": 48,
+      "angleVariance": 14,
+      "seed": 7964,
+      "gravity": 0.2,
+      "branchColor": "#eeede8",
+      "scale": 0.84,
+      "widthDecay": 0.8,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#426436",
+      "leafTextureKey": "pine_needles",
+      "leafSize": 1.3,
+      "budColor": "#c5b799",
+      "budSize": 0.16,
+      "premise": "B",
+      "rules": [
+        {
+          "expression": "# 松のパラメトリック生成。樹形は専用コントロールで調整します。"
+        }
+      ],
+      "growthModel": "pine",
+      "crownSpread": 1.1,
+      "branchTwist": 1.7,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "pine-2",
+    "name": "クロマツ・風に曲がる",
+    "latinName": "Pinus thunbergii",
+    "description": "クロマツをもとにした風に曲がるの樹形バリエーション。",
+    "tag": "風に曲がる",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1,
+      "maxThickness": 0.34,
+      "initLength": 1,
+      "initThickness": 0.34,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 28,
+      "seed": 8355,
+      "gravity": 0.2,
+      "branchColor": "#eeede8",
+      "scale": 0.84,
+      "widthDecay": 0.8,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#426436",
+      "leafTextureKey": "pine_needles",
+      "leafSize": 1.3,
+      "budColor": "#c5b799",
+      "budSize": 0.16,
+      "premise": "B",
+      "rules": [
+        {
+          "expression": "# 松のパラメトリック生成。樹形は専用コントロールで調整します。"
+        }
+      ],
+      "growthModel": "pine",
+      "crownSpread": 1.3,
+      "branchTwist": 2,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "pine-3",
+    "name": "クロマツ・広がる樹冠",
+    "latinName": "Pinus thunbergii",
+    "description": "クロマツをもとにした広がる樹冠の樹形バリエーション。",
+    "tag": "広がる樹冠",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.75,
+      "maxThickness": 0.34,
+      "initLength": 1,
+      "initThickness": 0.34,
+      "generations": 12,
+      "angle": 65,
+      "angleVariance": 14,
+      "seed": 8746,
+      "gravity": 0.2,
+      "branchColor": "#eeede8",
+      "scale": 0.84,
+      "widthDecay": 0.8,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#426436",
+      "leafTextureKey": "pine_needles",
+      "leafSize": 1.3,
+      "budColor": "#c5b799",
+      "budSize": 0.16,
+      "premise": "B",
+      "rules": [
+        {
+          "expression": "# 松のパラメトリック生成。樹形は専用コントロールで調整します。"
+        }
+      ],
+      "growthModel": "pine",
+      "crownSpread": 1.6,
+      "branchTwist": 1.1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "pine-4",
+    "name": "クロマツ・細身",
+    "latinName": "Pinus thunbergii",
+    "description": "クロマツをもとにした細身の樹形バリエーション。",
+    "tag": "細身",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.15,
+      "maxThickness": 0.34,
+      "initLength": 1,
+      "initThickness": 0.34,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 14,
+      "seed": 9137,
+      "gravity": 0.2,
+      "branchColor": "#eeede8",
+      "scale": 0.84,
+      "widthDecay": 0.8,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#426436",
+      "leafTextureKey": "pine_needles",
+      "leafSize": 1.3,
+      "budColor": "#c5b799",
+      "budSize": 0.16,
+      "premise": "B",
+      "rules": [
+        {
+          "expression": "# 松のパラメトリック生成。樹形は専用コントロールで調整します。"
+        }
+      ],
+      "growthModel": "pine",
+      "crownSpread": 0.55,
+      "branchTwist": 1.1,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "pine-5",
+    "name": "クロマツ・疎らな葉",
+    "latinName": "Pinus thunbergii",
+    "description": "クロマツをもとにした疎らな葉の樹形バリエーション。",
+    "tag": "疎らな葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1,
+      "maxThickness": 0.34,
+      "initLength": 1,
+      "initThickness": 0.34,
+      "generations": 12,
+      "angle": 48,
+      "angleVariance": 14,
+      "seed": 9528,
+      "gravity": 0.2,
+      "branchColor": "#eeede8",
+      "scale": 0.84,
+      "widthDecay": 0.8,
+      "flowerColor": "#f5bfd1",
+      "flowerSize": 0.35,
+      "leafColor": "#426436",
+      "leafTextureKey": "pine_needles",
+      "leafSize": 1.3,
+      "budColor": "#c5b799",
+      "budSize": 0.16,
+      "premise": "B",
+      "rules": [
+        {
+          "expression": "# 松のパラメトリック生成。樹形は専用コントロールで調整します。"
+        }
+      ],
+      "growthModel": "pine",
+      "crownSpread": 1.1,
+      "branchTwist": 1.5,
+      "foliageDensity": 0.4,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "oak",
+    "name": "ヨーロッパナラ",
+    "latinName": "Quercus robur",
+    "description": "太く曲がる枝が不均等に広がるオーク。丸い裂片の葉と幅のある樹冠。",
+    "tag": "広葉樹",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.95,
+      "maxThickness": 0.34,
+      "initLength": 0.95,
+      "initThickness": 0.34,
+      "generations": 14,
+      "angle": 52,
+      "angleVariance": 7,
+      "seed": 709,
+      "gravity": 0.15,
+      "branchColor": "#776351",
+      "scale": 0.81,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#567138",
+      "leafTextureKey": "leaf_oak",
+      "leafSize": 1.2,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "oak",
+      "crownSpread": 1.18,
+      "branchTwist": 1.18,
+      "foliageDensity": 1.2,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "oak-old",
+    "name": "老木のオーク",
+    "latinName": "Quercus robur",
+    "description": "張り出した太枝と丸い樹冠。枝の曲がりと左右の不均等を強めた成木。",
+    "tag": "老木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.1,
+      "maxThickness": 0.49,
+      "initLength": 1.1,
+      "initThickness": 0.49,
+      "generations": 16,
+      "angle": 67,
+      "angleVariance": 7,
+      "seed": 1215,
+      "gravity": 0.15,
+      "branchColor": "#695545",
+      "scale": 0.85,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#526b31",
+      "leafTextureKey": "leaf_oak",
+      "leafSize": 1.3,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "oak",
+      "crownSpread": 1.55,
+      "branchTwist": 1.75,
+      "foliageDensity": 1.35,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "oak-autumn",
+    "name": "秋のオーク",
+    "latinName": "Quercus robur",
+    "description": "黄褐色の丸い裂片葉を持つヨーロッパナラ。枝ぶりの見える秋の樹冠。",
+    "tag": "紅葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.96,
+      "maxThickness": 0.33,
+      "initLength": 0.96,
+      "initThickness": 0.33,
+      "generations": 14,
+      "angle": 50,
+      "angleVariance": 7,
+      "seed": 2294,
+      "gravity": 0.15,
+      "branchColor": "#786151",
+      "scale": 0.8,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#bc883c",
+      "leafTextureKey": "leaf_oak",
+      "leafSize": 1.2,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "oak",
+      "crownSpread": 1.25,
+      "branchTwist": 1.25,
+      "foliageDensity": 1,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "willow",
+    "name": "シダレヤナギ",
+    "latinName": "Salix babylonica",
+    "description": "上へ広がる主枝から長い細枝が垂れ下がり、細長い葉の幕をつくります。",
+    "tag": "枝垂れ",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.04,
+      "maxThickness": 0.29,
+      "initLength": 1.04,
+      "initThickness": 0.29,
+      "generations": 14,
+      "angle": 40,
+      "angleVariance": 7,
+      "seed": 4137,
+      "gravity": 0.2,
+      "branchColor": "#82735c",
+      "scale": 0.89,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#86a35b",
+      "leafTextureKey": "leaf_willow",
+      "leafSize": 1.12,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "willow",
+      "crownSpread": 1.24,
+      "branchTwist": 0.72,
+      "foliageDensity": 1.3,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "willow-riverside",
+    "name": "水辺のシダレヤナギ",
+    "latinName": "Salix babylonica",
+    "description": "低く広がる主枝と、足元へ垂れる長い緑の細枝。",
+    "tag": "水辺",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.16,
+      "maxThickness": 0.36,
+      "initLength": 1.16,
+      "initThickness": 0.36,
+      "generations": 16,
+      "angle": 54,
+      "angleVariance": 7,
+      "seed": 8540,
+      "gravity": 0.5,
+      "branchColor": "#74634e",
+      "scale": 0.91,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#7e9851",
+      "leafTextureKey": "leaf_willow",
+      "leafSize": 1.18,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "willow",
+      "crownSpread": 1.48,
+      "branchTwist": 0.95,
+      "foliageDensity": 1.4,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "willow-young",
+    "name": "若いシダレヤナギ",
+    "latinName": "Salix babylonica",
+    "description": "細い幹から新しい枝が伸び始め、先端がしなやかに垂れる若木。",
+    "tag": "若木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.23,
+      "initLength": 0.9,
+      "initThickness": 0.23,
+      "generations": 7,
+      "angle": 39,
+      "angleVariance": 7,
+      "seed": 6106,
+      "gravity": 0.1,
+      "branchColor": "#96816b",
+      "scale": 0.9,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#92ac62",
+      "leafTextureKey": "leaf_willow",
+      "leafSize": 1.05,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "willow",
+      "crownSpread": 0.92,
+      "branchTwist": 0.65,
+      "foliageDensity": 1.3,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "spruce",
+    "name": "ヨーロッパトウヒ",
+    "latinName": "Picea abies",
+    "description": "直立した幹と円錐形の樹冠。短い針葉が小枝の周りに一本ずつ付きます。",
+    "tag": "針葉樹",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.98,
+      "maxThickness": 0.23,
+      "initLength": 0.98,
+      "initThickness": 0.23,
+      "generations": 14,
+      "angle": 65,
+      "angleVariance": 7,
+      "seed": 9337,
+      "gravity": 0.05,
+      "branchColor": "#876d57",
+      "scale": 0.8,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#49653c",
+      "leafTextureKey": "spruce_needles",
+      "leafSize": 1,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "spruce",
+      "crownSpread": 1,
+      "branchTwist": 0.62,
+      "foliageDensity": 1.25,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "spruce-forest",
+    "name": "森のトウヒ",
+    "latinName": "Picea abies",
+    "description": "狭い樹冠で高く伸びるヨーロッパトウヒ。枝先は少し垂れ下がります。",
+    "tag": "森林",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.15,
+      "maxThickness": 0.23,
+      "initLength": 1.15,
+      "initThickness": 0.23,
+      "generations": 16,
+      "angle": 60,
+      "angleVariance": 7,
+      "seed": 7003,
+      "gravity": 0.1,
+      "branchColor": "#7f6852",
+      "scale": 0.8,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#3d5b35",
+      "leafTextureKey": "spruce_needles",
+      "leafSize": 1.08,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "spruce",
+      "crownSpread": 0.72,
+      "branchTwist": 0.75,
+      "foliageDensity": 1.4,
+      "needleLength": 1.05
+    }
+  },
+  {
+    "id": "spruce-young",
+    "name": "若いトウヒ",
+    "latinName": "Picea abies",
+    "description": "細い中央の幹に、新しい横枝が順に増えていくトウヒの若木。",
+    "tag": "若木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.85,
+      "maxThickness": 0.18,
+      "initLength": 0.85,
+      "initThickness": 0.18,
+      "generations": 7,
+      "angle": 63,
+      "angleVariance": 7,
+      "seed": 3671,
+      "gravity": 0.02,
+      "branchColor": "#8d755b",
+      "scale": 0.8,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#658150",
+      "leafTextureKey": "spruce_needles",
+      "leafSize": 0.95,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "spruce",
+      "crownSpread": 0.98,
+      "branchTwist": 0.55,
+      "foliageDensity": 1.25,
+      "needleLength": 0.9
+    }
+  },
+  {
+    "id": "ginkgo",
+    "name": "イチョウ",
+    "latinName": "Ginkgo biloba",
+    "description": "上向きの枝と短枝に集まる扇形の葉。若々しい緑の樹冠。",
+    "tag": "扇形葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.98,
+      "maxThickness": 0.28,
+      "initLength": 0.98,
+      "initThickness": 0.28,
+      "generations": 14,
+      "angle": 44,
+      "angleVariance": 7,
+      "seed": 2581,
+      "gravity": 0.03,
+      "branchColor": "#91806b",
+      "scale": 0.83,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#85a849",
+      "leafTextureKey": "leaf_ginkgo",
+      "leafSize": 1.05,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "ginkgo",
+      "crownSpread": 1.05,
+      "branchTwist": 0.7,
+      "foliageDensity": 1.05,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "ginkgo-golden",
+    "name": "黄金のイチョウ",
+    "latinName": "Ginkgo biloba",
+    "description": "扇形の葉を黄金色に染めた秋のイチョウ。長枝と短枝の違いも見えます。",
+    "tag": "黄葉",
+    "params": {
+      "growthMode": true,
+      "maxLength": 1.05,
+      "maxThickness": 0.32,
+      "initLength": 1.05,
+      "initThickness": 0.32,
+      "generations": 16,
+      "angle": 46,
+      "angleVariance": 7,
+      "seed": 5862,
+      "gravity": 0.03,
+      "branchColor": "#86745f",
+      "scale": 0.84,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#e7b934",
+      "leafTextureKey": "leaf_ginkgo",
+      "leafSize": 1.15,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "ginkgo",
+      "crownSpread": 1.18,
+      "branchTwist": 0.8,
+      "foliageDensity": 1.12,
+      "needleLength": 1
+    }
+  },
+  {
+    "id": "ginkgo-young",
+    "name": "若いイチョウ",
+    "latinName": "Ginkgo biloba",
+    "description": "中央の幹が先に伸び、短い枝から扇形葉が開き始める若木。",
+    "tag": "若木",
+    "params": {
+      "growthMode": true,
+      "maxLength": 0.9,
+      "maxThickness": 0.23,
+      "initLength": 0.9,
+      "initThickness": 0.23,
+      "generations": 7,
+      "angle": 41,
+      "angleVariance": 7,
+      "seed": 1856,
+      "gravity": 0.02,
+      "branchColor": "#94836c",
+      "scale": 0.82,
+      "widthDecay": 0.87,
+      "flowerColor": "#e2d3ae",
+      "flowerSize": 0,
+      "leafColor": "#9fbb58",
+      "leafTextureKey": "leaf_ginkgo",
+      "leafSize": 1,
+      "budColor": "#adc76d",
+      "budSize": 0.045,
+      "premise": "A",
+      "rules": [
+        {
+          "expression": "A=F[+A][-A]L"
+        }
+      ],
+      "growthModel": "ginkgo",
+      "crownSpread": 0.9,
+      "branchTwist": 0.55,
+      "foliageDensity": 1.2,
+      "needleLength": 1
+    }
+  }
+]

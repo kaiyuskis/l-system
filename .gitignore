@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+backend/target/
 dist
 dist-ssr
 *.local
@@ -239,3 +240,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Local browser verification artifacts
+.playwright-cli/
+output/playwright/
+output/revision2/
+
+# Generated model exports stay local
+/output/*.glb
+
+# SQLite application data
+/data/

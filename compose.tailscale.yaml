@@ -1,0 +1,5 @@
+# Use with: docker compose -f compose.yaml -f compose.tailscale.yaml up -d
+services:
+  komorebi:
+    ports:
+      - "${TAILSCALE_IP:?Set TAILSCALE_IP in .env}:${APP_PORT:-5173}:5173"

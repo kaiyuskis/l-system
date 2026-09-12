@@ -1,0 +1,833 @@
+import "./style.css";
+import { bakeInstances } from "./export-model.ts";
+import { generationEstimate } from "./generation-estimate.ts";
+import { prepareGrowth } from "./growth-transition.ts";
+
+import * as THREE from "three";
+import {
+  scene,
+  renderer,
+  windUniforms,
+  fitCamera,
+  fitEnvironment,
+  zoomCamera,
+  setGridVisible,
+  setEnvironmentVisible,
+  setLightingQuality,
+  setAntialias,
+  type LightingQuality,
+  setAutoRotate,
+  setWindPaused,
+  renderFrame,
+} from "./three-setup.ts";
+import { SPRUCE_NEEDLES_PER_SHOOT } from "./botanical-organs.ts";
+import { NEEDLES_PER_SHOOT } from "./pine-needles.ts";
+import { requestGeometry } from "./geometry-client.ts";
+import { buildTree, disposeTree, waitForTextures } from "./tree-renderer.ts";
+
+import {
+  builtinPresets,
+  defaultParams,
+  cloneParams,
+  validateParams,
+  readSavedPresets as readLegacyPresets,
+  loadDraft as loadLegacyDraft,
+  type PlantParams,
+} from "./studio-state.ts";
+import {
+  setupUI,
+  element,
+  escapeHTML,
+  openDialog,
+  closeDialog,
+  setToggle,
+  refreshRange,
+} from "./ui-setup.ts";
+import { readSavedPresets, writeSavedPreset, deleteSavedPreset, loadDraft, saveDraft } from "./database.ts";
+import { setupDisplay } from "./display-settings.ts";
+import { icon } from "./icons.ts";
+import { toast } from "./toast.ts";
+
+let params = cloneParams(defaultParams);
+let selectedPreset: string | null = builtinPresets[0].id;
+let projectName = "";
+let draftWarning = "";
+
+type Snapshot = { params: PlantParams; preset: string | null; name: string };
+const past: Snapshot[] = [];
+const future: Snapshot[] = [];
+let editBatch = false;
+let tree: THREE.Group | null = null;
+let generationTimer = 0;
+let playbackTimer = 0;
+let playing = false;
+let busy = false;
+let activeRun = 0;
+let revision = 0;
+let needsFit = true;
+let view: "perspective" | "front" | "top" = "perspective";
+let grid = true;
+let environment = true;
+let rotating = false;
+let wind = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let generationLimit = 10;
+let geometryController: AbortController | null = null;
+let exportBusy = false;
+let lastSuccessful: PlantParams | null = null;
+let finishGrowth: (() => void) | null = null;
+let growthSettled: Promise<void> = Promise.resolve();
+let antialias = true;
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+function snapshot(): Snapshot {
+  return {
+    params: cloneParams(params),
+    preset: selectedPreset,
+    name: projectName,
+  };
+}
+function remember() {
+  past.push(snapshot());
+  if (past.length > 40) past.shift();
+  future.length = 0;
+  ui.history(past.length > 0, false);
+}
+function sync() {
+  generationLimit = params.growthModel !== "lsystem" ? 16 : Math.min(generationLimit, 10);
+  ui.sync(params);
+  updateGenerationLimit();
+  ui.selection(selectedPreset, projectName || undefined);
+  ui.history(past.length > 0, future.length > 0);
+}
+function restore(state: Snapshot) {
+  stopPlayback();
+  params = cloneParams(state.params);
+  selectedPreset = state.preset;
+  projectName = state.name;
+  editBatch = false;
+  needsFit = true;
+  sync();
+  schedule(0);
+}
+function selectPreset(id: string) {
+  const preset = builtinPresets.find((item) => item.id === id);
+  if (!preset) return;
+  stopPlayback();
+  remember();
+  params = cloneParams(preset.params);
+  selectedPreset = id;
+  projectName = "";
+  editBatch = false;
+  needsFit = true;
+  sync();
+  schedule(0);
+}
+function change(key: keyof PlantParams, value: PlantParams[keyof PlantParams]) {
+  stopPlayback();
+  if (!editBatch) {
+    remember();
+    editBatch = true;
+  }
+  params = { ...params, [key]: value };
+  if (key === "growthModel") {
+    const species = builtinPresets.find(item => item.id === value);
+    params.generations = Math.min(params.generations, value === "lsystem" ? 10 : 16);
+    if (species) {
+      params.leafTextureKey = species.params.leafTextureKey;
+      selectedPreset = species.id;
+    } else {
+      selectedPreset = null;
+      if (params.rules.every(rule => !rule.expression.trim() || rule.expression.trim().startsWith("#"))) {
+        params.premise = "FFA";
+        params.rules = [{expression:'A=F[+(50)L][-(50)L][!"+A][!"-A]'}];
+      }
+    }
+    needsFit = true;
+  }
+  sync();
+  schedule(key === "generations" ? 0 : key === "rules" || key === "premise" ? 550 : 180);
+}
+function schedule(delay = 180) {
+  clearTimeout(generationTimer);
+  revision++;
+  geometryController?.abort();
+  generationTimer = window.setTimeout(() => {
+    void regenerate();
+  }, delay);
+}
+function updateGenerationLimit() {
+  const timeline = element<HTMLInputElement>("timeline-generation");
+  if (timeline.dataset.scrubbing || (playing && finishGrowth)) return;
+  let estimate = document.getElementById("generation-estimate");
+  if (!estimate) {
+    estimate = document.createElement("small");
+    estimate.id = "generation-estimate";
+    estimate.className = "generation-estimate";
+    timeline.parentElement!.append(estimate);
+  }
+  estimate.textContent = generationEstimate(params);
+  timeline.max = String(Math.max(generationLimit, params.generations, 1));
+  timeline.value = String(params.generations);
+  refreshRange(timeline);
+  document.querySelector<HTMLElement>(".timeline-label .muted")!.textContent =
+    `/ ${timeline.max}`;
+
+}
+async function regenerate(): Promise<boolean> {
+  const run = ++activeRun;
+  const thisRevision = revision;
+  busy = true;
+  if (!playing) ui.busy(true);
+  ui.error("");
+  // Give the browser a painted loading state before bounded CPU/GPU work.
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => window.setTimeout(resolve, 0)),
+  );
+  if (thisRevision !== revision || run !== activeRun) {
+    if (run === activeRun) {
+      busy = false;
+      ui.busy(false);
+    }
+    return false;
+  }
+  let nextTree: THREE.Group | null = null;
+  try {
+    const start = performance.now();
+    const validated = validateParams(params);
+    geometryController?.abort();
+    const controller = new AbortController();
+    geometryController = controller;
+    const data = await requestGeometry(validated, controller.signal);
+    if (thisRevision !== revision || run !== activeRun) return false;
+    nextTree = buildTree(data, validated);
+    // Finish the visible extension before replacing its topology. Rapid slider
+    // edits coalesce to the latest revision without jumping to a hidden endpoint.
+    await growthSettled;
+    if (thisRevision !== revision || run !== activeRun) {
+      disposeTree(nextTree);
+      nextTree = null;
+      return false;
+    }
+    generationLimit = data.meta.generationLimit;
+    finishGrowth?.();
+    const height = new THREE.Box3()
+      .setFromObject(nextTree)
+      .getSize(new THREE.Vector3()).y;
+    const previousTree = tree;
+    const previousParams = lastSuccessful;
+    const onlyAgeChanged = previousParams && previousParams.generations !== validated.generations &&
+      JSON.stringify({ ...previousParams, generations: 0 }) === JSON.stringify({ ...validated, generations: 0 });
+    const canMorph = previousTree && onlyAgeChanged && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (canMorph) {
+      nextTree.visible = false;
+    }
+    scene.add(nextTree);
+    tree = nextTree;
+    nextTree = null;
+    lastSuccessful = cloneParams(validated);
+    if (!playing) {
+      fitEnvironment(tree);
+      if (needsFit) {
+        fitCamera(tree, view);
+        needsFit = false;
+      }
+    }
+    if (canMorph) {
+      const growing = validated.generations > previousParams!.generations;
+      const large = growing ? tree : previousTree!;
+      const small = growing ? previousTree! : tree;
+      const morph = prepareGrowth(large, small);
+      morph.update(growing ? 0 : 1);
+      large.visible = true;
+      small.visible = false;
+      const playbackTransition = playing;
+      const started = performance.now();
+      const duration = playbackTransition ? 1100 : Math.min(1600, 650 + Math.abs(validated.generations - previousParams!.generations) * 80);
+      let frame = 0;
+      const current = tree;
+      let resolveGrowth!: () => void;
+      growthSettled = new Promise<void>(resolve => { resolveGrowth = resolve; });
+      finishGrowth = () => {
+        cancelAnimationFrame(frame);
+        morph.finish();
+        current.visible = true;
+        disposeTree(previousTree);
+        finishGrowth = null;
+        resolveGrowth();
+        element("growth-status").hidden = true;
+        if (!playing) element("model-empty").hidden = current.children.length > 0;
+      };
+      element("growth-status").hidden = false;
+      const animate = (now: number) => {
+        const progress = Math.min(1, (now - started) / duration);
+        morph.update(growing ? progress : 1 - progress, !playbackTransition);
+        const eased = playbackTransition ? progress : THREE.MathUtils.smoothstep(progress, 0, 1);
+        const displayed = previousParams!.generations + (validated.generations - previousParams!.generations) * eased;
+        element("growth-status").textContent = `表示 ${displayed.toFixed(1)} 世代`;
+        if (playing && !element<HTMLInputElement>("timeline-generation").dataset.scrubbing) {
+          const timeline = element<HTMLInputElement>("timeline-generation");
+          timeline.value = String(displayed);
+          refreshRange(timeline);
+          element("generation-value").textContent = displayed.toFixed(1);
+        }
+        if (progress >= 1) finishGrowth?.();
+        else frame = requestAnimationFrame(animate);
+      };
+      frame = requestAnimationFrame(animate);
+    } else if (previousTree) disposeTree(previousTree);
+    ui.metrics(
+      data.meta.branches,
+      validated.leafTextureKey === "pine_needles" ? data.leaves.count * NEEDLES_PER_SHOOT : validated.leafTextureKey === "spruce_needles" ? data.leaves.count * SPRUCE_NEEDLES_PER_SHOOT : data.leaves.count + data.flowers.count + data.buds.count,
+      height,
+      performance.now() - start,
+      data.meta.preview,
+      data.meta.symbolCount,
+    );
+    if (finishGrowth) element("model-empty").hidden = true;
+    element("metric-organ-label").textContent = ["pine_needles", "spruce_needles"].includes(validated.leafTextureKey) ? "針葉" : "葉・花";
+    updateGenerationLimit();
+    try {
+      await saveDraft(validated);
+      element("autosave-status").textContent =
+        "データベースに作業内容を自動保存";
+    } catch (error) {
+      element("autosave-status").textContent =
+        "自動保存できません。JSONで書き出せます";
+      if (!draftWarning) {
+        draftWarning = message(error);
+        toast(draftWarning, "error", 5500);
+      }
+    }
+    editBatch = false;
+    busy = false;
+    ui.busy(false);
+    if (playing) {
+      if (validated.generations >= generationLimit) {
+        void growthSettled.then(() => {
+          if (thisRevision === revision && playing) { stopPlayback(); sync(); }
+        });
+      } else {
+        // Fetch/build the next generation while the current one is extending.
+        // regenerate waits for growthSettled before swapping visible geometry.
+        playbackTimer = window.setTimeout(() => {
+          if (!playing) return;
+          params.generations = Math.min(generationLimit, validated.generations + 1);
+          schedule(0);
+        }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1100 : 0);
+      }
+    }
+    return true;
+  } catch (error) {
+    if (nextTree) disposeTree(nextTree);
+    if (run !== activeRun || thisRevision !== revision) return false;
+    ui.error(message(error));
+    editBatch = false;
+    stopPlayback();
+    return false;
+  } finally {
+    if (run === activeRun) {
+      busy = false;
+      ui.busy(false);
+    }
+  }
+}
+function stopPlayback() {
+  const wasPlaying = playing;
+  if (playing) {
+    revision++;
+    clearTimeout(generationTimer);
+    geometryController?.abort();
+    if (lastSuccessful) params.generations = lastSuccessful.generations;
+  }
+  playing = false;
+  clearTimeout(playbackTimer);
+  ui?.playing(false);
+  if (wasPlaying) {
+    sync();
+    if (tree) fitEnvironment(tree);
+  }
+}
+function togglePlayback() {
+  if (playing) {
+    stopPlayback();
+    return;
+  }
+  if (busy && !tree) return;
+  remember();
+  playing = true;
+  ui.playing(true);
+  element("model-empty").hidden = true;
+  if (tree) fitEnvironment(tree);
+  params.generations = params.generations >= generationLimit ? 1 : Math.min(generationLimit, params.generations + 1);
+  schedule(0);
+}
+function saveBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+function filename() {
+  return (
+    projectName ||
+    builtinPresets.find((preset) => preset.id === selectedPreset)?.name ||
+    "komorebi"
+  ).replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+}
+async function ensureCurrentTree(): Promise<boolean> {
+  clearTimeout(generationTimer);
+  while (busy)
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 20));
+  const current = (
+    JSON.stringify(lastSuccessful) === JSON.stringify(params) ||
+    (await regenerate())
+  );
+  finishGrowth?.();
+  return current;
+}
+function showSave() {
+  openDialog(
+    "この樹木に、名前を。",
+    `<p class="dialog-description">いまのルールと設定をマイライブラリに保存します。保存先はサーバーのデータベースです。</p><form id="save-form"><label class="dialog-field-label" for="save-name">作品名</label><input class="text-input" id="save-name" name="name" maxlength="80" required placeholder="例：風にゆれるシラカバ" value="${escapeHTML(projectName || `${builtinPresets.find((p) => p.id === selectedPreset)?.name || "樹木"}のスケッチ`)}"/><p id="save-feedback" class="control-help" role="status"></p><div class="dialog-actions"><button type="button" class="button button-quiet" id="save-cancel">キャンセル</button><button class="button button-dark" type="submit">${icon("save")}ライブラリに保存</button></div></form>`,
+    "SAVE YOUR SPECIMEN",
+  );
+  element("save-cancel").addEventListener("click", closeDialog);
+  element<HTMLInputElement>("save-name").focus();
+  element<HTMLInputElement>("save-name").select();
+  let overwriteName = "";
+  element("save-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = element<HTMLInputElement>("save-name").value.trim();
+    try {
+      validateParams(params);
+      stopPlayback();
+      if (!(await ensureCurrentTree()))
+        throw new Error("生成ルールのエラーを修正してから保存してください。");
+      if (
+        (await readSavedPresets()).some((item) => item.name === name) &&
+        overwriteName !== name
+      ) {
+        overwriteName = name;
+        element("save-feedback").textContent =
+          "同じ名前の作品があります。もう一度「保存」を押すと置き換えます。";
+        return;
+      }
+      await writeSavedPreset(name, params);
+      projectName = name;
+      sync();
+      closeDialog();
+      toast(`「${name}」を保存しました。`, "success");
+    } catch (error) {
+      element("save-feedback").textContent = message(error);
+    }
+  });
+}
+async function showLibrary() {
+  try {
+    const saved = await readSavedPresets();
+    openDialog(
+      "マイライブラリ",
+      `<p class="dialog-description">保存したモデルを開いて編集できます。ルールと設定から形状を再現します。</p><div class="library-list">${saved.length ? saved.map((item, index) => `<div class="library-item"><div><strong>${escapeHTML(item.name)}</strong><small>${new Date(item.savedAt).toLocaleDateString("ja-JP")} · ${item.data.generations} 世代 · seed ${item.data.seed}</small></div><button class="button" data-load="${index}">ひらく</button><button class="icon-button" data-delete="${index}" aria-label="${escapeHTML(item.name)}を削除">${icon("trash")}</button></div>`).join("") : `<div class="library-empty">${icon("sprout")}保存したモデルはありません。<br>モデルを保存すると、ここに表示されます。</div>`}</div><div class="dialog-actions"><button class="button button-quiet" id="library-migrate">旧ブラウザー保存を取り込む</button><button class="button button-quiet" id="library-import">${icon("upload")}JSONを読み込む</button><button class="button button-dark" id="library-save">${icon("save")}いまの樹木を保存</button></div>`,
+      "YOUR COLLECTION",
+    );
+    element("library-migrate").addEventListener("click", async () => {
+      const button = element<HTMLButtonElement>("library-migrate");
+      button.disabled = true;
+      try {
+        const existing = new Set((await readSavedPresets()).map(item => item.name));
+        let count = 0;
+        for (const item of readLegacyPresets()) {
+          if (existing.has(item.name)) continue;
+          await writeSavedPreset(item.name, item.data); count++;
+        }
+        await showLibrary();
+        toast(`${count}件を取り込みました。同名の作品と元データは保持されます。`, "success");
+      } catch (error) { toast(message(error), "error"); button.disabled = false; }
+    });
+    element("library-import").addEventListener("click", () =>
+      element<HTMLInputElement>("import-file").click(),
+    );
+    element("library-save").addEventListener("click", showSave);
+    document
+      .querySelectorAll<HTMLButtonElement>("[data-load]")
+      .forEach((button) =>
+        button.addEventListener("click", () => {
+          const item = saved[Number(button.dataset.load)];
+          remember();
+          restore({
+            params: item.data,
+            preset:
+              builtinPresets.find(
+                (p) =>
+                  JSON.stringify(validateParams(p.params)) ===
+                  JSON.stringify(validateParams(item.data)),
+              )?.id ?? null,
+            name: item.name,
+          });
+          closeDialog();
+          toast(`「${item.name}」を読み込みました。`, "success");
+        }),
+      );
+    document
+      .querySelectorAll<HTMLButtonElement>("[data-delete]")
+      .forEach((button) =>
+        button.addEventListener("click", async () => {
+          const item = saved[Number(button.dataset.delete)];
+          if (button.dataset.confirm !== "true") {
+            button.dataset.confirm = "true";
+            button.innerHTML = icon("check");
+            button.title = "もう一度押すと削除します";
+            toast("もう一度チェックを押すと、この作品を削除します。");
+            return;
+          }
+          try {
+            await deleteSavedPreset(item.name);
+            showLibrary();
+            toast(`「${item.name}」を削除しました。`);
+          } catch (error) {
+            toast(message(error), "error");
+          }
+        }),
+      );
+  } catch (error) {
+    toast(message(error), "error", 6000);
+  }
+}
+function showExport() {
+  openDialog(
+    "モデルを書き出す",
+    `<p class="dialog-description">用途に合わせてファイル形式を選択してください。</p><button class="export-option" data-export="png">${icon("image")}<span><strong>プレビュー画像</strong><small>いまの視点と背景を、そのまま画像に。</small></span><b>PNG</b></button><button class="export-option" data-export="glb">${icon("cube")}<span><strong>Blender用 3Dモデル</strong><small>GLB：材質・テクスチャを同梱。BlenderのglTF 2.0読み込みに対応。</small></span><b>GLB</b></button><button class="export-option" data-export="json">${icon("code")}<span><strong>ルールと設定</strong><small>バックアップや、別のブラウザーでの再編集に。</small></span><b>JSON</b></button><p class="control-help">葉・針葉も編集可能なメッシュで保存します。密度が高いほど容量と処理時間が増えます。風のアニメーションは含みません。高さはモデル内の相対単位です。</p><div class="dialog-actions"><button class="button button-quiet" id="export-import">${icon("upload")}JSONを読み込む</button></div>`,
+    "EXPORT",
+  );
+  element("export-import").addEventListener("click", () =>
+    element<HTMLInputElement>("import-file").click(),
+  );
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-export]")
+    .forEach((button) =>
+      button.addEventListener("click", () => {
+        void exportFile(button.dataset.export!, button);
+      }),
+    );
+}
+async function exportFile(format: string, button: HTMLButtonElement) {
+  if (exportBusy) return;
+  stopPlayback();
+  exportBusy = true;
+  button.disabled = true;
+  try {
+    if (!(await ensureCurrentTree()))
+      throw new Error("生成ルールのエラーを修正してから書き出してください。");
+    if (format === "json") {
+      const payload = {
+        format: "komorebi-lsystem",
+        version: 1,
+        name: filename(),
+        params: validateParams(params),
+      };
+      saveBlob(
+        new Blob([JSON.stringify(payload, null, 2)], {
+          type: "application/json",
+        }),
+        `${filename()}.json`,
+      );
+    } else {
+      if (!tree?.children.length)
+        throw new Error(
+          "まだ樹木がありません。世代を進めてから書き出してください。",
+        );
+      await waitForTextures();
+      if (format === "png") {
+        renderFrame();
+        const blob = await new Promise<Blob>((resolve, reject) =>
+          renderer.domElement.toBlob(
+            (value) =>
+              value
+                ? resolve(value)
+                : reject(new Error("画像の書き出しに失敗しました。")),
+            "image/png",
+          ),
+        );
+        saveBlob(blob, `${filename()}.png`);
+      } else {
+        const { GLTFExporter } =
+          await import("three/examples/jsm/exporters/GLTFExporter.js");
+        // Bake taper into ordinary geometry only for export. The display stays instanced.
+        const exportParams = cloneParams(lastSuccessful!);
+        const exported = buildTree(
+          await requestGeometry(exportParams, undefined, true),
+          exportParams,
+        );
+        let result: ArrayBuffer | { [key: string]: unknown };
+        try {
+          exported.name = filename();
+          bakeInstances(exported);
+          exported.traverse((object) => {
+            if (object instanceof THREE.Mesh)
+              object.geometry.deleteAttribute("aThickness");
+          });
+          result = await new GLTFExporter().parseAsync(exported, {
+            binary: true,
+            maxTextureSize: 1024,
+          });
+        } finally {
+          disposeTree(exported);
+        }
+        if (!(result instanceof ArrayBuffer))
+          throw new Error("3Dモデルの書き出しに失敗しました。");
+        saveBlob(
+          new Blob([result], { type: "model/gltf-binary" }),
+          `${filename()}.glb`,
+        );
+      }
+    }
+    closeDialog();
+    toast(`${format.toUpperCase()}を書き出しました。`, "success");
+  } catch (error) {
+    toast(message(error), "error", 5500);
+  } finally {
+    exportBusy = false;
+    button.disabled = false;
+  }
+}
+function showHelp() {
+  openDialog(
+    "ルールから、自然を描く。",
+    `<p class="dialog-description">L-system は、文字を繰り返し置き換えることで、植物のような枝分かれをつくる仕組みです。ここでは自由な植物のスケッチを楽しめます。</p><ol class="help-steps"><li>「はじめの一粒」から植物を選びます。</li><li>「かたち」「質感」で表情を整えます。</li><li>下の再生ボタンで、世代ごとの成長を観察。</li><li>気に入った樹木は保存、または書き出し。</li></ol><h3 class="help-heading">ルールの基本</h3><div class="help-grid"><code>F / f</code><span>枝を描いて前進 / 描かずに前進</span><code>L K M</code><span>葉 / 花 / つぼみを配置</span><code>+ -</code><span>左右に回転</span><code>&amp; ^</code><span>前後に傾く</span><code>/ \\</code><span>枝の軸を中心に回転</span><code>[ ]</code><span>現在位置を保存 / その位置に戻る</span><code>! &quot;</code><span>太さ / 長さを減衰</span><code>|</code><span>180度向きを変える</span><code>F(2)</code><span>長さ2の枝。+(30) は30度回転。括弧内では四則演算も使えます。</span></div><p class="control-help">例：公理を A、ルールを A=F[+A][-A] にすると、二股の枝が繰り返し生まれます。文字を消すルール A= も使えます。# で始まる行はコメントです。</p><h3 class="help-heading">便利な操作</h3><p class="control-help">F：樹木全体を表示　Space：成長を再生 / 停止<br>Ctrl / ⌘ + Z：元に戻す　Shift を加えるとやり直し<br>Ctrl / ⌘ + S：保存　Ctrl / ⌘ + Enter：生成<br>スマートフォン：1本指で回転、2本指で移動・拡大</p><p class="control-help">保存データはサーバーのデータベースに保管され、同じサーバーに接続した端末間で共有されます。バックアップにはJSON書き出しを使ってください。プリセットは樹木の形を楽しむための表現で、生物学的な成長を正確に再現するものではありません。</p>`,
+    "A LITTLE FIELD GUIDE",
+  );
+}
+function action(name: string) {
+  switch (name) {
+    case "scrub-generation":
+      stopPlayback();
+      clearTimeout(generationTimer);
+      revision++;
+      geometryController?.abort();
+      break;
+    case "generate":
+      stopPlayback();
+      schedule(0);
+      break;
+    case "reset":
+      selectPreset(selectedPreset ?? builtinPresets[0].id);
+      break;
+    case "randomize":
+      change("seed", crypto.getRandomValues(new Uint32Array(1))[0]);
+      break;
+    case "undo": {
+      const state = past.pop();
+      if (state) {
+        future.push(snapshot());
+        restore(state);
+      }
+      break;
+    }
+    case "redo": {
+      const state = future.pop();
+      if (state) {
+        past.push(snapshot());
+        restore(state);
+      }
+      break;
+    }
+    case "save":
+      showSave();
+      break;
+    case "open-library":
+      showLibrary();
+      break;
+    case "export":
+      showExport();
+      break;
+    case "help":
+      showHelp();
+      break;
+    case "fit-camera":
+      if (tree) fitCamera(tree, view);
+      break;
+    case "zoom-in":
+      zoomCamera(0.75);
+      break;
+    case "zoom-out":
+      zoomCamera(1 / 0.75);
+      break;
+    case "view-perspective":
+    case "view-front":
+    case "view-top":
+      view = name.replace("view-", "") as typeof view;
+      ["perspective", "front", "top"].forEach((item) =>
+        setToggle(`view-${item}`, item === view),
+      );
+      if (tree) fitCamera(tree, view);
+      break;
+    case "toggle-environment":
+      environment = !environment;
+      setEnvironmentVisible(environment);
+      setToggle(name, environment);
+      break;
+    case "toggle-grid":
+      grid = !grid;
+      setGridVisible(grid);
+      setToggle(name, grid);
+      break;
+    case "toggle-antialias":
+      antialias = !antialias;
+      setAntialias(antialias);
+      setToggle(name, antialias);
+      try { localStorage.setItem("komorebi_antialias", String(antialias)); } catch { /* Session only. */ }
+      break;
+    case "toggle-rotate":
+      rotating = !rotating;
+      setAutoRotate(rotating);
+      setToggle(name, rotating);
+      break;
+    case "toggle-wind":
+      wind = !wind;
+      setWindPaused(!wind);
+      windUniforms.strength.value = wind
+        ? Number(element<HTMLInputElement>("wind-strength").value)
+        : 0;
+      setToggle(name, wind);
+      break;
+    case "play-growth":
+      togglePlayback();
+      break;
+  }
+}
+const ui = setupUI({ change, preset: selectPreset, action });
+try { antialias = localStorage.getItem("komorebi_antialias") !== "false"; } catch { /* Session only. */ }
+setAntialias(antialias);
+setToggle("toggle-antialias", antialias);
+setToggle("toggle-environment", environment);
+setToggle("toggle-grid", grid);
+const qualityControl = element<HTMLSelectElement>("lighting-quality");
+try {
+  const saved = localStorage.getItem("komorebi_lighting_quality");
+  if (saved === "low" || saved === "medium" || saved === "high") qualityControl.value = saved;
+} catch { /* Rendering remains available without browser storage. */ }
+setLightingQuality(qualityControl.value as LightingQuality);
+qualityControl.addEventListener("change", () => {
+  setLightingQuality(qualityControl.value as LightingQuality);
+  try { localStorage.setItem("komorebi_lighting_quality", qualityControl.value); } catch { /* Session only. */ }
+});
+
+sync();
+setToggle("toggle-wind", wind);
+setWindPaused(!wind);
+windUniforms.strength.value = wind ? 0.8 : 0;
+element<HTMLInputElement>("wind-strength").addEventListener(
+  "input",
+  (event) => {
+    const input = event.target as HTMLInputElement;
+    refreshRange(input);
+    wind = Number(input.value) > 0;
+    setWindPaused(!wind);
+    setToggle("toggle-wind", wind);
+    windUniforms.strength.value = Number(input.value);
+  },
+);
+refreshRange(element<HTMLInputElement>("wind-strength"));
+element<HTMLInputElement>("import-file").addEventListener(
+  "change",
+  async (event) => {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 1_000_000)
+        throw new Error("設定ファイルは1MB以下にしてください。");
+      const raw: unknown = JSON.parse(await file.text());
+      let data = raw;
+      let name = file.name.replace(/\.json$/i, "");
+      if (raw && typeof raw === "object" && "params" in raw) {
+        const record = raw as Record<string, unknown>;
+        if (record.format !== "komorebi-lsystem" || record.version !== 1)
+          throw new Error(
+            "この設定ファイルの形式またはバージョンには対応していません。",
+          );
+        data = record.params;
+        if (typeof record.name === "string") name = record.name.slice(0, 80);
+      }
+      const imported = validateParams(data);
+      await requestGeometry(imported);
+      remember();
+      restore({ params: imported, preset: null, name });
+      closeDialog();
+      toast("設定ファイルを読み込みました。", "success");
+    } catch (error) {
+      toast(message(error), "error", 5500);
+    } finally {
+      input.value = "";
+    }
+  },
+);
+window.addEventListener("keydown", (event) => {
+  const editing =
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement ||
+    event.target instanceof HTMLSelectElement ||
+    (event.target instanceof HTMLElement && event.target.isContentEditable);
+  const modifier = event.ctrlKey || event.metaKey;
+  if (element<HTMLDialogElement>("studio-dialog").open) return;
+  if (modifier && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    showSave();
+    return;
+  }
+  if (modifier && event.key === "Enter") {
+    event.preventDefault();
+    action("generate");
+    return;
+  }
+  if (editing) return;
+  if (modifier && event.key.toLowerCase() === "z") {
+    event.preventDefault();
+    action(event.shiftKey ? "redo" : "undo");
+  } else if (modifier && event.key.toLowerCase() === "y") {
+    event.preventDefault();
+    action("redo");
+  } else if (
+    event.code === "Space" &&
+    !(event.target instanceof HTMLButtonElement)
+  ) {
+    event.preventDefault();
+    action("play-growth");
+  } else if (event.key.toLowerCase() === "f") action("fit-camera");
+});
+setupDisplay();
+void (async () => {
+try {
+  const draft = await loadDraft() ?? loadLegacyDraft();
+  if (draft && revision === 0) {
+    params = draft;
+    selectedPreset =
+      builtinPresets.find(
+        (preset) =>
+          JSON.stringify(validateParams(preset.params)) === JSON.stringify(validateParams(params)),
+      )?.id ?? null;
+  }
+} catch (error) {
+  draftWarning = message(error);
+}
+
+ sync();
+ if (draftWarning) toast(draftWarning, "error", 6500);
+ schedule(0);
+})();
+if (import.meta.hot)
+  import.meta.hot.dispose(() => {
+
+    geometryController?.abort();
+    clearTimeout(generationTimer);
+    clearTimeout(playbackTimer);
+    finishGrowth?.();
+    if (tree) disposeTree(tree);
+  });

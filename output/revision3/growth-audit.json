@@ -1,0 +1,56 @@
+[
+  {
+    "species": "pine",
+    "vertices": 125396,
+    "setupMs": 55,
+    "frameMs": 1.04
+  },
+  {
+    "species": "birch",
+    "vertices": 190200,
+    "setupMs": 77,
+    "frameMs": 2.1
+  },
+  {
+    "species": "maple",
+    "vertices": 268750,
+    "setupMs": 107,
+    "frameMs": 1.78
+  },
+  {
+    "species": "sakura",
+    "vertices": 196694,
+    "setupMs": 64,
+    "frameMs": 1.6
+  },
+  {
+    "species": "fern",
+    "vertices": 74162,
+    "setupMs": 49,
+    "frameMs": 0.72
+  },
+  {
+    "species": "oak",
+    "vertices": 19775,
+    "setupMs": 6,
+    "frameMs": 0.15
+  },
+  {
+    "species": "willow",
+    "vertices": 57039,
+    "setupMs": 38,
+    "frameMs": 0.73
+  },
+  {
+    "species": "spruce",
+    "vertices": 140215,
+    "setupMs": 58,
+    "frameMs": 1.04
+  },
+  {
+    "species": "ginkgo",
+    "vertices": 45859,
+    "setupMs": 24,
+    "frameMs": 0.56
+  }
+]

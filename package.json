@@ -1,0 +1,19 @@
+{
+  "name": "l-system",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "postinstall": "node scripts/run.mjs install",
+    "dev": "node scripts/run.mjs dev",
+    "api": "node scripts/run.mjs api",
+    "start": "node scripts/run.mjs start",
+    "build": "node scripts/run.mjs build",
+    "build:web": "node scripts/run.mjs build:web",
+    "test:web": "node scripts/run.mjs test:web",
+    "test": "node scripts/run.mjs test",
+    "typecheck": "node scripts/run.mjs typecheck"
+  }
+}

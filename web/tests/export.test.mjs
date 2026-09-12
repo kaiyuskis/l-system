@@ -1,0 +1,22 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { bakeInstances } from '../src/export-model.ts';
+test('Blender baking preserves instance position and color without instancing extensions', () => {
+ const root = new THREE.Group();
+ const material = new THREE.MeshStandardMaterial({vertexColors:true});
+ const geometry = new THREE.BoxGeometry(1,1,1);
+ const source = new THREE.InstancedMesh(geometry, material, 2);
+ source.setMatrixAt(0,new THREE.Matrix4().makeTranslation(-2,0,0));
+ source.setMatrixAt(1,new THREE.Matrix4().makeTranslation(3,0,0));
+ source.setColorAt(0,new THREE.Color(1,0,0)); source.setColorAt(1,new THREE.Color(0,1,0));
+ root.add(source); bakeInstances(root);
+ assert.equal(root.children.length,1);
+ const baked=root.children[0]; assert.equal(baked.isInstancedMesh,undefined);
+ baked.geometry.computeBoundingBox();
+ assert.equal(baked.geometry.boundingBox.min.x,-2.5);
+ assert.equal(baked.geometry.boundingBox.max.x,3.5);
+ const colors=baked.geometry.getAttribute('color');
+ assert.equal(colors.getX(0),1); assert.equal(colors.getY(24),1);
+ baked.geometry.dispose(); material.dispose();
+});
